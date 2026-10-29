@@ -9,21 +9,22 @@ import assert from 'node:assert/strict';
 
 /** Just enough of a node: children, a parent, a `dataset` and a `style`, and the slot's `assign`. */
 class Fake {
-  declare childNodes: any[] | undefined;
+  declare childNodes: any[];
+  declare parentNode: any;
   declare assigned: any[] | undefined;
-  constructor(tagName) { Object.assign(this, { tagName, nodeType: 1, childNodes: [], dataset: {}, style: {}, parentNode: null, assigned: [] }); }
-  appendChild(node) { node.parentNode?.childNodes.splice(node.parentNode.childNodes.indexOf(node), 1); node.parentNode = this; this.childNodes.push(node); return node; }
-  replaceChildren(...nodes) { this.childNodes = []; for (const n of nodes) this.appendChild(n); }
-  assign(...nodes) { this.assigned = nodes; }
+  constructor(tagName: any) { Object.assign(this, { tagName, nodeType: 1, childNodes: [], dataset: {}, style: {} as any, parentNode: null, assigned: [] }); }
+  appendChild(node: any) { node.parentNode?.childNodes.splice(node.parentNode.childNodes.indexOf(node), 1); node.parentNode = this; this.childNodes.push(node); return node; }
+  replaceChildren(...nodes: any[]) { this.childNodes = []; for (const n of nodes) this.appendChild(n); }
+  assign(...nodes: any[]) { this.assigned = nodes; }
 }
-const doc = { createElement: (tag) => new Fake(tag), createTextNode: (data) => Object.assign(new Fake('#text'), { nodeType: 3, data }) };
-globalThis.customElements = { get: () => undefined, define: () => {} };
-globalThis.HTMLElement = class extends Fake { constructor() { super('beltype-page'); this.ownerDocument = doc; } attachShadow() { return (this.shadow = new Fake('#shadow')); } };
-const { BeltypePage } = await import('../src/chase.ts');
+const doc = { createElement: (tag: any) => new Fake(tag), createTextNode: (data: any) => Object.assign(new Fake('#text'), { nodeType: 3, data }) };
+(globalThis as any).customElements = { get: () => undefined, define: () => {} };
+(globalThis as any).HTMLElement = class extends Fake { declare ownerDocument: any; declare shadow: any; constructor() { super('beltype-page'); this.ownerDocument = doc; } attachShadow() { return (this.shadow = new Fake('#shadow')); } };
+const BeltypePage: new () => any = (await import('../src/chase.ts')).BeltypePage;
 
 /** The margin cell a page keeps for a box: the shadow's descendant marked with the box's name. */
-function cellOf(page, box) {
-  const find = (node) => (node.dataset?.box === box ? node : node.childNodes.map(find).find(Boolean));
+function cellOf(page: any, box: any) {
+  const find = (node: any) => (node.dataset?.box === box ? node : node.childNodes.map(find).find(Boolean));
   return find(page.shadow);
 }
 

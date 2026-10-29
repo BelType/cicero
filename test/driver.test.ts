@@ -6,8 +6,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parityOf, combineParity, forcingIndexOf, castOffWords, firstPageWords } from '../src/driver.ts';
-import { normalizePath, pathOf } from '../src/positions.ts';
+import { parityOf, combineParity, forcingIndexOf as forcingIndexOfTyped, castOffWords, firstPageWords } from '../src/driver.ts';
+import { normalizePath as normalizePathTyped, pathOf as pathOfTyped } from '../src/positions.ts';
+import { byShape } from './fakes.ts';
+
+const forcingIndexOf = byShape(forcingIndexOfTyped);
+const normalizePath = byShape(normalizePathTyped);
+const pathOf = byShape(pathOfTyped);
 
 test('the parity four demand a side; page and auto demand none (css-break-3 §3.1)', () => {
   assert.equal(parityOf('left'), 'left');
@@ -37,25 +42,25 @@ test('§4.3: a forced value carrying no parity honours the one beside it rather 
 
 /** The grab's index, DOM-free (*the page asks the index*, 2026-09-25): the walk taken once over a plain object tree, and the page's question asked of it. The two trees are the decision records' worked example: the first tree's answers are the ones the old per-page walk gave, and the second tree's are css-break-3's since *a box is not its first child* (2026-09-26) — the old walk's were the defect case 64 reproduces. */
 const DEFAULT_STYLE = { breakBefore: 'auto', breakAfter: 'auto', position: 'static', float: 'none', overflowX: 'visible', overflowY: 'visible', display: 'block', page: 'auto' };
-const box = (id, style = {}, ...children) => ({ id, tagName: 'DIV', style, children, parentElement: null });
-function indexOver(...blocks) {
-  const link = (el) => { for (const c of el.children) { c.parentElement = el; link(c); } };
+const box = (id: any, style: any = {}, ...children: any[]) => ({ id, tagName: 'DIV', style, children, parentElement: null });
+function indexOver(...blocks: any[]) {
+  const link = (el: any) => { for (const c of el.children) { c.parentElement = el; link(c); } };
   const body = box('body', {}, ...blocks);
   link(body);
-  const styleOf = (el) => ({ ...DEFAULT_STYLE, ...el.style });
-  const pageNameOf = (el) => {
+  const styleOf = (el: any) => ({ ...DEFAULT_STYLE, ...el.style });
+  const pageNameOf = (el: any) => {
     for (let e = el; e; e = e.parentElement) if (styleOf(e).page !== 'auto') return styleOf(e).page;
     return '';
   };
   // A box's word position is the words of every box before it in walk order, each box carrying its own in `words` (the Cast-off's tests; the grab's trees carry none and read zero throughout).
   let acc = 0;
   const pos = new Map<any, any>();
-  const number = (el) => { pos.set(el, acc); acc += el.style.words ?? 0; for (const c of el.children) number(c); };
+  const number = (el: any) => { pos.set(el, acc); acc += el.style.words ?? 0; for (const c of el.children) number(c); };
   for (const b of blocks) number(b);
-  return forcingIndexOf(blocks, { styleOf, pageNameOf, cutOf: (el, b) => ({ path: normalizePath(pathOf(el, blocks[b], b)), word: null, px: null }), posOf: (el) => pos.get(el), blockChildren: (el) => el.children });
+  return forcingIndexOf(blocks, { styleOf, pageNameOf, cutOf: (el: any, b: any) => ({ path: normalizePath(pathOf(el, blocks[b], b)), word: null, px: null }), posOf: (el: any) => pos.get(el), blockChildren: (el: any) => el.children });
 }
-const at = (path, word = null) => ({ path, word, px: null });
-const answer = (found) => (found ? [found.el.id, found.cut.path, found.parity] : null);
+const at = (path: any, word: any = null) => ({ path, word, px: null });
+const answer = (found: any) => (found ? [found.el.id, found.cut.path, found.parity] : null);
 
 test('the index: an outer container closing after its last child replaces the child\'s parity (§4.3)', () => {
   const index = indexOver(box('A', { breakAfter: 'right' }, box('B'), box('C', { breakAfter: 'left' })), box('D'));
@@ -99,7 +104,7 @@ const example = () =>
       box('P4', { words: 40 })
     )
   );
-const place = (found) => (found ? [found.el.id, found.cut.path] : null);
+const place = (found: any) => (found ? [found.el.id, found.cut.path] : null);
 
 test('the Cast-off reads its number off the account: the mean page plus twice its spread, and none on page one', () => {
   assert.equal(castOffWords([]), null); // page one has no page before it, and is fed whole
@@ -148,8 +153,8 @@ test('a float is never the place: it stands beside the flow, possibly between tw
 });
 
 test('a refused resume names the part of the conditions that moved', async () => {
-  const { describeConditions } = await import('../src/driver.ts');
-  const key = (w, h, dpr, dark, sheets, epoch) => JSON.stringify([w, h, dpr, dark, sheets, epoch]);
+  const describeConditions = byShape((await import('../src/driver.ts')).describeConditions);
+  const key = (w: any, h: any, dpr: any, dark: any, sheets: any, epoch?: any) => JSON.stringify([w, h, dpr, dark, sheets, epoch]);
   const base = key(1200, 800, 1, false, ['a{}', 'b{}']);
   assert.equal(describeConditions(base, key(1000, 800, 1, false, ['a{}', 'b{}'])), 'the render conditions changed: the viewport went from 1200×800 to 1000×800');
   assert.equal(describeConditions(base, key(1200, 800, 2, true, ['a{}', 'b{}'])), 'the render conditions changed: the device pixel ratio went from 1 to 2; the colour scheme went from light to dark');
@@ -161,8 +166,8 @@ test('a refused resume names the part of the conditions that moved', async () =>
 
 // THE HEADER REPEATS (2026-10-14): a copy the engine repeats ahead of a box is furniture with a footprint, not a spent lead — and a box with no such copy before it owes the lead arithmetic exactly what it owed before.
 test('standsAfterArtifact: only a preceding sibling wearing the artifact word counts, and a box with none changes nothing', async () => {
-  const { standsAfterArtifact } = await import('../src/driver.ts');
-  const el = (words, previousElementSibling = null) => ({ getAttribute: (n) => (n === 'data-beltype' ? words : null), previousElementSibling });
+  const standsAfterArtifact = byShape((await import('../src/driver.ts')).standsAfterArtifact);
+  const el = (words: any, previousElementSibling: any = null) => ({ getAttribute: (n: any) => (n === 'data-beltype' ? words : null), previousElementSibling });
   const head = el('artifact');
   const plain = el(null);
   assert.equal(standsAfterArtifact(el(null, head)), true, 'a header copy directly before');

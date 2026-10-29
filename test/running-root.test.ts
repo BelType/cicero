@@ -6,13 +6,18 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { topLevelBlocks, runningBoxes, runningPosition } from '../src/driver.ts';
+import { topLevelBlocks as topLevelBlocksTyped, runningBoxes as runningBoxesTyped, runningPosition as runningPositionTyped } from '../src/driver.ts';
 import { RUNNING_PROP } from '../src/gcpm-encoding.ts';
+import { byShape } from './fakes.ts';
+
+const topLevelBlocks = byShape(topLevelBlocksTyped);
+const runningBoxes = byShape(runningBoxesTyped);
+const runningPosition = byShape(runningPositionTyped);
 
 /** `tag#id`, with children: the little of an element the intake reads. */
-function el(spec, ...children) {
-  const [, tag, id = ''] = /^(\w+)(?:#([\w-]+))?$/.exec(spec);
-  const e = { tagName: tag.toUpperCase(), id, children, parentElement: null, get nextElementSibling() { const s = e.parentElement?.children ?? []; return s[s.indexOf(e) + 1] ?? null; } };
+function el(spec: any, ...children: any[]): any {
+  const [, tag, id = ''] = /^(\w+)(?:#([\w-]+))?$/.exec(spec)!;
+  const e = { tagName: tag.toUpperCase(), id, children, parentElement: null as any, get nextElementSibling() { const s = e.parentElement?.children ?? []; return s[s.indexOf(e) + 1] ?? null; } };
   for (const c of children) c.parentElement = e;
   return e;
 }
@@ -22,29 +27,29 @@ function documentOf() {
   const body = el('body', el('section#own', el('p#mine')));
   const holder = el('div#holder', el('header#top'), el('section#s1', el('p#a'), el('p#head'), el('p#b')));
   const running = new Map([[holder.children[0], 'title'], [holder.children[1].children[1], 'chapter']]);
-  const doc = ({ body, defaultView: { getComputedStyle: (e) => ({ getPropertyValue: (prop) => (prop === RUNNING_PROP ? running.get(e) ?? '' : ''), position: 'static' }) } } as any);
+  const doc = ({ body, defaultView: { getComputedStyle: (e: any) => ({ getPropertyValue: (prop: any) => (prop === RUNNING_PROP ? running.get(e) ?? '' : ''), position: 'static' }) } } as any);
   return { doc, body, holder };
 }
 
 test('the top-level blocks are the body`s children unless the host names the element they stand in', () => {
   const { doc, holder } = documentOf();
-  assert.deepEqual(topLevelBlocks(doc).map((e) => e.id), ['own'], 'as ever: the body');
-  assert.deepEqual(topLevelBlocks(doc, holder).map((e) => e.id), ['s1'], 'the holder`s children, less the running mark, which is not a block');
+  assert.deepEqual(topLevelBlocks(doc).map((e: any) => e.id), ['own'], 'as ever: the body');
+  assert.deepEqual(topLevelBlocks(doc, holder).map((e: any) => e.id), ['s1'], 'the holder`s children, less the running mark, which is not a block');
 });
 
 test('the running boxes are read in the element the host names, and the memo`s door stays the second argument', () => {
   const { doc, holder } = documentOf();
   assert.deepEqual(runningBoxes(doc), [], 'the body holds none');
   const boxes = runningBoxes(doc, null, holder);
-  assert.deepEqual(boxes.map((r) => [r.el.id, r.name, r.block, r.next?.id ?? null]), [['top', 'title', 0, null], ['head', 'chapter', 0, 'b']], 'the block numbers count the holder`s blocks');
+  assert.deepEqual(boxes.map((r: any) => [r.el.id, r.name, r.block, r.next?.id ?? null]), [['top', 'title', 0, null], ['head', 'chapter', 0, 'b']], 'the block numbers count the holder`s blocks');
   let asked = 0;
-  const keep = (kind, box, read) => (asked++, read());
+  const keep = (kind: any, box: any, read: any) => (asked++, read());
   assert.deepEqual(runningBoxes(doc, keep, holder), boxes, 'a memo reads through, as it always did');
   assert.equal(asked, 2, 'once per box in the holder');
 });
 
 test('a running element`s place is the base of its block plus the words before the element that follows it', () => {
-  const index = { bases: [0, 12], wordsBefore: (e) => (e.id === 'b' ? 3 : 0) };
+  const index = { bases: [0, 12], wordsBefore: (e: any) => (e.id === 'b' ? 3 : 0) };
   assert.equal(runningPosition({ block: 1, next: null }, index), 12, 'nothing follows it in its block: the block`s first word');
   assert.equal(runningPosition({ block: 1, next: { id: 'b' } }, index), 15);
 });

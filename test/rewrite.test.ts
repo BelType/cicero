@@ -7,14 +7,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { rewriteSheet, rewriteNote } from '../seam/rewrite.ts';
-import { rewriteDocumentSheets } from '../seam/rewrite-document.ts';
+import { rewriteSheet as rewriteSheetTyped, rewriteNote as rewriteNoteTyped } from '../seam/rewrite.ts';
+import { rewriteDocumentSheets as rewriteDocumentSheetsTyped } from '../seam/rewrite-document.ts';
 import { ciceroEngine } from '../seam/index.ts';
-import { STRING_SET_PROP, RUNNING_PROP, decodeContentFn, decodePageName, decodeRead, FN_PREFIX } from '../src/gcpm-encoding.ts';
+import { STRING_SET_PROP, RUNNING_PROP, decodeContentFn as decodeContentFnTyped, decodePageName, decodeRead, FN_PREFIX } from '../src/gcpm-encoding.ts';
 import { HAS_PROPERTY_PREFIX, authorSelectorOf, bareHasCount, decodeHasArgument } from '../src/data-beltype.ts';
 
 /** The encoded string literals a rewritten sheet carries, unquoted, in order. */
-const literals = (text) => [...text.matchAll(/"([^"]*)"/g)].map((m) => m[1]).filter((s) => s.startsWith(FN_PREFIX));
+const literals = (text: any) => [...text.matchAll(/"([^"]*)"/g)].map((m) => m[1]).filter((s) => s.startsWith(FN_PREFIX));
 
 test('a sheet with nothing to rewrite comes back identical, and says so', () => {
   const source = '@page { size: A4; margin: 2cm; @top-center { content: counter(page) } }\nh1 { color: red }\n';
@@ -142,7 +142,7 @@ test('a read becomes a var() of the property its meaning names, in place, in eve
     const out = rewriteSheet(source);
     assert.equal(out.counts.reads, 1, source);
     assert.equal(out.text, want);
-    const name = /var\((--[^,]+),/.exec(out.text)[1];
+    const name = /var\((--[^,]+),/.exec(out.text)![1];
     assert.ok(decodeRead(name), 'the engine decodes what the host wrote');
   }
 });
@@ -174,7 +174,7 @@ test('a print group rule is opened, its rules stand at its level, and no line mo
   assert.match(out.text, /@page \{ margin: 37\.5pt \}/);
   assert.match(out.text, /p \{ width: 3em \}/);
   assert.equal(out.text.split('\n').length, source.split('\n').length, 'only the wrapper went, so every rule is on the line the author wrote it on');
-  assert.equal(out.text.split('\n').findIndex((l) => l.includes('p { width')), source.split('\n').findIndex((l) => l.includes('p { width')));
+  assert.equal(out.text.split('\n').findIndex((l: any) => l.includes('p { width')), source.split('\n').findIndex((l) => l.includes('p { width')));
   assert.match(rewriteNote(out.counts), /print media/);
 });
 
@@ -189,7 +189,7 @@ test('all, only print, an uppercase PRINT and a list of the two open; a screen l
   assert.equal(out.counts.removed, 1);
   assert.doesNotMatch(out.text, /color: red/);
   assert.match(out.text, /a \{ color: blue \}/);
-  assert.equal(out.text.split('\n').findIndex((l) => l.includes('c {')), source.split('\n').findIndex((l) => l.includes('c {')), 'a rule below a removed block keeps its line');
+  assert.equal(out.text.split('\n').findIndex((l: any) => l.includes('c {')), source.split('\n').findIndex((l) => l.includes('c {')), 'a rule below a removed block keeps its line');
   assert.equal(rewriteSheet('@media screen, screen { a { color: red } }').counts.removed, 1);
 });
 
@@ -240,15 +240,15 @@ test('a group rule that is not @media is not opened, and an @media inside @layer
 });
 
 /** A node the way `rewriteDocumentSheets` reads one: the few members it touches. */
-function fakeNode(tagName, attrs, text) {
+function fakeNode(tagName: any, attrs: any, text?: any) {
   return {
     tagName,
     id: attrs.id,
     textContent: text,
-    replacedBy: null,
-    hasAttribute: (k) => k in attrs,
-    getAttribute: (k) => attrs[k] ?? null,
-    replaceWith(n) { this.replacedBy = n; }
+    replacedBy: null as any,
+    hasAttribute: (k: any) => k in attrs,
+    getAttribute: (k: any) => attrs[k] ?? null,
+    replaceWith(n: any) { this.replacedBy = n; }
   };
 }
 
@@ -261,7 +261,7 @@ test("the engine's own sheets are not rewritten: the interface sheet, its provis
   assert.match(head, /<link rel="stylesheet" data-beltype="cicero-interface" href="\/_beltype\/cicero-interface\.css">/);
   assert.match(head, /<style data-beltype="cicero-provision">/);
 
-  const fetched = [];
+  const fetched: any[] = [];
   const iface = fakeNode('LINK', { rel: 'stylesheet', 'data-beltype': 'cicero-interface', href: '/_beltype/cicero-interface.css' });
   const press = fakeNode('STYLE', { id: '__beltype-press' }, '@media print { body { margin: 0 !important; } }');
   const provision = fakeNode('STYLE', { 'data-beltype': 'cicero-provision' }, ':root { line-height: 1.65; }');
@@ -271,9 +271,9 @@ test("the engine's own sheets are not rewritten: the interface sheet, its provis
     baseURI: 'http://localhost/',
     defaultView: {
       location: { origin: 'http://localhost' },
-      fetch: async (url) => { fetched.push(url); return { ok: true, text: async () => (url.endsWith('cicero-interface.css') ? interfaceText : '@media print { a { color: red } }') }; }
+      fetch: async (url: any) => { fetched.push(url); return { ok: true, text: async () => (url.endsWith('cicero-interface.css') ? interfaceText : '@media print { a { color: red } }') }; }
     },
-    createElement: (tag) => ({ tag, textContent: '', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }),
+    createElement: (tag: any) => ({ tag, textContent: '', attrs: {} as Record<string, any>, setAttribute(k: any, v: any) { this.attrs[k] = v; } }),
     querySelectorAll: () => [iface, press, provision, author, linked]
   };
   t.mock.method(console, 'info', () => {});
@@ -284,10 +284,10 @@ test("the engine's own sheets are not rewritten: the interface sheet, its provis
   assert.equal(iface.replacedBy, null);
   assert.equal(press.textContent, '@media print { body { margin: 0 !important; } }');
   assert.equal(provision.textContent, ':root { line-height: 1.65; }');
-  assert.equal(author.textContent.includes('@media'), false, "the document's own style element is folded");
+  assert.equal(author.textContent!.includes('@media'), false, "the document's own style element is folded");
   assert.match(author.textContent, /p \{ width: 3em \}/);
   assert.doesNotMatch(author.textContent, /9em/);
-  assert.match(linked.replacedBy.textContent, /a \{ color: red \}/);
+  assert.match(linked.replacedBy!.textContent, /a \{ color: red \}/);
   assert.equal(out.changed, 2);
   assert.deepEqual([out.counts.opened, out.counts.removed], [2, 1]);
 });
@@ -296,7 +296,7 @@ test('a sheet already judged is not fetched or judged again, a style edited in p
   t.mock.method(console, 'info', () => {});
   let inFlight = 0;
   let mostInFlight = 0;
-  const fetched = [];
+  const fetched: any[] = [];
   const style = fakeNode('STYLE', {}, '@media print { p { width: 3em } }');
   const a = fakeNode('LINK', { rel: 'stylesheet', href: '/a.css' });
   const b = fakeNode('LINK', { rel: 'stylesheet', href: '/b.css' });
@@ -304,7 +304,7 @@ test('a sheet already judged is not fetched or judged again, a style edited in p
     baseURI: 'http://localhost/',
     defaultView: {
       location: { origin: 'http://localhost' },
-      fetch: async (url) => {
+      fetch: async (url: any) => {
         fetched.push(url);
         mostInFlight = Math.max(mostInFlight, ++inFlight);
         await new Promise<any>((resolve) => setTimeout(resolve, 5));
@@ -312,7 +312,7 @@ test('a sheet already judged is not fetched or judged again, a style edited in p
         return { ok: true, text: async () => (url.endsWith('a.css') ? '@media print { a { color: red } }' : 'b { color: blue }') };
       }
     },
-    createElement: (tag) => ({ tag, tagName: tag.toUpperCase(), textContent: '', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }),
+    createElement: (tag: any) => ({ tag, tagName: tag.toUpperCase(), textContent: '', attrs: {} as Record<string, any>, setAttribute(k: any, v: any) { this.attrs[k] = v; } }),
     querySelectorAll: () => [style, a, b].filter((n) => !n.replacedBy) // a replaced link has left the document
   };
   const judged = new WeakMap<any, any>();
@@ -341,7 +341,7 @@ test('a sheet already judged is not fetched or judged again, a style edited in p
 // ── :has(), *one attribute has words* (2026-10-10) ─────────────────────────────────────────────────
 
 /** The registry rule's arguments, read back the way the capture reads them. */
-const registryOf = (text) => new Map([...text.matchAll(new RegExp(`${HAS_PROPERTY_PREFIX}([0-9a-z]+): ("(?:[^"\\\\]|\\\\.)*")`, 'g'))].map((m) => [m[1], decodeHasArgument(m[2])]));
+const registryOf = (text: any) => new Map([...text.matchAll(new RegExp(`${HAS_PROPERTY_PREFIX}([0-9a-z]+): ("(?:[^"\\\\]|\\\\.)*")`, 'g'))].map((m) => [m[1], decodeHasArgument(m[2])]));
 
 test('a :has() becomes the union, in place and on its own line, and the sheet ends with the one rule that carries the arguments', () => {
   const source = 'section:has(> h2.mark) { background: red }\np:has(+ ul), li:has(> a) { margin: 0 }\n';
@@ -379,7 +379,7 @@ test('at any depth and in any grouping rule: inside :not(), :is(), @media, @laye
     'g:has(:scope > h) { x: y }'
   ].join('\n');
   const out = rewriteSheet(source);
-  assert.deepEqual(out.kept.map((k) => k.replace(/ \(.*$/, '')), ['g:has(:scope > h)'], ':scope is the one thing left: its argument is relative to the element asked');
+  assert.deepEqual(out.kept.map((k: any) => k.replace(/ \(.*$/, '')), ['g:has(:scope > h)'], ':scope is the one thing left: its argument is relative to the element asked');
   assert.equal(out.counts.has, 6, 'the nested rule\'s & stands outside the argument, so it is rewritten');
   assert.equal(bareHasCount(out.text.split('\n').slice(0, 6).join('\n')), 0, 'every :has( of the first six rules is inside a union');
   assert.match(out.text.split('\n')[0], /^li:not\(:is\(:where/);
@@ -399,7 +399,7 @@ test('an argument that reads user state is left as written, and named; the rest 
 });
 
 test('the hash is six base-36 characters of the canonical argument: whitespace and comments do not change it, the argument does, and a collision widens', () => {
-  const hashOf = (css) => [...registryOf(rewriteSheet(css).text).keys()][0];
+  const hashOf = (css: any) => [...registryOf(rewriteSheet(css).text).keys()][0];
   const a = hashOf('p:has(> a.x) { x: y }');
   assert.match(a, /^[0-9a-z]{6,}$/);
   assert.equal(a.length, 6);
@@ -419,7 +419,7 @@ test('a rewritten sheet is not its own input, and a sheet with no :has() is unto
 
 test('the native arm never finds a COPY among the siblings it looks at: the guard follows each compound a leading + or ~ reaches, and stops at the first other combinator (case 102)', () => {
   const guard = ':where(:not([data-beltype~="fragment"]))';
-  const native = (argument) => {
+  const native = (argument: any) => {
     const out = rewriteSheet(`x:has(${argument}) { y: z }\n`);
     const text = out.text.split('\n')[0];
     const head = ` ${guard}:has(`;
@@ -473,10 +473,17 @@ test('a declaration written after a swallowed nested rule survives byte for byte
 
 // ── the author's sheets in a layer the host names (2026-10-17) ──────────────────────────────────────
 
-import { parse } from '../seam/csstree.ts';
+import { parse as parseTyped } from '../seam/csstree.ts';
 import { wrapInLayer } from '../seam/rewrite.ts';
 import { LAYER as ENGINE_LAYER, WORDS_RULES } from '../src/data-beltype.ts';
 import { LAYERS_ID } from '../src/dressing.ts';
+import { byShape } from './fakes.ts';
+
+const decodeContentFn = byShape(decodeContentFnTyped);
+const rewriteNote = byShape(rewriteNoteTyped);
+const rewriteSheet = byShape(rewriteSheetTyped);
+const rewriteDocumentSheets = byShape(rewriteDocumentSheetsTyped);
+const parse = byShape(parseTyped);
 
 /** A sheet with every kind of top-level thing the wrap has to decide about. */
 const LAYERED_SOURCE = [
@@ -496,7 +503,7 @@ const LAYERED_SOURCE = [
 ].join('\n');
 
 /** The top level of a sheet, as css-tree reads it: one entry per rule, `@name` for an at-rule. */
-const topLevel = (text) => parse(text, { positions: true, parseAtrulePrelude: false, parseRulePrelude: false, parseValue: false }).children.toArray().filter((n) => n.type !== 'Comment').map((n) => (n.type === 'Atrule' ? `@${n.name}` : 'rule'));
+const topLevel = (text: any) => parse(text, { positions: true, parseAtrulePrelude: false, parseRulePrelude: false, parseValue: false }).children.toArray().filter((n: any) => n.type !== 'Comment').map((n: any) => (n.type === 'Atrule' ? `@${n.name}` : 'rule'));
 
 test('without a layer the rewrite is byte-identical to what it was, and identical by reference where nothing matched', () => {
   const plain = rewriteSheet(LAYERED_SOURCE);
@@ -514,14 +521,14 @@ test('the wrap keeps every line where the author put it, and adds none', () => {
   const before = rewriteSheet(LAYERED_SOURCE).text.split('\n');
   const after = out.text.split('\n');
   assert.equal(after.length, before.length);
-  before.forEach((line, i) => assert.ok(after[i].includes(line.trim()), `line ${i + 1} is still "${line.trim()}" (now "${after[i]}")`));
+  before.forEach((line: any, i: any) => assert.ok(after[i].includes(line.trim()), `line ${i + 1} is still "${line.trim()}" (now "${after[i]}")`));
 });
 
 test('the at-rules a layer may not hold stay at the top level, between blocks closed before and opened after them, and the head of the sheet stays first', () => {
   const out = rewriteSheet(LAYERED_SOURCE, { layer: 'author' });
   assert.deepEqual(topLevel(out.text), ['@charset', '@import', '@layer', '@font-face', '@layer', '@counter-style', '@page', '@layer']);
   assert.match(out.text, /^@charset "utf-8";\n@import url\(base\.css\);\n/, 'no block opens before the @import, which must precede every rule');
-  assert.equal(topLevel(out.text).filter((n) => n === '@layer').length, 3, 'a block that would only open and close is never written: none between @counter-style and @page');
+  assert.equal(topLevel(out.text).filter((n: any) => n === '@layer').length, 3, 'a block that would only open and close is never written: none between @counter-style and @page');
 });
 
 test('the GCPM, reads, media and :has() rewrites are the same inside the wrap as outside it', () => {
@@ -553,20 +560,20 @@ test('with a layer, a document\'s style is wrapped, every link becomes a style o
   const plain = fakeNode('LINK', { rel: 'stylesheet', href: '/plain.css' });
   const paged = fakeNode('LINK', { rel: 'stylesheet', href: '/paged.css' });
   const gcpm = fakeNode('LINK', { rel: 'stylesheet', href: '/gcpm.css' });
-  const texts = { '/plain.css': 'q { color: blue }', '/paged.css': '@page { size: A5 }\nh1 { color: red }', '/gcpm.css': 'h2 { string-set: t content() }' };
+  const texts: Record<string, string> = { '/plain.css': 'q { color: blue }', '/paged.css': '@page { size: A5 }\nh1 { color: red }', '/gcpm.css': 'h2 { string-set: t content() }' };
   const doc = {
     baseURI: 'http://localhost/',
-    defaultView: { location: { origin: 'http://localhost' }, fetch: async (url) => ({ ok: true, text: async () => texts[new URL(url).pathname] }) },
-    createElement: (tag) => ({ tag, tagName: tag.toUpperCase(), textContent: '', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }),
+    defaultView: { location: { origin: 'http://localhost' }, fetch: async (url: any) => ({ ok: true, text: async () => texts[new URL(url).pathname] }) },
+    createElement: (tag: any) => ({ tag, tagName: tag.toUpperCase(), textContent: '', attrs: {} as Record<string, any>, setAttribute(k: any, v: any) { this.attrs[k] = v; } }),
     querySelectorAll: () => [provision, style, plain, paged, gcpm],
-    head: { first: [], prepend(n) { this.first.unshift(n); } },
-    getElementById: (id) => doc.head.first.find((n) => n.id === id) ?? null
+    head: { first: [] as any[], prepend(n: any) { this.first.unshift(n); } },
+    getElementById: (id: any) => doc.head.first.find((n) => n.id === id) ?? null
   };
   const out = await rewriteDocumentSheets(doc, new WeakMap<any, any>(), { layer: 'author' });
   assert.equal(style.textContent, '@layer author { p { color: red } }');
-  assert.equal(plain.replacedBy.textContent, '@layer author { q { color: blue } }', 'a link with nothing else to rewrite is wrapped as text too');
-  assert.equal(paged.replacedBy.textContent, '@page { size: A5 }\n@layer author { h1 { color: red } }');
-  assert.match(gcpm.replacedBy.textContent, /^@layer author \{ h2 \{ --beltype-string-set: t content\(\) \} \}$/);
+  assert.equal(plain.replacedBy!.textContent, '@layer author { q { color: blue } }', 'a link with nothing else to rewrite is wrapped as text too');
+  assert.equal(paged.replacedBy!.textContent, '@page { size: A5 }\n@layer author { h1 { color: red } }');
+  assert.match(gcpm.replacedBy!.textContent, /^@layer author \{ h2 \{ --beltype-string-set: t content\(\) \} \}$/);
   assert.equal(provision.textContent, `${WORDS_RULES}@layer ${ENGINE_LAYER} { :root { line-height: 1.65; } }`);
   assert.deepEqual([out.changed, out.counts.layered], [4, 4], 'four sheets in the layer');
   assert.equal(doc.head.first.length, 1, 'the order of the two layers is stated first in the head');
@@ -579,7 +586,7 @@ test('with a layer, a document\'s style is wrapped, every link becomes a style o
   const style2 = fakeNode('STYLE', {}, 'p { color: red }');
   const provision2 = fakeNode('STYLE', { 'data-beltype': 'cicero-provision' }, provisionText);
   const plain2 = fakeNode('LINK', { rel: 'stylesheet', href: '/plain.css' });
-  const unlayered = { ...doc, querySelectorAll: () => [provision2, style2, plain2], head: { first: [], prepend(n) { this.first.push(n); } } };
+  const unlayered = { ...doc, querySelectorAll: () => [provision2, style2, plain2], head: { first: [] as any[], prepend(n: any) { this.first.push(n); } } };
   await rewriteDocumentSheets(unlayered, new WeakMap<any, any>());
   assert.equal(unlayered.head.first.length, 0, 'no order is stated');
   assert.equal(style2.textContent, 'p { color: red }');

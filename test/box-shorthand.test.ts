@@ -30,5 +30,5 @@ test('whitespace is not a value, and a list the grammar does not have is refused
 
 test('the values come back as the author wrote them, unresolved', () => {
   const sides = expandBox('var(--outer)');
-  assert.equal(sides.top, 'var(--outer)', 'this module knows nothing about lengths; capture.js seats each raw value and the browser answers');
+  assert.equal(sides!.top, 'var(--outer)', 'this module knows nothing about lengths; capture.js seats each raw value and the browser answers');
 });

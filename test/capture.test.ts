@@ -6,8 +6,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { borderIsDrawn, pageArea, assertPageArea, transliterateContent, sizeToPx, MIN_PAGE_AREA_PX } from '../src/capture.ts';
+import { borderIsDrawn, pageArea, assertPageArea, transliterateContent as transliterateContentTyped, sizeToPx, MIN_PAGE_AREA_PX } from '../src/capture.ts';
 import { encodeElement, encodeString } from '../src/gcpm-encoding.ts';
+import { byShape } from './fakes.ts';
+
+const transliterateContent = byShape(transliterateContentTyped);
 
 test('a declared border width takes room only where its own style draws a border', () => {
   // The page context has no computed style to ask, so an absent declaration IS the initial value — and `border-style`'s initial value is `none`. `@page { border: 5mm }` declares five millimetres and takes nothing.
@@ -19,7 +22,7 @@ test('a declared border width takes room only where its own style draws a border
 });
 
 test('the page area is the page box less its margins, its drawn borders and its paddings', () => {
-  const four = (n) => ({ top: n, right: n, bottom: n, left: n });
+  const four = (n: any) => ({ top: n, right: n, bottom: n, left: n });
   const area = pageArea({ pageW: 1000, pageH: 800, margins: four(50), borders: four(10), paddings: four(20) });
   assert.equal(area.contentW, 1000 - 160);
   assert.equal(area.contentH, 800 - 160);
@@ -51,7 +54,7 @@ test('the refusal names the condition and says what to look at', () => {
   try {
     assertPageArea({ contentW: -30, contentH: 12 }, "@page 'plate'");
     assert.fail('expected a refusal');
-  } catch (e) {
+  } catch (e: any) {
     assert.match(e.message, /@page 'plate'/, 'which page rule');
     assert.match(e.message, /css-break-3 §4/, 'which sentence');
     assert.match(e.message, /margins, borders and paddings/, 'what to look at');
@@ -126,8 +129,8 @@ test('the orientation words turn a named size on its long side, including the tw
 
 test('A6 is not a named size: it reaches the length probe in both orientations, and the probe refuses it', () => {
   // css-page-3 does not list A6, and Chromium's own print refuses it (`size: A6` prints the letter default). Nothing in the table may answer for it.
-  const asked = [];
-  const probe = (token) => {
+  const asked: any[] = [];
+  const probe = (token: any) => {
     asked.push(token);
     return 100;
   };

@@ -1,12 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Ledger, createEntry, comparePos } from '../src/ledger.ts';
-import { flattenResume, treeOf } from '../src/positions.ts';
+import { Ledger, createEntry as createEntryTyped, comparePos } from '../src/ledger.ts';
+import { flattenResume, treeOf as treeOfTyped } from '../src/positions.ts';
+import { byShape } from './fakes.ts';
+
+const createEntry = byShape(createEntryTyped);
+const treeOf = byShape(treeOfTyped);
 
 const conditions = { contentW: 500, contentH: 700, orphans: 2, widows: 2 };
 /** A path's ADDRESS (src/positions.js), which `createEntry` requires beside its flat projection: these laws range over the projection, so any well-formed address will do and the block index is made to match the position for readability. */
-const at = (pos) => ({ path: [pos], word: null, px: null });
-const entry = (pos, cls = 'A', extra = {}) =>
+const at = (pos: any) => ({ path: [pos], word: null, px: null });
+const entry = (pos: any, cls = 'A', extra: any = {}) =>
   createEntry({ paths: pos == null ? [] : [{ pos, cut: at(pos), ...extra }], cls, trace: { rung: 0 }, closes: conditions });
 
 test('comparePos is numeric and terminal sorts last', () => {
@@ -118,9 +122,9 @@ test('length is the page count (I4)', () => {
 // --- the laws over the resume tree (*a parallel flow is a fragmentainer*, 2026-10-08) ---
 
 /** A node of the resume tree: a flow's place and the flows standing inside its box. */
-const node = (pos, flows = [], extra = {}) => ({ pos, cut: at(pos), flows, ...extra });
+const node = (pos: any, flows: any[] = [], extra: any = {}) => ({ pos, cut: at(pos), flows, ...extra });
 /** An entry written from a tree, as the driver writes one: `paths` is the tree's wire form. */
-const fromTree = (tree) => createEntry({ paths: flattenResume(tree), cls: 'B', trace: {}, closes: conditions });
+const fromTree = (tree: any) => createEntry({ paths: flattenResume(tree), cls: 'B', trace: {}, closes: conditions });
 
 test('append-only holds over the tree: only the ROOT is compared, however deep a flow sits (I1)', () => {
   const l = new Ledger();
@@ -128,7 +132,7 @@ test('append-only holds over the tree: only the ROOT is compared, however deep a
   l.append(fromTree(node(93, [node(26, [node(12, [], { item: [3, 0] })])])));
   // A later root is admitted however far behind its nodes sit, and the stored record is still the tree it was written from.
   l.append(fromTree(node(100, [node(30)])));
-  assert.deepEqual(treeOf(l.at(0).paths).flows.map((f) => [f.pos, f.flows.map((i) => i.pos)]), [[26, [12]]], 'the entry reads back as the tree it projects');
+  assert.deepEqual(treeOf(l.at(0).paths).flows.map((f: any) => [f.pos, f.flows.map((i: any) => i.pos)]), [[26, [12]]], 'the entry reads back as the tree it projects');
   // A root that runs backward is refused, whatever its flows: a deep node cannot disarm the check, and cannot satisfy it either.
   assert.throws(() => l.append(fromTree(node(95, [node(120)]))), /forward/);
   assert.equal(l.length, 2);

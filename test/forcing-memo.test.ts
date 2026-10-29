@@ -8,13 +8,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { forcingIndexOf } from '../src/driver.ts';
 import { ForcingMemo, FORCING_STYLE_READS, snapshotOfStyle } from '../src/forcing-memo.ts';
-import { inFlowIndex, normalizePath, pathOf } from '../src/positions.ts';
+import { inFlowIndex as inFlowIndexTyped, normalizePath, pathOf as pathOfTyped } from '../src/positions.ts';
+import { byShape } from './fakes.ts';
+
+const inFlowIndex = byShape(inFlowIndexTyped);
+const pathOf = byShape(pathOfTyped);
 
 const DEFAULT_STYLE = { breakBefore: 'auto', breakAfter: 'auto', position: 'static', float: 'none', overflowX: 'visible', overflowY: 'visible', display: 'block', columnCount: 'auto', columnWidth: 'auto', page: 'auto' };
-const box = (id, style = {}, ...children) => ({ id, style, children, parentElement: null });
-const link = (el, parent = null) => { el.parentElement = parent; for (const c of el.children) link(c, el); return el; };
+const box = (id: any, style: any = {}, ...children: any[]) => ({ id, style, children, parentElement: null });
+const link = (el: any, parent: any = null) => { el.parentElement = parent; for (const c of el.children) link(c, el); return el; };
 /** The live style of a box. `sideways` makes a box's break depend on its PREVIOUS SIBLING's `mark` — the reach of `.x + p`, which no ancestor chain explains. */
-const liveStyle = (el, sideways = false) => {
+const liveStyle = (el: any, sideways = false) => {
   const style = { ...DEFAULT_STYLE, ...el.style };
   if (sideways) {
     const prev = el.parentElement?.children[el.parentElement.children.indexOf(el) - 1];
@@ -24,16 +28,16 @@ const liveStyle = (el, sideways = false) => {
 };
 
 /** The forcing index of `blocks`, read through `memo` (the driver's wiring, minus the browser) or fresh. */
-function indexOf(blocks, memo, { sideways = false, reads = null } = {}) {
-  const live = (el) => { const st = liveStyle(el, sideways); return reads ? new Proxy(st, { get: (t, k) => { reads.add(k); return t[k]; } }) : st; };
-  const pageOf = (el) => { for (let e = el; e; e = e.parentElement) if (liveStyle(e).page !== 'auto') return liveStyle(e).page; return ''; };
+function indexOf(blocks: any, memo: any, { sideways = false, reads = null }: any = {}) {
+  const live = (el: any) => { const st = liveStyle(el, sideways); return reads ? new Proxy(st, { get: (t, k) => { reads.add(k); return t[k]; } }) : st; };
+  const pageOf = (el: any) => { for (let e = el; e; e = e.parentElement) if (liveStyle(e).page !== 'auto') return liveStyle(e).page; return ''; };
   const pos = new Map<any, any>();
   let acc = 0;
-  const number = (el) => { pos.set(el, acc); acc += el.style.words ?? 0; for (const c of el.children) number(c); };
+  const number = (el: any) => { pos.set(el, acc); acc += el.style.words ?? 0; for (const c of el.children) number(c); };
   for (const b of blocks) number(b);
   const rawPath = memo
-    ? (el, b) => pathOf(el, blocks[b], b, undefined, (e) => memo.indexIn(e, () => inFlowIndex(e)))
-    : (el, b) => pathOf(el, blocks[b], b);
+    ? (el: any, b: any) => pathOf(el, blocks[b], b, undefined, (e: any) => memo.indexIn(e, () => inFlowIndex(e)))
+    : (el: any, b: any) => pathOf(el, blocks[b], b);
   return forcingIndexOf(blocks, {
     styleOf: memo ? (el) => memo.facts(el, () => snapshotOfStyle(live(el))) : live,
     pageNameOf: memo ? (el) => memo.pageName(el, () => pageOf(el)) : pageOf,
@@ -44,19 +48,19 @@ function indexOf(blocks, memo, { sideways = false, reads = null } = {}) {
 }
 
 /** Every cursor worth asking from: the start of each box, in each block. */
-function cursors(blocks) {
-  const out = [];
-  const walk = (el, path) => { out.push(path); el.children.forEach((c, i) => walk(c, [...path, i])); };
-  blocks.forEach((b, i) => walk(b, [i]));
+function cursors(blocks: any) {
+  const out: any[] = [];
+  const walk = (el: any, path: any) => { out.push(path); el.children.forEach((c: any, i: any) => walk(c, [...path, i])); };
+  blocks.forEach((b: any, i: any) => walk(b, [i]));
   return out;
 }
-const answers = (index, blocks) => cursors(blocks).flatMap((path) => ['', 'wide'].map((name) => {
+const answers = (index: any, blocks: any) => cursors(blocks).flatMap((path) => ['', 'wide'].map((name) => {
   const found = index.find({ path, word: null, px: null }, name);
   return found ? [index.size, found.el.id, found.cut.path, found.parity, found.namedSwitch] : [index.size, null];
 }));
 
 /** Replace `old` by `fresh` where it stands, as `patchBox` does, and tell the memo. */
-function replace(old, fresh, memo) {
+function replace(old: any, fresh: any, memo: any) {
   const parent = old.parentElement;
   parent.children[parent.children.indexOf(old)] = fresh;
   link(fresh, parent);
@@ -81,15 +85,15 @@ test('the memo reads only the properties the snapshot lists', () => {
 });
 
 test('a memo that was filled and an edit that took one box\'s place: the index is the fresh one, for every kind of edit', () => {
-  const edits = [
-    ['an attribute that forces a break', (b) => replace(b[0].children[1].children[1], box('E2', { breakBefore: 'page', words: 9 }), memo)],
-    ['a heading inserted into the box\'s parent', (b) => replace(b[0].children[1], box('C2', {}, box('H1', { breakBefore: 'right', words: 2 }), box('D', { words: 5 }), box('E', { words: 2 })), memo)],
-    ['a child removed (the box lost its subtree)', (b) => replace(b[0].children[1], box('C3', {}), memo)],
-    ['a named page on the new box', (b) => replace(b[0].children[0], box('B2', { page: 'wide', words: 3 }), memo)],
-    ['a top-level block replaced', (b) => { b[2] = box('H2', { breakAfter: 'left' }, box('I2', { words: 1 })); link(b[2], b[1].parentElement); memo.replaced(b[2]); }],
-    ['more than one box replaced between two runs', (b) => { replace(b[0].children[0], box('B3', { breakBefore: 'page' }), memo); replace(b[0].children[2], box('F3', { breakAfter: 'page' }), memo); }]
+  const edits: [string, (b: any) => any][] = [
+    ['an attribute that forces a break', (b: any) => replace(b[0].children[1].children[1], box('E2', { breakBefore: 'page', words: 9 }), memo)],
+    ['a heading inserted into the box\'s parent', (b: any) => replace(b[0].children[1], box('C2', {}, box('H1', { breakBefore: 'right', words: 2 }), box('D', { words: 5 }), box('E', { words: 2 })), memo)],
+    ['a child removed (the box lost its subtree)', (b: any) => replace(b[0].children[1], box('C3', {}), memo)],
+    ['a named page on the new box', (b: any) => replace(b[0].children[0], box('B2', { page: 'wide', words: 3 }), memo)],
+    ['a top-level block replaced', (b: any) => { b[2] = box('H2', { breakAfter: 'left' }, box('I2', { words: 1 })); link(b[2], b[1].parentElement); memo.replaced(b[2]); }],
+    ['more than one box replaced between two runs', (b: any) => { replace(b[0].children[0], box('B3', { breakBefore: 'page' }), memo); replace(b[0].children[2], box('F3', { breakAfter: 'page' }), memo); }]
   ];
-  let memo;
+  let memo: any;
   for (const [name, edit] of edits) {
     memo = new ForcingMemo();
     const blocks = tree();
@@ -157,8 +161,8 @@ test('a sheet that reaches an ancestor: the memo is emptied and refused, and the
 test('an inline position: fixed on the new box shifts the in-flow indices after it, and the siblings\' indices were forgotten', () => {
   const memo = new ForcingMemo();
   const blocks = tree();
-  const isFixed = (el) => el.style.position === 'fixed';
-  const rawPath = (el, b) => pathOf(el, blocks[b], b, isFixed, (e) => memo.indexIn(e, () => inFlowIndex(e, isFixed)));
+  const isFixed = (el: any) => el.style.position === 'fixed';
+  const rawPath = (el: any, b: any) => pathOf(el, blocks[b], b, isFixed, (e: any) => memo.indexIn(e, () => inFlowIndex(e, isFixed)));
   memo.settle(0);
   const F = blocks[0].children[2];
   assert.deepEqual(rawPath(F, 0), [0, 2]);

@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ensureContinuationDressing, isWordsSheet } from '../src/dressing.ts';
 import { CUT_OFF, RESUMED } from '../src/data-beltype.ts';
+import { byShape } from './fakes.ts';
 
 /** A constructed sheet's double: it keeps the text it is given. */
 class Sheet {
@@ -62,7 +63,7 @@ test('the continuation dressing is the engine`s, and a host reading the document
   const g = (globalThis as any);
   g.HTMLElement ??= class {};
   g.customElements ??= { get: () => undefined, define: () => {} };
-  const { isDressingSheet } = await import('../src/root.ts');
+  const isDressingSheet = byShape((await import('../src/root.ts')).isDressingSheet);
   assert.equal(isDressingSheet(doc, sheet), true, 'the root`s answer names it');
   assert.equal(isDressingSheet(doc, author), false);
 });

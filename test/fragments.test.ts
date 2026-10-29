@@ -8,16 +8,23 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { truncateFrom, mutateToContinuation, mutateToFirstFragment, spanWidths, markCont, markCut } from '../src/fragments.ts';
-import { noteEngineText } from '../src/word-space.ts';
+import { truncateFrom as truncateFromTyped, mutateToContinuation as mutateToContinuationTyped, mutateToFirstFragment as mutateToFirstFragmentTyped, spanWidths, markCont as markContTyped, markCut } from '../src/fragments.ts';
+import { noteEngineText as noteEngineTextTyped } from '../src/word-space.ts';
+import { byShape } from './fakes.ts';
+
+const truncateFrom = byShape(truncateFromTyped);
+const mutateToContinuation = byShape(mutateToContinuationTyped);
+const mutateToFirstFragment = byShape(mutateToFirstFragmentTyped);
+const noteEngineText = byShape(noteEngineTextTyped);
+const markCont = byShape(markContTyped);
 
 /**
  * A cut, and the identity map a DOM-free subject needs (*the cut is a place in the tree*, 2026-09-18).
  *
  * Both fragment writers resolve an address against the SOURCE and reach the clone through a source → clone map, so a test that hands one tree as both has to say so with a map. The map is REQUIRED rather than defaulted: in production an unmapped source element would be the source document itself, and writing on it is what C5 forbids — so a missing entry refuses instead of falling back, and this helper is the one place a test supplies its own.
  */
-const cut = (path, { word = null, char = 0, px = null } = {}) => ({ path, word, ...(char > 0 ? { char } : {}), px });
-const identityMap = (root) => {
+const cut = (path: any, { word = null, char = 0, px = null }: any = {}) => ({ path, word, ...(char > 0 ? { char } : {}), px });
+const identityMap = (root: any) => {
   const m = new Map<any, any>();
   (function walk(n) {
     m.set(n, n);
@@ -26,14 +33,14 @@ const identityMap = (root) => {
   return m;
 };
 /** `mutateToContinuation` / `mutateToFirstFragment` against one tree standing as both source and clone. */
-const asBoth = (root, opts) => ({ ...opts, source: root, cloneOf: identityMap(root) });
+const asBoth = (root: any, opts: any) => ({ ...opts, source: root, cloneOf: identityMap(root) });
 
 /** The three attribute verbs `data-beltype`'s grammar reads and writes — what an element must answer for the engine to mark it. */
 class Bearer {
   attrs = new Map<any, any>();
-  getAttribute(name) { return this.attrs.get(name) ?? null; }
-  setAttribute(name, value) { this.attrs.set(name, String(value)); }
-  removeAttribute(name) { this.attrs.delete(name); }
+  getAttribute(name: any) { return this.attrs.get(name) ?? null; }
+  setAttribute(name: any, value: any) { this.attrs.set(name, String(value)); }
+  removeAttribute(name: any) { this.attrs.delete(name); }
   /** The words of `data-beltype`, as a sorted list — what a test asserts on. */
   get words() { return (this.getAttribute('data-beltype') ?? '').split(/\s+/).filter(Boolean).sort(); }
 }
@@ -43,8 +50,8 @@ class Node extends Bearer {
   declare name: any;
   declare childNodes: any[];
   declare parentElement: any;
-  declare style: {};
-  constructor(name, children = []) {
+  declare style: any;
+  constructor(name: any, children: any[] = []) {
     super();
     this.name = name;
     this.childNodes = [];
@@ -52,7 +59,7 @@ class Node extends Bearer {
     this.style = {};
     for (const c of children) this.append(c);
   }
-  append(child) {
+  append(child: any) {
     child.parentElement = this;
     this.childNodes.push(child);
   }
@@ -115,10 +122,10 @@ test('a boundary that is a direct child cuts the top level and dresses only the 
 });
 
 /** A source element that answers one computed style — all `applyCarriedRemainder` asks of it. */
-const sourceWith = (style) => ({ ownerDocument: { defaultView: { getComputedStyle: () => style } } });
+const sourceWith = (style: any) => ({ ownerDocument: { defaultView: { getComputedStyle: () => style } } });
 
 /** A bare clone with a style bag and the three attribute verbs, as a carried flow's continuation needs. */
-const bareClone = () => Object.assign(new Bearer(), { style: {} });
+const bareClone = () => Object.assign(new Bearer(), { style: {} as any });
 
 test("a carried parallel flow's continuation keeps the extent it has LEFT, not the one it declared (§5.1)", () => {
   // The rail of `cases/21-parallel-flows`: 96mm declared, 226.79px of itself already shown, 136.04px left. Continued at 96mm it asked for its whole height again on every page it reached, and the flow beside it could never close a page.
@@ -145,7 +152,7 @@ test("an auto-height flow is given no extent — its content already is its size
 });
 
 test('no remainder, no extent — the ordinary continuation path is untouched', () => {
-  const clone = { style: {} };
+  const clone = { style: {} as any };
   mutateToContinuation(clone, {});
   assert.deepEqual(clone.style, {});
 });
@@ -160,7 +167,7 @@ class Txt {
   declare data: any;
   declare childNodes: any[];
   declare parentElement: any;
-  constructor(data) {
+  constructor(data: any) {
     this.nodeType = 3;
     this.data = data;
     this.childNodes = [];
@@ -174,8 +181,9 @@ class El extends Bearer {
   declare name: any;
   declare childNodes: any[];
   declare parentElement: any;
-  declare style: {};
-  constructor(name, children = []) {
+  declare style: any;
+  declare tagName: string;
+  constructor(name: any, children: any[] = []) {
     super();
     this.nodeType = 1;
     this.name = name;
@@ -184,7 +192,7 @@ class El extends Bearer {
     this.style = {};
     for (const c of children) this.append(c);
   }
-  append(child) {
+  append(child: any) {
     child.parentElement = this;
     this.childNodes.push(child);
   }
@@ -199,15 +207,15 @@ class El extends Bearer {
     this.parentElement = null;
   }
   get textContent() { return this.childNodes.map((n) => n.textContent).join(''); }
-  contains(node) {
+  contains(node: any) {
     for (let n = node; n; n = n.parentElement) if (n === this) return true;
     return false;
   }
   /** Document order over the whole tree, text nodes included — the two bits the consumption's partition actually asks for. */
-  compareDocumentPosition(other) {
+  compareDocumentPosition(other: any) {
     let root = this;
     while (root.parentElement) root = root.parentElement;
-    const order = [];
+    const order: any[] = [];
     (function walk(n) { order.push(n); for (const c of n.childNodes) walk(c); })(root);
     const a = order.indexOf(this);
     const b = order.indexOf(other);
@@ -278,14 +286,14 @@ test('a shell path keeps the shelled box whole and drops everything after it', (
 /** Element and text stand-ins with the three members the resume-by-path walk reads: `nodeType`, `children` and a text node's `data`. */
 class PathEl extends Node {
   declare nodeType: number;
-  constructor(name, children = []) { super(name, children); this.nodeType = 1; }
+  constructor(name: any, children: any[] = []) { super(name, children); this.nodeType = 1; }
   get children() { return this.childNodes.filter((c) => c.nodeType === 1); }
 }
 class PathTxt {
   declare data: any;
   declare nodeType: number;
   declare parentElement: any;
-  constructor(data) { this.data = data; this.nodeType = 3; this.parentElement = null; }
+  constructor(data: any) { this.data = data; this.nodeType = 3; this.parentElement = null; }
   get order() { return [this.data === '' ? '""' : this.data]; }
 }
 
@@ -398,7 +406,7 @@ test('a row of cells takes its widths from the measured columns, a spanning cell
 });
 
 test('the piece words say which cut divided a box, in either order: a resumed piece is split without start, a cut-off one split without end, a middle piece split alone', () => {
-  const words = (marks) => {
+  const words = (marks: any) => {
     const el = new El('x');
     for (const mark of marks) mark(el);
     return el.words;
@@ -416,10 +424,10 @@ test('the piece words say which cut divided a box, in either order: a resumed pi
 
 // THE HEADER REPEATS (2026-10-14): a copy the engine repeats is in no word of the box it sits in.
 test('joinedWords skips a subtree wearing the artifact word, and counts the rest as before', async () => {
-  const { joinedWords } = await import('../src/fragments.ts');
-  const text = (data) => ({ nodeType: 3, data });
-  const el = (words, childNodes) => ({ nodeType: 1, childNodes, getAttribute: (n) => (n === 'data-beltype' ? words : null), tagName: 'DIV' });
+  const joinedWords = byShape((await import('../src/fragments.ts')).joinedWords);
+  const text = (data: any) => ({ nodeType: 3, data });
+  const el = (words: any, childNodes: any) => ({ nodeType: 1, childNodes, getAttribute: (n: any) => (n === 'data-beltype' ? words : null), tagName: 'DIV' });
   const root = el(null, [text('body one '), el('artifact', [text('copy of the header ')]), text('body two')]);
-  const words = joinedWords(root, () => false).map((w) => w.text);
+  const words = joinedWords(root, () => false).map((w: any) => w.text);
   assert.deepEqual(words, ['body', 'one', 'body', 'two']);
 });

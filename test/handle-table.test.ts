@@ -7,10 +7,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-globalThis.window = globalThis;
-globalThis.customElements = { get: () => undefined, define: () => {} };
-globalThis.HTMLElement = class {};
-globalThis.document = { fonts: Object.assign(new Set<any>(), { addEventListener() {} }), addEventListener() {}, createElement: () => ({}) };
+(globalThis as any).window = globalThis;
+(globalThis as any).customElements = { get: () => undefined, define: () => {} };
+(globalThis as any).HTMLElement = class {};
+(globalThis as any).document = { fonts: Object.assign(new Set<any>(), { addEventListener() {} }), addEventListener() {}, createElement: () => ({}) };
 await import('../seam/client.ts');
 
 test('the handle answers the intake`s table, and null before an intake took one', () => {

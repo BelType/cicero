@@ -10,12 +10,12 @@ import {
 } from '../src/data-beltype.ts';
 
 /** An element the way the grammar reads one. */
-function bearer(value) {
+function bearer(value: any) {
   const attrs = new Map(value == null ? [] : [[ATTRIBUTE, value]]);
   return {
-    getAttribute: (k) => attrs.get(k) ?? null,
-    setAttribute: (k, v) => attrs.set(k, v),
-    removeAttribute: (k) => attrs.delete(k),
+    getAttribute: (k: any) => attrs.get(k) ?? null,
+    setAttribute: (k: any, v: any) => attrs.set(k, v),
+    removeAttribute: (k: any) => attrs.delete(k),
     attrs
   };
 }
@@ -23,10 +23,10 @@ function bearer(value) {
 test('the table: every word once — the head\'s three, the engine\'s, the stamp, and the keys', () => {
   assert.deepEqual([...FLAGS].sort(), [CICERO_INTERFACE, CICERO_PROVISION, TRANSFORM, 'adjoin', 'artifact', 'away', 'break', 'end', 'fill', 'fixed', 'fragment', 'shell', 'split', 'start', 'wrapped'].sort());
   assert.deepEqual([...KEYS].sort(), ['has', 'pos', 'slice']);
-  assert.equal(REGISTRY.find((e) => e.name === 'pos').status, 'in use', 'core writes `pos:` since step 2');
-  assert.equal(REGISTRY.find((e) => e.name === 'pos').writer, 'belt');
-  assert.equal(REGISTRY.find((e) => e.name === 'has').writer, 'engine');
-  assert.equal(REGISTRY.find((e) => e.name === 'slice').property, '--beltype-slice', 'a value word names the custom property the generated sheet delivers it into');
+  assert.equal(REGISTRY.find((e) => e.name === 'pos')!.status, 'in use', 'core writes `pos:` since step 2');
+  assert.equal(REGISTRY.find((e) => e.name === 'pos')!.writer, 'belt');
+  assert.equal(REGISTRY.find((e) => e.name === 'has')!.writer, 'engine');
+  assert.equal(REGISTRY.find((e) => e.name === 'slice')!.property, '--beltype-slice', 'a value word names the custom property the generated sheet delivers it into');
   assert.equal(new Set(REGISTRY.map((e) => e.name)).size, REGISTRY.length, 'every fact is declared once');
   for (const e of REGISTRY.filter((x) => x.facing === 'author hook')) assert.ok(['split', 'start', 'end', 'slice'].includes(e.name), `${e.name}: only the piece words are author hooks`);
 });

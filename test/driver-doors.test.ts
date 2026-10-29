@@ -6,10 +6,16 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gapAbove, pageNameDownFrom } from '../src/driver.ts';
+import { gapAbove as gapAboveTyped, pageNameDownFrom as pageNameDownFromTyped } from '../src/driver.ts';
 import { placeAt } from '../src/positions.ts';
-import { fitsPage, processionBottoms } from '../src/stonehand.ts';
-import { pinTrack } from '../src/fragments.ts';
+import { fitsPage, processionBottoms as processionBottomsTyped } from '../src/stonehand.ts';
+import { pinTrack as pinTrackTyped } from '../src/fragments.ts';
+import { byShape } from './fakes.ts';
+
+const processionBottoms = byShape(processionBottomsTyped);
+const gapAbove = byShape(gapAboveTyped);
+const pageNameDownFrom = byShape(pageNameDownFromTyped);
+const pinTrack = byShape(pinTrackTyped);
 
 test('placeAt: the first piece on the line or below, a character where the line begins inside a word, else the place after the last word', () => {
   const pieces = [{ line: 0, index: 0, char: 0 }, { line: 0, index: 1, char: 0 }, { line: 1, index: 2, char: 0 }, { line: 1, index: 3, char: 0 }, { line: 2, index: 3, char: 4 }];
@@ -21,9 +27,9 @@ test('placeAt: the first piece on the line or below, a character where the line 
 });
 
 test('processionBottoms keeps the main flow and the parallel flows apart, and an empty procession bottoms out at the page`s start', () => {
-  const box = (name, bottom) => ({ name, rect: { bottom } });
+  const box = (name: any, bottom: any) => ({ name, rect: { bottom } });
   const report = { processionOf: () => [box('p', 300), box('float', 700), box('q', 450), box('float2', 500)] };
-  const parallel = (b) => b.name.startsWith('float');
+  const parallel = (b: any) => b.name.startsWith('float');
   assert.deepEqual(processionBottoms({ report, pageStart: 40, parallel }), { inFlowBottom: 450, parallelBottom: 700 });
   assert.deepEqual(processionBottoms({ report: { processionOf: () => [] }, pageStart: 40, parallel }), { inFlowBottom: 40, parallelBottom: 40 });
   assert.deepEqual(processionBottoms({ report: { processionOf: () => [box('p', 10)] }, pageStart: 40, parallel }), { inFlowBottom: 40, parallelBottom: 40 }, 'a box above the start never lowers the bottom below it');
@@ -37,11 +43,11 @@ test('fitsPage: within the content height and a quarter pixel, measured from the
 });
 
 /** A box of the page's tree: where it stands, and what contains it. */
-const boxOf = (el, top, parent = null) => ({ el, rect: { top }, parent });
+const boxOf = (el: any, top: any, parent: any = null) => ({ el, rect: { top }, parent });
 
 test('gapAbove: how far each child stands below its container`s content edge, summed up the chain', () => {
   const styles = new Map<any, any>();
-  const win = { getComputedStyle: (el) => styles.get(el) ?? { borderTopWidth: '0px', paddingTop: '0px', borderCollapse: 'collapse' } };
+  const win = { getComputedStyle: (el: any) => styles.get(el) ?? { borderTopWidth: '0px', paddingTop: '0px', borderCollapse: 'collapse' } };
   const grid = {};
   const item = {};
   styles.set(grid, { borderTopWidth: '2px', paddingTop: '3px', borderCollapse: 'collapse' });
@@ -56,16 +62,16 @@ test('gapAbove: a separated table owes the spacing above its repeated header`s c
   const rows = { tagName: 'TBODY', previousElementSibling: copy, getAttribute: () => null };
   const table = {};
   const copyBox = boxOf(copy, 106);
-  const report = { boxOf: (el) => (el === copy ? copyBox : null) };
-  const winOf = (borderCollapse) => ({ getComputedStyle: () => ({ borderTopWidth: '1px', paddingTop: '0px', borderCollapse }) });
+  const report = { boxOf: (el: any) => (el === copy ? copyBox : null) };
+  const winOf = (borderCollapse: any) => ({ getComputedStyle: () => ({ borderTopWidth: '1px', paddingTop: '0px', borderCollapse }) });
   const resumed = () => boxOf(rows, 130, boxOf(table, 100));
   assert.equal(gapAbove(resumed(), report, winOf('separate')), 5, 'the copy stands 5 below the table`s content edge, at 101: its own footprint is not a lead, the spacing above it is');
   assert.equal(gapAbove(resumed(), report, winOf('collapse')), 0, 'under collapsed borders the copy`s top is the table`s own and nothing is owed');
 });
 
 /** An element with a computed `page`, as `effectivePageName` reads it. */
-function named(page, parent = null, children = []) {
-  const win = { getComputedStyle: (e) => ({ page: e.page }) };
+function named(page: any, parent: any = null, children: any[] = []) {
+  const win = { getComputedStyle: (e: any) => ({ page: e.page }) };
   const e = { page, parentElement: parent, ownerDocument: { defaultView: win }, children };
   for (const c of children) c.parentElement = e;
   return e;
@@ -77,18 +83,18 @@ test('pageNameDownFrom: down the first in-flow block child while no run stands b
   const chapter = named('chapter', null, [heading]);
   const article = named('auto', null, [float, chapter]);
   const styles = new Map([[float, { position: 'static', float: 'left' }]]);
-  const styleOf = (e) => styles.get(e) ?? { position: 'static', float: 'none' };
-  const blockChildren = (e) => e.children;
+  const styleOf = (e: any) => styles.get(e) ?? { position: 'static', float: 'none' };
+  const blockChildren = (e: any) => e.children;
   assert.equal(pageNameDownFrom(article, { styleOf, runBefore: () => false, blockChildren }), 'chapter', 'the float is skipped, the chapter begins where the article does, and its heading inherits the name');
-  assert.equal(pageNameDownFrom(article, { styleOf, runBefore: (parent) => parent === article, blockChildren }), '', 'a line before the chapter is the article`s first content, and the article is unnamed');
+  assert.equal(pageNameDownFrom(article, { styleOf, runBefore: (parent: any) => parent === article, blockChildren }), '', 'a line before the chapter is the article`s first content, and the article is unnamed');
   assert.equal(pageNameDownFrom(heading, { styleOf, runBefore: () => false, blockChildren }), 'chapter', 'a box with no block child is where it stands, named by its ancestors');
 });
 
 /** An element for the table writer: a tag, children, a `style` it can be written on, and no engine words. */
-function table(tag, children = [], colSpan = 1) {
-  return { tagName: tag, children, colSpan, style: {}, getAttribute: () => null };
+function table(tag: any, children: any[] = [], colSpan = 1) {
+  return { tagName: tag, children, colSpan, style: {} as any, getAttribute: () => null };
 }
-const byTag = (el) => ({ TR: 'table-row', TD: 'table-cell', TH: 'table-cell', THEAD: 'table-header-group', TBODY: 'table-row-group', TFOOT: 'table-footer-group' })[el.tagName] ?? '';
+const byTag = (el: any) => ({ TR: 'table-row', TD: 'table-cell', TH: 'table-cell', THEAD: 'table-header-group', TBODY: 'table-row-group', TFOOT: 'table-footer-group' } as Record<string, string>)[el.tagName] ?? '';
 
 test('pinTrack: a grid takes its measured column list', () => {
   const clone = table('DIV');

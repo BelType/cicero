@@ -6,17 +6,20 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { topLevelReach } from '../src/capture.ts';
+import { topLevelReach as topLevelReachTyped } from '../src/capture.ts';
 import { ForcingMemo } from '../src/forcing-memo.ts';
 import { indexBlocks } from '../src/positions.ts';
 import { runningBoxes } from '../src/driver.ts';
 import { RUNNING_PROP } from '../src/gcpm-encoding.ts';
+import { byShape } from './fakes.ts';
+
+const topLevelReach = byShape(topLevelReachTyped);
 
 /** `tag#id.class.class`, with children. */
-function el(spec, ...children) {
+function el(spec: any, ...children: any[]): any {
   const [, tag, id = '', cls = ''] = /^(\w+)(?:#([\w-]+))?((?:\.[\w-]+)*)$/.exec(spec) ?? [];
   const e = {
-    tagName: tag.toUpperCase(), id, classes: cls.split('.').filter(Boolean), children, parentElement: null,
+    tagName: tag.toUpperCase(), id, classes: cls.split('.').filter(Boolean), children, parentElement: null as any,
     matches: ( sel: string) => matches(e, sel),
     get nextElementSibling() { const s = e.parentElement?.children ?? []; return s[s.indexOf(e) + 1] ?? null; }
   };
@@ -25,25 +28,25 @@ function el(spec, ...children) {
 }
 
 /** A selector of compounds (a tag or `*`, classes, an id, an `:is()`, `:where()` or `:not()` of such compounds) and the four combinators, matched right to left; anything else throws, as a browser's `matches` throws on what it cannot parse. */
-function matches(element, selector) {
+function matches(element: any, selector: any) {
   const parts = selector.trim().replace(/,\s+/g, ',').split(/\s*([>+~])\s*|\s+/);
-  const compound = (e, c) => {
+  const compound = (e: any, c: any) => {
     let wrapped = true;
-    c = c.replace(/:(is|where|not)\(([^()]*)\)/g, (_, name, list) => { if (list.split(',').some((s) => compound(e, s)) === (name === 'not')) wrapped = false; return ''; });
+    c = c.replace(/:(is|where|not)\(([^()]*)\)/g, (_: any, name: any, list: any) => { if (list.split(',').some((s: any) => compound(e, s)) === (name === 'not')) wrapped = false; return ''; });
     const m = /^([a-z]\w*|\*)?((?:[.#][\w-]+)*)$/i.exec(c);
     if (!m) throw new SyntaxError(c);
     if (!wrapped) return false;
     if (m[1] && m[1] !== '*' && e.tagName !== m[1].toUpperCase()) return false;
     return (m[2].match(/[.#][\w-]+/g) ?? []).every((s) => (s[0] === '.' ? e.classes.includes(s.slice(1)) : e.id === s.slice(1)));
   };
-  const at = (e, i) => {
+  const at = (e: any, i: any) => {
     if (!e || !compound(e, parts[i])) return false;
     if (i === 0) return true;
     const comb = parts[i - 1] ?? ' ';
     const before = () => { const s = e.parentElement?.children ?? []; return s.slice(0, s.indexOf(e)); };
     if (comb === '>') return at(e.parentElement, i - 2);
     if (comb === '+') return at(before().at(-1), i - 2);
-    if (comb === '~') return before().some((s) => at(s, i - 2));
+    if (comb === '~') return before().some((s: any) => at(s, i - 2));
     for (let a = e.parentElement; a; a = a.parentElement) if (at(a, i - 2)) return true;
     return false;
   };
@@ -51,15 +54,15 @@ function matches(element, selector) {
 }
 
 /** The document: `html > body > div#holder > boxes`, wearing one sheet of the given rules (a string is a style rule's selector). */
-function documentOf(boxes, rules) {
+function documentOf(boxes: any, rules: any) {
   const holder = el('div#holder', ...boxes);
   el('html', el('body', holder));
-  const doc = { styleSheets: [{ cssRules: rules.map((r) => (typeof r === 'string' ? { selectorText: r } : r)) }], adoptedStyleSheets: [] };
+  const doc = { styleSheets: [{ cssRules: rules.map((r: any) => (typeof r === 'string' ? { selectorText: r } : r)) }], adoptedStyleSheets: [] };
   return { doc, holder, boxes: () => [...holder.children] };
 }
 
 /** Put `fresh` in `old`'s place (or before `before` where `old` is null; take `old` out where `fresh` is null), and report both to the memo, as a host holding its own pages does. */
-function edit(holder, memo, { old = null, fresh = null, before = null }) {
+function edit(holder: any, memo: any, { old = null, fresh = null, before = null }: any) {
   const kids = holder.children;
   if (old && fresh) kids[kids.indexOf(old)] = fresh;
   else if (old) kids.splice(kids.indexOf(old), 1);
@@ -69,17 +72,17 @@ function edit(holder, memo, { old = null, fresh = null, before = null }) {
 }
 
 /** The ids of the boxes whose part the memo kept: each box is asked once, and a box read is not kept. */
-const keptOf = (memo, boxes) => boxes.filter((b) => { let read = false; memo.keep('part', b, () => { read = true; return b.id; }); return !read; }).map((b) => b.id);
+const keptOf = (memo: any, boxes: any) => boxes.filter((b: any) => { let read = false; memo.keep('part', b, () => { read = true; return b.id; }); return !read; }).map((b: any) => b.id);
 
 /** Settle under the top-level unit, the reach read off the sheets and the boxes, as the consumer does: the reach, whether the memo is usable, and the ids it kept. */
-function settled(doc, memo, boxes) {
+function settled(doc: any, memo: any, boxes: any) {
   const reach = topLevelReach(doc, boxes, memo.boxes);
   const usable = memo.settle(reach, boxes);
   return { reach, usable, kept: usable ? keptOf(memo, boxes) : [] };
 }
 
 /** A memo filled over `boxes` under the unit. */
-function filled(doc, boxes) {
+function filled(doc: any, boxes: any) {
   const memo = new ForcingMemo();
   memo.settle(topLevelReach(doc, boxes, memo.boxes), boxes);
   keptOf(memo, boxes);
@@ -119,7 +122,7 @@ test('a + inside a box: nothing beyond the replaced box', () => {
 
 test('a :has() looking down or sideways inside a box crosses no box, the engine\'s union of it neither', () => {
   const studio = 'li > p:first-child:not(:has(~ p), [class], [id], [lang], [aria-label])';
-  const union = (sel, arg, bare) => `${sel}:is(:where([data-beltype~="has:abc123"]):is(*, ${bare}), :where(:not([data-beltype~="fragment"])):has(${arg}))`;
+  const union = (sel: any, arg: any, bare: any) => `${sel}:is(:where([data-beltype~="has:abc123"]):is(*, ${bare}), :where(:not([data-beltype~="fragment"])):has(${arg}))`;
   for (const rule of ['section:has(> h2.wide)', union('section', '> h2.wide', 'h2.wide'), studio, `li > p:first-child:not(${union('', '~ p', 'p')})`, 'section:has(h2 ~ p)']) {
     const { doc, holder, boxes } = documentOf(sections(), [rule]);
     const memo = filled(doc, boxes());
@@ -129,7 +132,7 @@ test('a :has() looking down or sideways inside a box crosses no box, the engine\
 });
 
 test('a :has() opening sideways whose subject is a top-level box: the boxes before the edit depend on it, and nothing is kept', () => {
-  for (const [boxesOf, rule] of [[flat, 'h2:has(~ p)'], [sections, 'section:has(+ section)'], [flat, 'h2:has(+ p.lead, > em)']]) {
+  for (const [boxesOf, rule] of [[flat, 'h2:has(~ p)'], [sections, 'section:has(+ section)'], [flat, 'h2:has(+ p.lead, > em)']] as any[][]) {
     const { doc, holder, boxes } = documentOf(boxesOf(), [rule]);
     const memo = filled(doc, boxes());
     edit(holder, memo, { old: boxes().at(-1), fresh: el('p#z') });
@@ -141,7 +144,7 @@ test('a :has() whose subject is an ancestor of the boxes, and an @container rule
   class CSSContainerRule { cssRules = []; }
   for (const rule of ['body:has(.x) p', ':has(.x)', 'div:has(> section.x)', new CSSContainerRule()]) {
     const { doc, boxes } = documentOf(sections(), [rule]);
-    assert.equal(topLevelReach(doc, boxes(), []), 2, String(rule.selectorText ?? rule.constructor.name));
+    assert.equal(topLevelReach(doc, boxes(), []), 2, String((rule as any).selectorText ?? rule.constructor.name));
   }
   const { doc, holder, boxes } = documentOf(sections(), ['body:has(.x) p']);
   const memo = filled(doc, boxes());
@@ -192,7 +195,7 @@ test('a nested rule is read as it matches, its & the parent\'s selector in :is()
     [{ selectorText: '+ p', parentRule: { selectorText: 'h2' } }, flat, 1],
     [{ selectorText: '& span', parentRule: { selectorText: 'h2 + p' } }, flat, 2],
     [{ selectorText: '& + p' }, flat, 2]
-  ]) {
+  ] as any[][]) {
     const { doc, boxes } = documentOf(boxesOf(), [rule]);
     assert.equal(topLevelReach(doc, boxes(), boxes()), reach, `${rule.parentRule?.selectorText ?? rule.parentRule?.parentRule?.selectorText ?? ''} { ${rule.selectorText} }`);
   }
@@ -211,7 +214,7 @@ test('a wrapper of plain compounds is matched as it stands, so a sibling combina
     // A wrapper holding a pseudo-class or a combinator is still taken out, which only widens what it matches.
     [':is(h2, :hover) + p', sections, 1],
     [':is(h2 em) + p', sections, 1]
-  ]) {
+  ] as any[][]) {
     const { doc, boxes } = documentOf(boxesOf(), [rule]);
     assert.equal(topLevelReach(doc, boxes(), boxes()), reach, rule);
   }
@@ -220,7 +223,7 @@ test('a wrapper of plain compounds is matched as it stands, so a sibling combina
 test('what the reading cannot place is answered on the conservative side', () => {
   for (const rule of ['h2 + p[title="x', ':is(h2 + p) em', ':not(div ~ div) p', 'section ~ ~ p']) {
     const { doc, boxes } = documentOf(sections(), [rule]);
-    assert.equal(topLevelReach(doc, boxes(), boxes()), 2, String(rule.selectorText ?? rule));
+    assert.equal(topLevelReach(doc, boxes(), boxes()), 2, String((rule as any).selectorText ?? rule));
   }
   // An unreadable sheet might say anything.
   const { doc, boxes } = documentOf(sections(), []);
@@ -247,32 +250,32 @@ test('reach 0 under the unit: the replaced and moved boxes are read again, every
 });
 
 test('the position index: a block\'s part is kept when a block is inserted before it, and stamped with its new number', () => {
-  const t = (data) => ({ nodeType: 3, data });
-  const block = (...kids) => ({ nodeType: 1, style: {}, childNodes: kids, children: kids.filter((k) => k.nodeType === 1) });
+  const t = (data: any) => ({ nodeType: 3, data });
+  const block = (...kids: any[]) => ({ nodeType: 1, style: {} as any, childNodes: kids, children: kids.filter((k) => k.nodeType === 1) });
   const p = block(t('two words'));
   const blocks = [block(t('one')), block(t('alpha'), p)];
   const memo = new ForcingMemo();
   const first = indexBlocks(blocks, () => false, () => false, memo.keep);
-  assert.equal(first.entryFor(p).block, 1);
+  assert.equal(first.entryFor(p)!.block, 1);
   blocks.unshift(block(t('new words here')));
   memo.replaced((blocks[0] as any));
   memo.settle(0);
   const again = indexBlocks(blocks, () => false, () => false, memo.keep);
   assert.deepEqual(memo.tally.index, { kept: 2, read: 1 });
-  assert.equal(again.entryFor(p).block, 2, 'the kept part answers the block it stands in now');
-  assert.equal(first.entryFor(p).block, 1, 'and the index laid before keeps its own');
+  assert.equal(again.entryFor(p)!.block, 2, 'the kept part answers the block it stands in now');
+  assert.equal(first.entryFor(p)!.block, 1, 'and the index laid before keeps its own');
   assert.deepEqual({ bases: again.bases, total: again.total, at: again.entryFor(p) }, (() => { const fresh = indexBlocks(blocks, () => false, () => false); return { bases: fresh.bases, total: fresh.total, at: fresh.entryFor(p) }; })());
 });
 
 test('the running elements: each top-level box\'s are kept through the door, and the block numbers laid on afresh', () => {
-  const style = (name) => ({ getPropertyValue: (prop) => (prop === RUNNING_PROP ? name : ''), position: 'static' });
+  const style = (name: any) => ({ getPropertyValue: (prop: any) => (prop === RUNNING_PROP ? name : ''), position: 'static' });
   let reads = 0;
   const head = el('p#head');
   const after = el('p#after');
   const top = el('header#top');
   const body = el('body', top, el('section#s1', head, after), el('section#s2', el('p')));
   const running = new Map([[head, 'chapter'], [top, 'title']]);
-  const doc = ({ body, defaultView: { getComputedStyle: (e) => (reads++, style(running.get(e) ?? '')) } } as any);
+  const doc = ({ body, defaultView: { getComputedStyle: (e: any) => (reads++, style(running.get(e) ?? '')) } } as any);
   const memo = new ForcingMemo();
   const fresh = runningBoxes(doc);
   assert.deepEqual(runningBoxes(doc, memo.keep), fresh);

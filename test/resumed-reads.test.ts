@@ -6,20 +6,24 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { indexBlock, indexBlocks } from '../src/positions.ts';
-import { documentOpsOf } from '../src/document-state.ts';
+import { indexBlock, indexBlocks as indexBlocksTyped } from '../src/positions.ts';
+import { documentOpsOf as documentOpsOfTyped } from '../src/document-state.ts';
 import { ForcingMemo } from '../src/forcing-memo.ts';
+import { byShape, fakeElement } from './fakes.ts';
 
-const t = (data) => ({ nodeType: 3, data });
+const indexBlocks = byShape(indexBlocksTyped);
+const documentOpsOf = byShape(documentOpsOfTyped);
+
+const t = (data: any) => ({ nodeType: 3, data });
 /** A plain element that both walks can read: `childNodes` for the index, `children` and `parentElement` for the ops and the memo, `style` for `styleOf`. */
-const el = (style, ...kids) => {
-  const e = { nodeType: 1, style, childNodes: kids, children: kids.filter((k) => k.nodeType === 1), parentElement: null };
+const el = (style: any, ...kids: any[]) => {
+  const e = { nodeType: 1, style, childNodes: kids, children: kids.filter((k) => k.nodeType === 1), parentElement: null as any };
   for (const k of e.children) k.parentElement = e;
   return e;
 };
-const isInline = (e) => e.style.display === 'inline';
-const isFixed = (e) => e.style.position === 'fixed';
-const styleOf = (e) => e.style;
+const isInline = (e: any) => e.style.display === 'inline';
+const isFixed = (e: any) => e.style.position === 'fixed';
+const styleOf = (e: any) => e.style;
 
 /** Three top-level blocks: a chapter with a counter and a nested section, a fixed box inside a paragraph, and one that opens inside a word across an inline seam. */
 function documentOf() {
@@ -31,15 +35,15 @@ function documentOf() {
   const second = el({ counterReset: 'chapter 9' }, p2);
   const third = el({}, t('io'), el({ display: 'inline', counterIncrement: 'section 1' }, t('ta kappa')), t(' lambda'));
   const blocks = [chapter, second, third];
-  const root = { nodeType: 1, style: {}, childNodes: blocks, children: blocks, parentElement: null };
+  const root = { nodeType: 1, style: {} as any, childNodes: blocks, children: blocks, parentElement: null as any };
   for (const b of blocks) b.parentElement = root;
   return { blocks, h1, h2, p1, p2 };
 }
 
 /** Every element below the blocks, in document order. */
-const elementsOf = (blocks) => {
-  const out = [];
-  const walk = (e) => { out.push(e); for (const c of e.children) walk(c); };
+const elementsOf = (blocks: any) => {
+  const out: any[] = [];
+  const walk = (e: any) => { out.push(e); for (const c of e.children) walk(c); };
   blocks.forEach(walk);
   return out;
 };
@@ -48,7 +52,7 @@ test('the position index assembled from per-box parts equals the index built who
   const { blocks } = documentOf();
   const whole = indexBlocks(blocks, isInline, isFixed);
   const parts = blocks.map((block, b) => indexBlock(block, b, isInline, isFixed));
-  const assembled = indexBlocks(blocks, isInline, isFixed, (kind, box, read) => parts[blocks.indexOf(box)]);
+  const assembled = indexBlocks(blocks, isInline, isFixed, (kind: any, box: any, read: any) => parts[blocks.indexOf(box)]);
   assert.deepEqual(assembled.bases, whole.bases);
   assert.deepEqual(assembled.wordCounts, whole.wordCounts);
   assert.equal(assembled.total, whole.total);
@@ -59,7 +63,7 @@ test('the position index assembled from per-box parts equals the index built who
   // Through the memo, twice: the second index reads nothing and answers the same.
   const memo = new ForcingMemo();
   let reads = 0;
-  const counting = (e) => (reads++, isInline(e));
+  const counting = (e: any) => (reads++, isInline(e));
   indexBlocks(blocks, counting, isFixed, memo.keep);
   const first = reads;
   const again = indexBlocks(blocks, counting, isFixed, memo.keep);
@@ -81,7 +85,7 @@ test('the document ops assembled from per-box logs equal the whole walk\'s log, 
   assert.deepEqual(kept, whole, 'the assembled log is the whole log');
   const again = documentOpsOf(blocks, index, { styleOf, ancestors: [html, body], running, keep: memo.keep });
   assert.deepEqual(again, whole, 'and so is the one read from the memo');
-  assert.ok(whole.some((op) => op.pos > index.bases[1]), 'a later block\'s operations stand at global positions');
+  assert.ok(whole.some((op: any) => op.pos > index.bases[1]), 'a later block\'s operations stand at global positions');
   // With marks: a part kept under one set of marks is not the answer under another.
   const marked = documentOpsOf(blocks, index, { styleOf, ancestors: [html, body], marks: new Set([h1]), keep: memo.keep });
   assert.deepEqual(marked, documentOpsOf(blocks, index, { styleOf, ancestors: [html, body], marks: new Set([h1]) }));
@@ -94,7 +98,7 @@ test('a memo forgetting one box reads that box again and no other', () => {
   const { blocks, p1 } = documentOf();
   const memo = new ForcingMemo();
   let reads = 0;
-  const counting = (e) => (reads++, e.style);
+  const counting = (e: any) => (reads++, e.style);
   const run = () => {
     memo.settle(0);
     const index = indexBlocks(blocks, isInline, isFixed, memo.keep);
@@ -108,13 +112,13 @@ test('a memo forgetting one box reads that box again and no other', () => {
   // An edit inside the first block: a paragraph replaced by a longer one.
   const longer = el({}, t('alpha beta gamma delta epsilon zeta'));
   const parent = p1.parentElement;
-  parent.children[parent.children.indexOf(p1)] = longer;
-  parent.childNodes[parent.childNodes.indexOf(p1)] = longer;
+  parent!.children[parent!.children.indexOf(p1)] = longer;
+  parent!.childNodes[parent!.childNodes.indexOf(p1)] = longer;
   longer.parentElement = parent;
-  memo.replaced(longer);
+  memo.replaced(fakeElement(longer));
   const ops = run();
   let alone = 0;
-  documentOpsOf([blocks[0]], indexBlocks([blocks[0]], isInline, isFixed), { styleOf: (e) => (alone++, e.style) });
+  documentOpsOf([blocks[0]], indexBlocks([blocks[0]], isInline, isFixed), { styleOf: (e: any) => (alone++, e.style) });
   assert.equal(reads, alone, 'the edited block is read again, whole, and no other block is');
   const fresh = documentOpsOf(blocks, indexBlocks(blocks, isInline, isFixed), { styleOf });
   assert.deepEqual(ops, fresh, 'and the log is the one a fresh walk takes of the edited document');
@@ -126,7 +130,7 @@ test('a sheet that reaches a sibling forgets every box when a top-level box is r
   const { blocks } = documentOf();
   const memo = new ForcingMemo();
   let reads = 0;
-  const counting = (e) => (reads++, e.style);
+  const counting = (e: any) => (reads++, e.style);
   const index = indexBlocks(blocks, isInline, isFixed);
   const walk = () => documentOpsOf(blocks, index, { styleOf: counting, keep: memo.keep });
   memo.settle(1);
@@ -139,12 +143,12 @@ test('a sheet that reaches a sibling forgets every box when a top-level box is r
   assert.equal(memo.settle(1), true);
   walk();
   let alone = 0;
-  documentOpsOf([blocks[1]], indexBlocks([blocks[1]], isInline, isFixed), { styleOf: (e) => (alone++, e.style) });
+  documentOpsOf([blocks[1]], indexBlocks([blocks[1]], isInline, isFixed), { styleOf: (e: any) => (alone++, e.style) });
   assert.equal(reads, alone);
 
   // A top-level box replaced at reach 1 can change its next sibling's style: everything is read again.
   reads = 0;
-  memo.replaced(blocks[2]);
+  memo.replaced(fakeElement(blocks[2]));
   assert.equal(memo.settle(1), true);
   walk();
   assert.equal(reads, whole);

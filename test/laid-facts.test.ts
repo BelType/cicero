@@ -6,13 +6,16 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { settleReads, pageFactsOf } from '../src/reads.ts';
+import { settleReads as settleReadsTyped, pageFactsOf } from '../src/reads.ts';
+import { byShape } from './fakes.ts';
 
-const text = (data) => ({ nodeType: 3, data });
+const settleReads = byShape(settleReadsTyped);
+
+const text = (data: any) => ({ nodeType: 3, data });
 /** A document of one paragraph whose `::before` reads `counter(page)`, a plain tree the loop can walk: the rule's selector asked of `matches`, the block's words counted off `childNodes`. */
 function documentOf() {
-  const p = { nodeType: 1, tagName: 'P', childNodes: [text('alpha beta gamma')], children: [], parentElement: null, matches: (s) => s === 'p', querySelectorAll: () => [], closest: () => null };
-  const doc = { styleSheets: [{ cssRules: [{ type: 1, selectorText: 'p::before', style: { getPropertyValue: (name) => (name === 'content' ? 'counter(page)' : '') } }] }], adoptedStyleSheets: [] };
+  const p = { nodeType: 1, tagName: 'P', childNodes: [text('alpha beta gamma')], children: [], parentElement: null, matches: (s: any) => s === 'p', querySelectorAll: () => [], closest: () => null };
+  const doc = { styleSheets: [{ cssRules: [{ type: 1, selectorText: 'p::before', style: { getPropertyValue: (name: any) => (name === 'content' ? 'counter(page)' : '') } }] }], adoptedStyleSheets: [] };
   return { doc, p };
 }
 
@@ -23,13 +26,13 @@ const truth = pageFactsOf(account);
 const stale = [{ counterReset: 'page 1 pages 2', props: {} }];
 
 /** Settle with a `run` that records what it was handed and answers with `answer(laid)` beside the account; the loop's own console line is held back. */
-async function settle(answer, warmFacts) {
+async function settle(answer: any, warmFacts: any) {
   const { doc, p } = documentOf();
-  const handed = [];
+  const handed: any[] = [];
   const info = console.info;
   console.info = () => {};
   try {
-    const result = await settleReads(doc, { run: async (laid) => { handed.push(laid.facts); return { account, index: laid.index, ...answer(laid) }; }, blocksOf: () => [p], originals: [p], warmFacts });
+    const result = await settleReads(doc, { run: async (laid: any) => { handed.push(laid.facts); return { account, index: laid.index, ...answer(laid) }; }, blocksOf: () => [p], originals: [p], warmFacts });
     return { result, handed };
   } finally {
     console.info = info;

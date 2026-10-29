@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { CompositionCache, paragraphKey, shapeOf, lookup, remember, blockKey } from '../src/composition-key.ts';
 
 /** A paragraph as the key reads it. A fresh object every call: the key must not care which object it was handed. */
-const para = (extra = {}) => ({ path: [4, 0, 2], markup: '<p>The quick brown fox jumps over the lazy dog.</p>', width: 412.5, inputs: ['left', 0, 'manual', 'en', '‐'], ...extra });
+const para = (extra: any = {}) => ({ path: [4, 0, 2], markup: '<p>The quick brown fox jumps over the lazy dog.</p>', width: 412.5, inputs: ['left', 0, 'manual', 'en', '‐'], ...extra });
 
 test('the same path, the same text and the same width are the same key, whichever object carries them', () => {
   assert.equal(paragraphKey(para()), paragraphKey(para()));
@@ -30,14 +30,14 @@ test('every per-block style input the lines are a function of is in the key', ()
 });
 
 test('the editing host\'s line stamps are not text: an edit above shifts every stamp below it and no paragraph\'s lines', () => {
-  const at = (n) => `<p data-beltype="pos:${n}">The quick <em data-beltype="pos:${n}">brown</em> fox.</p>`;
+  const at = (n: any) => `<p data-beltype="pos:${n}">The quick <em data-beltype="pos:${n}">brown</em> fox.</p>`;
   assert.equal(shapeOf(at(31)), shapeOf(at(87)));
   assert.equal(paragraphKey(para({ markup: shapeOf(at(31)) })), paragraphKey(para({ markup: shapeOf(at(87)) })));
   assert.notEqual(shapeOf(at(31)), shapeOf(at(31).replace('brown', 'green')), 'and the words stay in');
 });
 
 test('the stamp is a WORD of data-beltype: only it is taken out, a word of the engine\'s or an author\'s stays, and the attribute goes with its last word', () => {
-  const at = (n) => `<p data-beltype="pos:${n}">The quick <em data-beltype="pos:${n} has:3gv2ab">brown</em> fox.</p>`;
+  const at = (n: any) => `<p data-beltype="pos:${n}">The quick <em data-beltype="pos:${n} has:3gv2ab">brown</em> fox.</p>`;
   assert.equal(shapeOf(at(31)), shapeOf(at(87)));
   assert.equal(shapeOf(at(31)), '<p>The quick <em data-beltype="has:3gv2ab">brown</em> fox.</p>');
   assert.notEqual(shapeOf(at(31)), shapeOf(at(31).replace('has:3gv2ab', 'has:zzzzzz')), 'a word that is not the stamp is part of the shape');
@@ -86,11 +86,11 @@ test('the tally is the run\'s: every restart begins it again', () => {
 });
 
 /** A top-level block as the block memo reads it. */
-const block = (extra = {}) => ({ index: 7, width: 640, markup: '<section><h2>Title</h2><p>One two three.</p></section>', before: 'section class="chapter"', last: false, ...extra });
+const block = (extra: any = {}) => ({ index: 7, width: 640, markup: '<section><h2>Title</h2><p>One two three.</p></section>', before: 'section class="chapter"', last: false, ...extra });
 
 test('a top-level block unchanged, at the width it was laid out at, between the same neighbours, is the same key', () => {
   assert.equal(blockKey(block()), blockKey(block()));
-  const at = (n) => `<section data-beltype="pos:${n}"><h2 data-beltype="pos:${n}">Title</h2><p>One two three.</p></section>`;
+  const at = (n: any) => `<section data-beltype="pos:${n}"><h2 data-beltype="pos:${n}">Title</h2><p>One two three.</p></section>`;
   assert.equal(blockKey(block({ markup: at(4) })), blockKey(block({ markup: at(90) })), 'the editing host\'s stamps are not content');
 });
 

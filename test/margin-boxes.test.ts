@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MARGIN_CELLS, MARGIN_BOXES, ALIGN_X, ALIGN_Y, HORIZONTAL_BANDS, bandWidths, translateAlignment } from '../src/margin-boxes.ts';
 
-const at = (name) => MARGIN_CELLS.find(([n]) => n === name);
+const at = (name: any) => MARGIN_CELLS.find(([n]) => n === name);
 
 test('sixteen boxes, each once, each with a grid seat and both alignments', () => {
   assert.equal(MARGIN_CELLS.length, 16);
@@ -29,19 +29,19 @@ test('the table is NOT centring — which is what the engine assumed until it wa
 });
 
 test('the four corners align toward the page area, not out at the sheet edge', () => {
-  assert.equal(at('top-left-corner')[3], 'right');
-  assert.equal(at('top-right-corner')[3], 'left');
-  assert.equal(at('bottom-left-corner')[3], 'right');
-  assert.equal(at('bottom-right-corner')[3], 'left');
+  assert.equal(at('top-left-corner')![3], 'right');
+  assert.equal(at('top-right-corner')![3], 'left');
+  assert.equal(at('bottom-left-corner')![3], 'right');
+  assert.equal(at('bottom-right-corner')![3], 'left');
 });
 
 test('the only vertical variation is down the two side bands', () => {
   const notMiddle = MARGIN_CELLS.filter(([, , , , y]) => y !== 'middle').map(([n]) => n);
   assert.deepEqual(notMiddle.sort(), ['left-bottom', 'left-top', 'right-bottom', 'right-top']);
-  assert.equal(at('left-top')[4], 'top');
-  assert.equal(at('left-bottom')[4], 'bottom');
-  assert.equal(at('right-top')[4], 'top');
-  assert.equal(at('right-bottom')[4], 'bottom');
+  assert.equal(at('left-top')![4], 'top');
+  assert.equal(at('left-bottom')![4], 'bottom');
+  assert.equal(at('right-top')![4], 'top');
+  assert.equal(at('right-bottom')![4], 'bottom');
 });
 
 test('an author’s alignment is restated as the two properties a flex cell reads, and the original is kept', () => {
@@ -66,7 +66,7 @@ test('a value neither table names rides through untranslated rather than being g
  * What is pinned is the section's own PRIORITIES rather than a transcription of its prose — that the middle box is centred whatever the side boxes ask for, that the surplus is distributed in proportion to content, that a lone box takes the band and so may cross the page's centre, and that each of the three branches is entered at the boundary the section draws it at. The numbers from `cases/38-three-boxes-one-band` sit beside them, because a case's arithmetic and the module's are the same arithmetic and this is where they can be compared without a browser.
  */
 
-const sum = (ws) => ws.reduce((a, b) => a + b, 0);
+const sum = (ws: any) => ws.reduce((a: any, b: any) => a + b, 0);
 
 test('the three boxes of a band are the three horizontal seats, and nothing else is', () => {
   assert.deepEqual(HORIZONTAL_BANDS.top, ['top-left', 'top-center', 'top-right']);

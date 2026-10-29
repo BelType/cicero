@@ -6,7 +6,10 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { format, resetWarnings, COUNTER_STYLES } from '../src/counter-styles.ts';
+import { format as formatTyped, resetWarnings, COUNTER_STYLES } from '../src/counter-styles.ts';
+import { byShape } from './fakes.ts';
+
+const format = byShape(formatTyped);
 
 test('decimal is the default and the fallback of every range', () => {
   assert.equal(format(7), '7');
@@ -47,8 +50,8 @@ test('`none` prints nothing, which is what the style means', () => {
 
 test('an unknown style prints the number and warns once, not once per page', () => {
   resetWarnings();
-  const said = [];
-  const warn = (m) => said.push(m);
+  const said: any[] = [];
+  const warn = (m: any) => said.push(m);
   assert.equal(format(3, 'cjk-earthly-branch', warn), '3', 'the number is computed and readable; only its spelling is unknown');
   assert.equal(format(4, 'cjk-earthly-branch', warn), '4');
   assert.equal(format(5, 'CJK-Earthly-Branch', warn), '5', 'the name is folded, so one style is one notice');

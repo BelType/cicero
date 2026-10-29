@@ -7,10 +7,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { encodeRead, decodeRead, parseReadFunction, READ_PREFIX } from '../src/gcpm-encoding.ts';
-import { documentOpsOf, counterStatesAfter, counterValue } from '../src/document-state.ts';
-import { attrSelector, changedPairs, cssString, deliverySheetText, findSites, fragmentOf, hideSheetText, hostSelector, RESERVATION } from '../src/reads.ts';
+import { documentOpsOf as documentOpsOfTyped, counterStatesAfter, counterValue } from '../src/document-state.ts';
+import { attrSelector, changedPairs, cssString, deliverySheetText, findSites, fragmentOf, hideSheetText as hideSheetTextTyped, hostSelector, RESERVATION } from '../src/reads.ts';
 import { format } from '../src/counter-styles.ts';
 import * as reads from '../src/reads.ts';
+import { byShape } from './fakes.ts';
+
+const documentOpsOf = byShape(documentOpsOfTyped);
+const hideSheetText = byShape(hideSheetTextTyped);
 
 test('the four spellings of an address, and the counter style, parse to one read each', () => {
   assert.deepEqual(parseReadFunction('target-counter', 'attr(href url), page'), { fn: 'counter', attr: 'href', url: null, counter: 'page', style: 'decimal' }, 'the shell`s spelling');
@@ -48,7 +52,7 @@ test('a read survives its own name: encode and decode are inverses, and the name
 });
 
 /** A plain element and the walk over it, as `document-state.test.js` builds them. */
-const el = (style = {}, children = []) => ({ style, children });
+const el = (style: any = {}, children: any[] = []) => ({ style, children });
 
 test('a target shows its counter AFTER its own operations, in the innermost counter, forward or backward alike', () => {
   // Case 80's shape: <div.ch reset><p.fig inc #f1/><p.fig #f2/><p.fig #f3/></div> <div.ch reset><p #f4/><p #f5/><div.sub reset><p #f6/></div></div>
@@ -59,7 +63,7 @@ test('a target shows its counter AFTER its own operations, in the innermost coun
   const ch2 = el({ counterReset: 'figure 0' }, [f4, f5, sub]);
   const section = el({}, [ch1, ch2]);
   const words = new Map([[section, 0], [ch1, 0], [f1, 0], [f2, 2], [f3, 4], [ch2, 6], [f4, 6], [f5, 8], [sub, 10], [f6, 10]]);
-  const ops = documentOpsOf([section], { bases: [0, 12], wordsBefore: (e) => words.get(e) ?? 0 }, { styleOf: (e) => e.style, marks: new Set([f1, f3, f4, f5, f6, sub]) });
+  const ops = documentOpsOf([section], { bases: [0, 12], wordsBefore: (e: any) => words.get(e) ?? 0 }, { styleOf: (e: any) => e.style, marks: new Set([f1, f3, f4, f5, f6, sub]) });
   const after = counterStatesAfter(ops);
   assert.equal(counterValue(after.get(f1), 'figure'), 1, 'its own increment is in force — what its own ::after shows');
   assert.equal(counterValue(after.get(f3), 'figure'), 3);
@@ -72,7 +76,7 @@ test('a target shows its counter AFTER its own operations, in the innermost coun
 test('two elements opening at one word are two places: a heading sees its section`s reset, which strictly-before would not', () => {
   const h = el({ counterIncrement: 'chapter 1' });
   const s = el({ counterReset: 'chapter 4' }, [h]);
-  const ops = documentOpsOf([s], { bases: [0, 3], wordsBefore: () => 0 }, { styleOf: (e) => e.style, marks: new Set([h]) });
+  const ops = documentOpsOf([s], { bases: [0, 3], wordsBefore: () => 0 }, { styleOf: (e: any) => e.style, marks: new Set([h]) });
   assert.equal(counterValue(counterStatesAfter(ops).get(h), 'chapter'), 5);
 });
 
@@ -123,9 +127,9 @@ test('a run settles when the values it was laid out with are the values it produ
 });
 
 test('a resumed run starts every page read it knew at the value the run before it left, and a new one at the reservation (warm start)', async () => {
-  const { reservations } = await import('../src/reads.ts');
+  const reservations = byShape((await import('../src/reads.ts')).reservations);
   const read = { fn: 'counter', counter: 'page', style: 'decimal' };
-  const site = (key, prop = 'p') => ({ key, prop, read, target: {} } as any);
+  const site = (key: any, prop = 'p') => ({ key, prop, read, target: {} } as any);
   const sites = [site('[href="#a"]'), site('[href="#b"]'), { ...site('[href="#c"]'), target: null }];
   const warm = new Map([['[href="#a"]', new Map([['p', '"55"']])]]);
   const cold = reservations(sites);
@@ -138,17 +142,17 @@ test('a resumed run starts every page read it knew at the value the run before i
 });
 
 test('the images are asked of the originals the host hands over, and the copies are never met', async () => {
-  const { awaitImages } = await import('../src/measure.ts');
+  const awaitImages = byShape((await import('../src/measure.ts')).awaitImages);
   const img = (complete = true) => ({ localName: 'img', complete, loading: 'eager', addEventListener() {} });
   let asked = 0;
-  const box = (...imgs) => ({ localName: 'section', querySelectorAll: () => { asked++; return imgs; } });
+  const box = (...imgs: any[]) => ({ localName: 'section', querySelectorAll: () => { asked++; return imgs; } });
   const seen = await awaitImages(([box(img(), img()), img(), box(img())] as any));
   assert.equal(seen, 4, 'a box that is itself a picture counts, and each other box is asked once');
   assert.equal(asked, 2);
 });
 
 test('a reservation shown before the document is complete is painted invisible, in the pseudo-elements that read it, and only there', () => {
-  const site = (key, pseudos) => ({ key, pseudos });
+  const site = (key: any, pseudos: any) => ({ key, pseudos });
   assert.equal(hideSheetText([site('[href="#a"]', ['after']), site('[href="#b"]', ['before', 'after'])]), [
     'beltype-root :where([href="#a"])::after { visibility: hidden !important; }',
     'beltype-root :where([href="#b"])::before, beltype-root :where([href="#b"])::after { visibility: hidden !important; }'
@@ -163,9 +167,9 @@ test('a reservation shown before the document is complete is painted invisible, 
 const hrefRead = encodeRead(({ fn: 'counter', attr: 'href', url: null, counter: 'page', style: 'decimal' } as any));
 const readsContent = `var(${hrefRead}, "")`;
 /** A rule's style double: its `content` is the given text, and nothing else is declared. */
-const styled = (content) => ({ getPropertyValue: ( p: string) => (p === 'content' ? content : '') });
+const styled = (content: any) => ({ getPropertyValue: ( p: string) => (p === 'content' ? content : '') });
 /** The found sites of a sheet, and every selector the document was asked for on the way. A document double with one link to `#s1`. */
-function found(rules) {
+function found(rules: any) {
   const asked: string[] = [];
   const link = { closest: () => null, getAttribute: ( n: string) => (n === 'href' ? '#s1' : null) };
   const doc = {

@@ -6,21 +6,28 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { documentOpsOf, counterStateAt, counterStatesAfter, counterValue, counterValues, parseStringSet, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from '../src/document-state.ts';
+import { documentOpsOf as documentOpsOfTyped, counterStateAt as counterStateAtTyped, counterStatesAfter, counterValue as counterValueTyped, counterValues, parseStringSet as parseStringSetTyped, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from '../src/document-state.ts';
 import { STRING_SET_PROP } from '../src/gcpm-encoding.ts';
-import { indexBlocks } from '../src/positions.ts';
+import { indexBlocks as indexBlocksTyped } from '../src/positions.ts';
+import { byShape } from './fakes.ts';
+
+const parseStringSet = byShape(parseStringSetTyped);
+const documentOpsOf = byShape(documentOpsOfTyped);
+const counterStateAt = byShape(counterStateAtTyped);
+const counterValue = byShape(counterValueTyped);
+const indexBlocks = byShape(indexBlocksTyped);
 
 /** A plain element: `children`, and the three counter declarations a computed style would carry. */
-const el = (style = {}, children = []) => ({ style, children });
+const el = (style: any = {}, children: any[] = []): any => ({ style, children });
 
 /**
  * A document of plain objects, with the position index's own two members faked over a word count per element.
  *
  * `words` is how many words of its block lie before an element, which is exactly what `index.wordsBefore` answers; `bases` is the prefix sum over blocks. Declaring both by hand rather than running `indexBlocks` keeps this suite about the counter arithmetic and lets a position sit exactly where a test wants it.
  */
-function walk(blocks, bases, before, ancestors = []) {
-  const index = { bases, wordsBefore: (e) => before.get(e) ?? 0 };
-  return documentOpsOf(blocks, index, { styleOf: (e) => e.style, ancestors });
+function walk(blocks: any, bases: any, before: any, ancestors: any[] = []) {
+  const index = { bases, wordsBefore: (e: any) => before.get(e) ?? 0 };
+  return documentOpsOf(blocks, index, { styleOf: (e: any) => e.style, ancestors });
 }
 
 test('an increment with no reset anywhere behaves as though the root had reset it', () => {
@@ -52,7 +59,7 @@ test('an ancestor above the blocks is in force on the first page, at position ze
 
 test('a reset opens a scope that carries to following siblings, and a nested reset nests', () => {
   // <section reset=c><h/><h/></section><section reset=c><h/></section> — the second section restarts the count.
-  const mk = (n) => Array.from({ length: n }, () => el({ counterIncrement: 'c 1' }));
+  const mk = (n: any) => Array.from({ length: n }, () => el({ counterIncrement: 'c 1' }));
   const one = mk(2);
   const two = mk(1);
   const s1 = el({ counterReset: 'c 0' }, one);
@@ -150,7 +157,7 @@ test('the state is plain data, so it crosses a page.evaluate boundary like every
  * `string-set` reaches this module as the custom property a host rewrote it into, so a plain object tree declares it by that name and nothing here knows how it got there. What is pinned is the `<content-list>` grammar, the evaluation moment (the element's own counters already in force), and §1.1.2's four keywords over a page's interval — which is the part a reader cannot check by looking and the part case 40 exists to show.
  */
 
-const strung = (value, extra = {}) => ({ [STRING_SET_PROP]: value, ...extra });
+const strung = (value: any, extra: any = {}) => ({ [STRING_SET_PROP]: value, ...extra });
 
 test('a content list is parsed into the terms GCPM names, and nothing more of CSS', () => {
   assert.deepEqual(parseStringSet("chap content() ' — ' counter(n, upper-roman)"), [{
@@ -164,14 +171,14 @@ test('a content list is parsed into the terms GCPM names, and nothing more of CS
   assert.equal(parseStringSet('none').length, 0);
   assert.equal(parseStringSet('').length, 0);
   assert.equal(parseStringSet("a 'x, y'")[0].terms[0].value, 'x, y', 'a comma inside a string is not a pair separator');
-  assert.deepEqual(parseStringSet('a content(), b attr(title)').map((p) => p.name), ['a', 'b'], 'the declaration is a comma-separated list of pairs');
+  assert.deepEqual(parseStringSet('a content(), b attr(title)').map((p: any) => p.name), ['a', 'b'], 'the declaration is a comma-separated list of pairs');
 });
 
 test('the terms evaluate against the element, and content() collapses its whitespace as white-space: normal would', () => {
   const h = el(strung('chap content()'), []);
   h.text = '  Of the\n  Whale  ';
   const block = el({}, [h]);
-  const ops = documentOpsOf([block], { bases: [0, 9], wordsBefore: () => 0 }, { styleOf: (e) => e.style, textOf: (e) => e.text ?? '' });
+  const ops = documentOpsOf([block], { bases: [0, 9], wordsBefore: () => 0 }, { styleOf: (e: any) => e.style, textOf: (e: any) => e.text ?? '' });
   assert.deepEqual(stringAssignmentsOf(ops), [{ name: 'chap', pos: 0, value: 'Of the Whale' }]);
 });
 
@@ -179,7 +186,7 @@ test('attr() reads the attribute the term names, and only the ones a term names'
   const s = el(strung('head attr(title)'));
   s.attrs = { title: 'Loomings', lang: 'en' };
   const block = el({}, [s]);
-  const ops = documentOpsOf([block], { bases: [0, 9], wordsBefore: () => 0 }, { styleOf: (e) => e.style, textOf: () => '', attrOf: (e, n) => e.attrs?.[n] });
+  const ops = documentOpsOf([block], { bases: [0, 9], wordsBefore: () => 0 }, { styleOf: (e: any) => e.style, textOf: () => '', attrOf: (e: any, n: any) => e.attrs?.[n] });
   assert.equal(stringAssignmentsOf(ops)[0].value, 'Loomings');
   assert.deepEqual(Object.keys(ops[0].strings[0].attrs), ['title'], 'the walk carries what the terms ask for, so the pure half never needs a node');
 });
@@ -188,7 +195,7 @@ test('a counter inside a content list reads the value the element itself just se
   const h = el(strung('head "Chapter " counter(chapter)', { counterIncrement: 'chapter 1' }));
   h.text = 'Loomings';
   const block = el({}, [h]);
-  const ops = documentOpsOf([block], { bases: [0, 9], wordsBefore: () => 0 }, { styleOf: (e) => e.style, textOf: (e) => e.text ?? '' });
+  const ops = documentOpsOf([block], { bases: [0, 9], wordsBefore: () => 0 }, { styleOf: (e: any) => e.style, textOf: (e: any) => e.text ?? '' });
   assert.equal(stringAssignmentsOf(ops)[0].value, 'Chapter 1', 'GCPM assigns at the point the content box is created — the heading that opens chapter one names chapter one, not the chapter before it');
 });
 
@@ -224,7 +231,7 @@ test('the readings are plain data, so they cross a page.evaluate boundary like t
 
 // AN AUTHOR COUNTER IS DELIVERED AT EACH PAGE'S START (2026-10-14): the page-start state, level by level.
 test('counterLevels: one list per nesting level, outermost first, each counter at the levels it has an instance', async () => {
-  const { counterLevels } = await import('../src/document-state.ts');
+  const counterLevels = byShape((await import('../src/document-state.ts')).counterLevels);
   assert.deepEqual(counterLevels({ fig: [4] }), [[['fig', 4]]]);
   assert.deepEqual(counterLevels({ fig: [4, 3], sub: [1] }), [[['fig', 4], ['sub', 1]], [['fig', 3]]]);
   assert.deepEqual(counterLevels({ item: [2, 1, 3] }), [[['item', 2]], [['item', 1]], [['item', 3]]]);
@@ -250,11 +257,11 @@ test('a running element is logged where the flow stood when it was written, and 
   // Case 118 in miniature: five one-block pages of ten words, Alder written before block 2 (page three), Birch between blocks 5 and 6 (the middle of page five).
   const blocks = Array.from({ length: 7 }, () => el());
   const bases = [0, 10, 20, 30, 40, 45, 50, 55];
-  const ops = documentOpsOf(blocks, { bases, wordsBefore: () => 0 }, { styleOf: (e) => e.style, running: [{ name: 'mark', pos: 20 }, { name: 'mark', pos: 45 }] });
+  const ops = documentOpsOf(blocks, { bases, wordsBefore: () => 0 }, { styleOf: (e: any) => e.style, running: [{ name: 'mark', pos: 20 }, { name: 'mark', pos: 45 }] });
   const a = runningAssignmentsOf(ops);
   assert.deepEqual(a, [{ name: 'mark', value: 0, pos: 20 }, { name: 'mark', value: 1, pos: 45 }], 'each where the flow stood, its value its place in the list');
-  assert.deepEqual(ops.map((op) => op.pos), [...ops.map((op) => op.pos)].sort((x, y) => x - y), 'the log stays in position order, which the replay`s early stop needs');
-  const page = (start, end) => namedStringsForPage(a, start, end, {}, null).mark;
+  assert.deepEqual(ops.map((op: any) => op.pos), [...ops.map((op: any) => op.pos)].sort((x, y) => x - y), 'the log stays in position order, which the replay`s early stop needs');
+  const page = (start: any, end: any) => namedStringsForPage(a, start, end, {}, null).mark;
   const none = { first: null, start: null, last: null, 'first-except': null };
   assert.deepEqual(page(0, 10), none, 'before the first assignment there is no entry value: no element');
   assert.deepEqual(page(10, 20), none);
@@ -264,7 +271,7 @@ test('a running element is logged where the flow stood when it was written, and 
 });
 
 test('a running element after the last block stands at the document`s end, and one before the first opens page one', () => {
-  const ops = documentOpsOf([el(), el()], { bases: [0, 4, 8], wordsBefore: () => 0 }, { styleOf: (e) => e.style, running: [{ name: 'h', pos: 0 }, { name: 'h', pos: 8 }] });
+  const ops = documentOpsOf([el(), el()], { bases: [0, 4, 8], wordsBefore: () => 0 }, { styleOf: (e: any) => e.style, running: [{ name: 'h', pos: 0 }, { name: 'h', pos: 8 }] });
   assert.deepEqual(runningAssignmentsOf(ops).map((r) => r.pos), [0, 8]);
   assert.equal(namedStringsForPage(runningAssignmentsOf(ops), 0, 4, {}, null).h.start, 0);
   assert.equal(counterStateAt(ops, 8).h, undefined, 'a running element is no counter');
@@ -282,17 +289,17 @@ test('a running element at any depth is out of the flow: the walk does not enter
 // THE ENGINE KNOWS NO VIEW (2026-10-24, ruling 3): the counter and string state is computed over readers a host supplies, so a host that is not the root computes it from a tree of its own.
 test('the whole state over supplied readers: a plain tree, indexed by indexBlocks, with no document anywhere', () => {
   assert.equal(typeof globalThis.document, 'undefined', 'the suite runs where no DOM exists, so nothing below can reach one');
-  const text = (data) => ({ nodeType: 3, data });
+  const text = (data: any) => ({ nodeType: 3, data });
   /** A node with both faces the two walks read: `childNodes` for the index, `children` for the log. */
-  const node = (style, kids = [], inline = false) => ({ nodeType: 1, style, inline, childNodes: kids, children: kids.filter((k) => k.nodeType === 1) });
-  const textOf = (n) => (n.nodeType === 3 ? n.data : n.childNodes.map(textOf).join(''));
-  const heading = (title) => node({ counterIncrement: 'chapter', [STRING_SET_PROP]: 'head content()' }, [text(title)]);
+  const node = (style: any, kids: any[] = [], inline = false) => ({ nodeType: 1, style, inline, childNodes: kids, children: kids.filter((k) => k.nodeType === 1) });
+  const textOf = (n: any) => (n.nodeType === 3 ? n.data : n.childNodes.map(textOf).join(''));
+  const heading = (title: any) => node({ counterIncrement: 'chapter', [STRING_SET_PROP]: 'head content()' }, [text(title)]);
   const fig = node({ counterIncrement: 'figure' }, [text('A '), node({}, [text('whale')], true)]);
   // Four blocks of 1, 6, 2 and 2 words, under a body that resets the chapter; no two of them share a parent, and nothing asks.
   const blocks = [heading('Loomings'), node({}, [text('Call me Ishmael. Some years ago')]), heading('The Carpet-Bag'), node({}, [fig])];
-  const index = indexBlocks(blocks, (n) => n.inline === true, () => false);
+  const index = indexBlocks(blocks, (n: any) => n.inline === true, () => false);
   assert.deepEqual(index.bases, [0, 1, 7, 9, 11]);
-  const ops = documentOpsOf(blocks, index, { styleOf: (n) => n.style, textOf, attrOf: () => null, ancestors: [node({}), node({ counterReset: 'chapter' })], marks: new Set([fig]), running: [{ name: 'mark', pos: 1 }] });
+  const ops = documentOpsOf(blocks, index, { styleOf: (n: any) => n.style, textOf, attrOf: () => null, ancestors: [node({}), node({ counterReset: 'chapter' })], marks: new Set([fig]), running: [{ name: 'mark', pos: 1 }] });
   assert.deepEqual(counterStateAt(ops, 7), { chapter: [1] }, 'a page opening on the second heading counts the first alone');
   assert.deepEqual(counterStateAt(ops, 8), { chapter: [2] });
   const strings = stringAssignmentsOf(ops);

@@ -2,11 +2,14 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compose } from '../src/compositor.ts';
+import { compose as composeTyped } from '../src/compositor.ts';
 import { overlaps } from '../src/compose-dom.ts';
+import { byShape } from './fakes.ts';
 
-function monoProvider(words, { charW = 10, spaceW = 10, hyphenW = 10, emW = 40 } = {}) {
-  function width(a, b) {
+const compose = byShape(composeTyped);
+
+function monoProvider(words: any, { charW = 10, spaceW = 10, hyphenW = 10, emW = 40 } = {}) {
+  function width(a: any, b: any) {
     let px = 0;
     let first = true;
     const lastWord = b.char > 0 ? b.word : b.word - 1;
@@ -30,7 +33,7 @@ test('a 1-word last line beats a 1-word middle line (orphan demerits < badness)'
   const r = compose({ words, measure: monoProvider(words), available: 100, align: 'justify' });
   assert.deepEqual(r.breaks, [{ word: 2, char: 0 }, { word: 4, char: 0 }]); // (2,2,1)
   assert.equal(r.lineCount, 3);
-  assert.ok(r.lines.every((l) => l.width <= l.avail + 0.05));
+  assert.ok(r.lines.every((l: any) => l.width <= l.avail + 0.05));
 });
 
 /**
@@ -73,14 +76,14 @@ test('a hyphen candidate rescues an impossible fit', () => {
   const words = [W4, 'bbbbbbbbbb'];
   const r = compose({
     words,
-    hyphenOffsets: (i) => (i === 1 ? [4] : []),
+    hyphenOffsets: (i: any) => (i === 1 ? [4] : []),
     measure: monoProvider(words),
     available: 100,
     align: 'left'
   });
   assert.deepEqual(r.breaks, [{ word: 1, char: 4 }]); // "aaaa bbbb-" exactly fills the measure
   assert.equal(r.lines[0].width, 100); // 40 + 10 + 40 + hyphen 10
-  assert.ok(!r.lines.some((l) => l.overfull));
+  assert.ok(!r.lines.some((l: any) => l.overfull));
 });
 
 test('an overwide single word composes overfull, never a mid-word cut', () => {
@@ -98,7 +101,7 @@ test('overflow-wrap: the same word is divided rather than overflowed, and no hyp
   assert.equal(r.lineCount, 2);
   assert.deepEqual(r.breaks, [{ word: 0, char: 10, glyph: false }], 'divided at exactly the measure, and marked as showing no hyphen');
   assert.equal(r.lines[0].width, 100, 'no hyphen advance is charged: ten characters, not nine and a hyphen');
-  assert.ok(!r.lines.some((l) => l.overfull));
+  assert.ok(!r.lines.some((l: any) => l.overfull));
 });
 
 test('overflow-wrap: a word that fits a line of its own is never divided', () => {
@@ -112,7 +115,7 @@ test('overflow-wrap: a word that fits a line of its own is never divided', () =>
 test('overflow-wrap: a hyphen point inside the overlong word outranks an emergency break', () => {
   // Nineteen characters in a 100px measure, so both candidates give two lines: the hyphen at 9 (nine characters and a hyphen, then ten) and the emergency at 10 (ten, then nine). The hyphen costs 2500 demerits and the emergency 100000, so the division that shows a hyphen wins — which is the ordering §6.4 asks for, an emergency break being the last resort within its own line.
   const words = ['ccccccccccccccccccc'];
-  const r = compose({ words, hyphenOffsets: (i) => (i === 0 ? [9] : []), measure: monoProvider(words), available: 100, breakAnywhere: true });
+  const r = compose({ words, hyphenOffsets: (i: any) => (i === 0 ? [9] : []), measure: monoProvider(words), available: 100, breakAnywhere: true });
   assert.deepEqual(r.breaks, [{ word: 0, char: 9 }], 'the hyphen point, and it keeps its two-field shape');
   assert.equal(r.lines[0].width, 100, 'nine characters and a hyphen');
 });
@@ -122,7 +125,7 @@ test('text-indent debits only the first line', () => {
   const r = compose({ words, measure: monoProvider(words), available: 100, indent: 30, align: 'justify' });
   assert.equal(r.lines[0].avail, 70);
   for (const l of r.lines.slice(1)) assert.equal(l.avail, 100);
-  assert.ok(r.lines.every((l) => l.width <= l.avail + 0.05));
+  assert.ok(r.lines.every((l: any) => l.width <= l.avail + 0.05));
 });
 
 test('filler arithmetic: measure minus the last line’s natural width', () => {
@@ -168,12 +171,12 @@ test('a float overlapping a block in both axes is a float that shortens its line
  *
  * `compose` walks each node's predecessors downward and stops at the first overfull span, on the premise that for a fixed end a span starting earlier is never narrower; it then prices what it read in ascending order, which keeps the tie-breaking. The reference below is the scan as it stood before that round, copied rather than imported — it prices every `j < k` and skips the overfull ones — and lives here, not in `src/`, because its only job is to be the answer. The provider is additive over random integer character and space widths, so the premise holds by construction and exact ties are common. Every result is compared whole: breaks, lines, filler.
  */
-function bruteForceCompose({ words, hyphenOffsets = () => [], measure, available, indent = 0, align = 'left', breakAnywhere = false }) {
+function bruteForceCompose({ words, hyphenOffsets = (_i: any): number[] => [], measure, available, indent = 0, align = 'left', breakAnywhere = false }: any) {
   const EPS = 0.05;
   const N = words.length;
   if (N === 0) return { breaks: [], lines: [], lineCount: 0, fillerPx: 0 };
-  const overlong = (i) => measure.width({ word: i, char: 0 }, { word: i + 1, char: 0 }) > available + EPS;
-  const nodes = [{ word: 0, char: 0 }];
+  const overlong = (i: any) => measure.width({ word: i, char: 0 }, { word: i + 1, char: 0 }) > available + EPS;
+  const nodes: { word: number; char: number; glyph?: boolean }[] = [{ word: 0, char: 0 }];
   for (let i = 0; i < N; i++) {
     const chars = new Map<any, any>();
     for (const c of hyphenOffsets(i)) if (c > 0 && c < words[i].length) chars.set(c, true);
@@ -189,12 +192,12 @@ function bruteForceCompose({ words, hyphenOffsets = () => [], measure, available
   }
   nodes.push({ word: N, char: 0 });
   const last = nodes.length - 1;
-  const hyphenated = (n) => n.char > 0 && n.glyph !== false;
+  const hyphenated = (n: any) => n.char > 0 && n.glyph !== false;
   const ragged = align !== 'justify';
   const stretchUnit = 0.5 * measure.spaceWidth;
   const ragTolerance = ragged ? 2 * measure.emWidth : 0;
-  const gapsIn = (a, b) => Math.max(0, (b.char > 0 ? b.word : b.word - 1) - (a.char > 0 ? a.word + 1 : a.word));
-  const lineWidth = (a, b) => measure.width(a, b) + (hyphenated(b) ? measure.hyphenWidth : 0);
+  const gapsIn = (a: any, b: any) => Math.max(0, (b.char > 0 ? b.word : b.word - 1) - (a.char > 0 ? a.word + 1 : a.word));
+  const lineWidth = (a: any, b: any) => measure.width(a, b) + (hyphenated(b) ? measure.hyphenWidth : 0);
   const best = new Array(nodes.length).fill(null);
   best[0] = { total: 0, prev: -1, width: 0, avail: 0, overfull: false };
   for (let k = 1; k < nodes.length; k++) {
@@ -233,10 +236,10 @@ function bruteForceCompose({ words, hyphenOffsets = () => [], measure, available
     }
     best[k] = choice;
   }
-  const chain = [];
+  const chain: any[] = [];
   for (let k = last; k > 0; k = best[k].prev) chain.push(k);
   chain.reverse();
-  const lines = [];
+  const lines: any[] = [];
   let from = 0;
   for (const k of chain) {
     lines.push({ from: nodes[from], to: nodes[k], width: best[k].width, avail: best[k].avail, overfull: best[k].overfull });
@@ -247,7 +250,7 @@ function bruteForceCompose({ words, hyphenOffsets = () => [], measure, available
 }
 
 /** A seeded generator (mulberry32), so a failure names a seed that reproduces it. */
-function seeded(seed) {
+function seeded(seed: any) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -259,10 +262,10 @@ function seeded(seed) {
 }
 
 /** An additive provider over per-character widths and per-gap space widths: a span is the characters it holds and the spaces between its words, so a span that starts earlier holds more and is never narrower. It counts its reads. */
-function additiveProvider(words, charW, spaceW, { hyphenW, emW }) {
+function additiveProvider(words: any, charW: any, spaceW: any, { hyphenW, emW }: any) {
   const provider = {
     reads: 0,
-    width(a, b) {
+    width(a: any, b: any) {
       provider.reads++;
       const lastWord = b.char > 0 ? b.word : b.word - 1;
       let px = 0;
@@ -288,7 +291,7 @@ test('the downward scan chooses exactly what pricing every predecessor chose', (
   let readsAfter = 0;
   for (let seed = 1; seed <= 3000; seed++) {
     const rnd = seeded(seed);
-    const pick = (xs) => xs[Math.floor(rnd() * xs.length)];
+    const pick = (xs: any) => xs[Math.floor(rnd() * xs.length)];
     const n = 1 + Math.floor(rnd() * 24);
     const words = Array.from({ length: n }, () => 'a'.repeat(1 + Math.floor(rnd() * (rnd() < 0.1 ? 22 : 9))));
     const charW = words.map((w) => Array.from(w, () => pick([5, 6, 7, 8])));
@@ -298,7 +301,7 @@ test('the downward scan chooses exactly what pricing every predecessor chose', (
     const available = pick([30, 45, 60, 80, 110, 160, 240]);
     const args = {
       words,
-      hyphenOffsets: (i) => hyphens[i],
+      hyphenOffsets: (i: any) => hyphens[i],
       available,
       indent: pick([-30, -8, 0, 0, 12, 25]),
       align: pick(['left', 'right', 'center', 'justify']),

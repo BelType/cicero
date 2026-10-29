@@ -2,12 +2,15 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hyphenationOffsets, languageFor, resolveLimits } from '../src/hyphenate.ts';
+import { hyphenationOffsets, languageFor, resolveLimits as resolveLimitsTyped } from '../src/hyphenate.ts';
+import { byShape } from './fakes.ts';
+
+const resolveLimits = byShape(resolveLimitsTyped);
 
 const en = languageFor('en-US');
 
-const partsToOffsets = (parts) => {
-  const out = [];
+const partsToOffsets = (parts: any) => {
+  const out: any[] = [];
   let pos = 0;
   for (const p of parts.slice(0, -1)) out.push((pos += p.length));
   return out;
@@ -51,8 +54,8 @@ test('hyphen.tex exceptions override the patterns', () => {
 
 test('leftmin/rightmin guard word edges', () => {
   for (const off of hyphenationOffsets('representation', en)) {
-    assert.ok(off >= en.leftmin);
-    assert.ok('representation'.length - off >= en.rightmin);
+    assert.ok(off >= en!.leftmin);
+    assert.ok('representation'.length - off >= en!.rightmin);
   }
 });
 
@@ -71,8 +74,8 @@ test('no language, no candidates', () => {
 
 test('hyphenate-limit-chars: an auto resolves to what the pattern set already said', () => {
   // css-text-4 §6.3.4's `auto` is "a value that adapts to the current layout", and the layout this engine has is the pattern set's own. So a document declaring nothing gets the numbers it got before, term for term — which is why reading the property costs no standing figure.
-  assert.deepEqual(resolveLimits(en, {}), { before: en.leftmin, after: en.rightmin, total: en.leftmin + en.rightmin });
-  assert.deepEqual(resolveLimits(en, { total: null, before: null, after: null }), { before: en.leftmin, after: en.rightmin, total: en.leftmin + en.rightmin });
+  assert.deepEqual(resolveLimits(en, {}), { before: en!.leftmin, after: en!.rightmin, total: en!.leftmin + en!.rightmin });
+  assert.deepEqual(resolveLimits(en, { total: null, before: null, after: null }), { before: en!.leftmin, after: en!.rightmin, total: en!.leftmin + en!.rightmin });
   assert.deepEqual(hyphenationOffsets('representation', en, {}), hyphenationOffsets('representation', en));
 });
 

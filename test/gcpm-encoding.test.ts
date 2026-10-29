@@ -6,7 +6,10 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeString, encodeElement, decodeContentFn, encodePageName, decodePageName, encodeRead, decodeRead, parseReadFunction, FN_PREFIX, BLANK_SUFFIX, STRING_KEYWORDS, encodeStringProp, decodeStringProp, STRING_SET_PROP } from '../src/gcpm-encoding.ts';
+import { encodeString, encodeElement, decodeContentFn as decodeContentFnTyped, encodePageName, decodePageName, encodeRead, decodeRead, parseReadFunction, FN_PREFIX, BLANK_SUFFIX, STRING_KEYWORDS, encodeStringProp, decodeStringProp, STRING_SET_PROP } from '../src/gcpm-encoding.ts';
+import { byShape } from './fakes.ts';
+
+const decodeContentFn = byShape(decodeContentFnTyped);
 
 test('every string() reading round-trips through the literal', () => {
   for (const which of STRING_KEYWORDS) {

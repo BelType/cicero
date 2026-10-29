@@ -8,16 +8,32 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blockChildrenOf, BREAKING_SPACE, cutRanges, dressWords, leaveOut, mapCloneToSource, noteSource, noteText, replaceChars, rowsAmong, setSourceWords, sourceOf, sourceTextPoint, splitTextAt, textPointShowing, wordRuns } from '../src/word-space.ts';
+import { blockChildrenOf as blockChildrenOfTyped, BREAKING_SPACE, cutRanges as cutRangesTyped, dressWords as dressWordsTyped, leaveOut as leaveOutTyped, mapCloneToSource as mapCloneToSourceTyped, noteSource as noteSourceTyped, noteText as noteTextTyped, replaceChars as replaceCharsTyped, rowsAmong, setSourceWords as setSourceWordsTyped, sourceOf as sourceOfTyped, sourceTextPoint as sourceTextPointTyped, splitTextAt as splitTextAtTyped, textPointShowing as textPointShowingTyped, wordRuns } from '../src/word-space.ts';
 import { indexBlocks } from '../src/positions.ts';
-import { joinedWords } from '../src/fragments.ts';
+import { joinedWords as joinedWordsTyped } from '../src/fragments.ts';
 import { compose } from '../src/compositor.ts';
+import { byShape } from './fakes.ts';
+
+const joinedWords = byShape(joinedWordsTyped);
+const blockChildrenOf = byShape(blockChildrenOfTyped);
+const setSourceWords = byShape(setSourceWordsTyped);
+const mapCloneToSource = byShape(mapCloneToSourceTyped);
+const sourceOf = byShape(sourceOfTyped);
+const noteSource = byShape(noteSourceTyped);
+const dressWords = byShape(dressWordsTyped);
+const noteText = byShape(noteTextTyped);
+const cutRanges = byShape(cutRangesTyped);
+const sourceTextPoint = byShape(sourceTextPointTyped);
+const leaveOut = byShape(leaveOutTyped);
+const textPointShowing = byShape(textPointShowingTyped);
+const splitTextAt = byShape(splitTextAtTyped);
+const replaceChars = byShape(replaceCharsTyped);
 
 const TIE = ' ';
 const SENTENCE = `il gatto nero dorme e${TIE}riposa tranquillo`;
 
-const t = (data) => ({ nodeType: 3, data });
-const el = (...childNodes) => ({ nodeType: 1, childNodes });
+const t = (data: any) => ({ nodeType: 3, data });
+const el = (...childNodes: any[]) => ({ nodeType: 1, childNodes });
 
 test('the character class divides an ordinary space and never a tie', () => {
   for (const ch of [' ', '\t', '\n', '\r', '\f', ' ', '　']) assert.equal(BREAKING_SPACE.test(ch), true, JSON.stringify(ch));
@@ -38,12 +54,12 @@ test('the clone side joins the same six, tie included, across an inline seam', (
   // The tie survives an inline element boundary too, which is the two rules meeting: the seam joins the run and the tie keeps it whole.
   const emphasis = el(t(`riposa`));
   const idx = joinedWords(el(t(`dorme e${TIE}`), emphasis, t(' tranquillo')));
-  assert.deepEqual(idx.map((w) => w.text), ['dorme', `e${TIE}riposa`, 'tranquillo']);
+  assert.deepEqual(idx.map((w: any) => w.text), ['dorme', `e${TIE}riposa`, 'tranquillo']);
 });
 
 /** The same monospace arithmetic `compositor.test.js` composes against: every character one unit, every space one. */
-function monoProvider(words, { charW = 10, spaceW = 10 } = {}) {
-  const width = (a, b) => {
+function monoProvider(words: any, { charW = 10, spaceW = 10 } = {}) {
+  const width = (a: any, b: any) => {
     let px = 0;
     let first = true;
     const lastWord = b.char > 0 ? b.word : b.word - 1;
@@ -60,7 +76,7 @@ function monoProvider(words, { charW = 10, spaceW = 10 } = {}) {
 }
 
 /** The words a composition made, one string per line. */
-const linesOf = (words, composed) => composed.lines.map((line) => words.slice(line.from.word, line.to.char > 0 ? line.to.word + 1 : line.to.word).join(' '));
+const linesOf = (words: any, composed: any) => composed.lines.map((line: any) => words.slice(line.from.word, line.to.char > 0 ? line.to.word + 1 : line.to.word).join(' '));
 
 test('the Compositor mints no break at the tie, and the line that stranded the article is gone', () => {
   // At this measure the old tokenization is what the report measured: the DP prefers the break the tie forbids. Both compositions are run here, because the fix is a candidate that no longer EXISTS rather than a price, and the only way to show a missing candidate is to show the composition that had it.
@@ -75,8 +91,8 @@ test('the Compositor mints no break at the tie, and the line that stranded the a
 });
 
 
-const at = (name, top, bottom) => ({ name, rect: { top, bottom } });
-const names = (rows) => rows.map((row) => row.map((b) => b.name));
+const at = (name: any, top: any, bottom: any) => ({ name, rect: { top, bottom } });
+const names = (rows: any) => rows.map((row: any) => row.map((b: any) => b.name));
 
 test('siblings that overlap on the block axis are a row, and a sequence is not', () => {
   assert.deepEqual(names(rowsAmong([at('a', 0, 240), at('b', 0, 240)])), [['a', 'b']]);
@@ -100,20 +116,20 @@ test('an item with nothing left is still a column of its row', () => {
 test('an inline atom contributes no block child, a block-level atom is one, and neither is entered', () => {
   const HTML = 'http://www.w3.org/1999/xhtml';
   const SVG = 'http://www.w3.org/2000/svg';
-  const box = (name, ns, inline, ...children) => ({ name, localName: name, namespaceURI: ns, inline, children });
+  const box = (name: any, ns: any, inline: any, ...children: any[]) => ({ name, localName: name, namespaceURI: ns, inline, children });
   const inlineDrawing = box('svg', SVG, true, box('text', SVG, false), box('text', SVG, false));
   const blockDrawing = box('svg', SVG, false, box('text', SVG, false), box('text', SVG, false));
   const blockInInline = box('div', HTML, false);
   const p = box('p', HTML, false, box('em', HTML, true, blockInInline), inlineDrawing, blockDrawing);
-  const isInline = (e) => e.inline;
-  assert.deepEqual(blockChildrenOf(p, isInline).map((e) => e.name), ['div', 'svg'], 'CSS 2.1 §9.2.1.1 still seats a block inside an inline box; the drawings seat only themselves, and only where they are block-level');
+  const isInline = (e: any) => e.inline;
+  assert.deepEqual(blockChildrenOf(p, isInline).map((e: any) => e.name), ['div', 'svg'], 'CSS 2.1 §9.2.1.1 still seats a block inside an inline box; the drawings seat only themselves, and only where they are block-level');
   assert.equal(blockChildrenOf(p, isInline)[1], blockDrawing);
   assert.deepEqual(blockChildrenOf(box('p', HTML, false, inlineDrawing), isInline), [], 'a paragraph holding only an inline drawing keeps its line stack');
 });
 
 /** WHETHER A LINE INSIDE A WORD MAY BE A CUT (*a line inside a word is a break point*, 2026-09-23; *the hyphen is written at the cut*, 2026-10-06): a silent break yes, and a break after a soft hyphen yes — the fragment writes the hyphen the source holds — but a break the browser may have hyphenated between two letters under `hyphens: auto` no, where no character of the source says where, and the answer is the refusal. */
 test('a break is refused only where the browser may have drawn a hyphen the source does not hold: between two hyphenable letters under hyphens: auto', async () => {
-  const { mayBeAutoHyphenated } = await import('../src/word-space.ts');
+  const mayBeAutoHyphenated = byShape((await import('../src/word-space.ts')).mayBeAutoHyphenated);
   assert.equal(mayBeAutoHyphenated('­', 'b', 'manual'), false, 'a soft hyphen is the source\'s own, and the fragment writes the hyphen the browser drew there');
   assert.equal(mayBeAutoHyphenated('­', 'b', 'auto'), false, 'under auto too: the soft hyphen says where');
   assert.equal(mayBeAutoHyphenated('a', 'b', 'manual'), false, 'break-all or an emergency break under manual draws none');
@@ -124,7 +140,9 @@ test('a break is refused only where the browser may have drawn a hyphen the sour
 
 /** THE ENGINE'S TEXT IS NOT THE SOURCE'S (*the hyphen is written at the cut*, 2026-10-06): the registry is a WeakSet beside `noteSource`, and says only that a text node's characters are the engine's. */
 test('a text node the engine wrote is registered as such, and nothing else is', async () => {
-  const { noteEngineText, isEngineText } = await import('../src/word-space.ts');
+  const { noteEngineText: noteEngineTextTyped, isEngineText: isEngineTextTyped } = await import('../src/word-space.ts');
+  const noteEngineText = byShape(noteEngineTextTyped);
+  const isEngineText = byShape(isEngineTextTyped);
   const written = { nodeType: 3, data: '‐' };
   const author = { nodeType: 3, data: 'exam' };
   noteEngineText(written);
@@ -134,7 +152,7 @@ test('a text node the engine wrote is registered as such, and nothing else is', 
 
 /** THE OUTER DISPLAY DECIDES (*the outer display decides*, 2026-09-29): every value here is one Chromium 153 was measured computing. An inline formula is `math` and a block one `block math`; a prefix test on `inline` read both as block-level, and a paragraph holding the first lost its line stack (`packages/essay/cases/72-the-formula-in-the-divided-paragraph`). */
 test('a computed display is inline-level when its outer keyword is inline, and block-level by default', async () => {
-  const { isInlineLevel } = await import('../src/word-space.ts');
+  const isInlineLevel = byShape((await import('../src/word-space.ts')).isInlineLevel);
   for (const d of ['inline', 'inline-block', 'inline-table', 'inline-flex', 'inline-grid', '-webkit-inline-box', 'inline list-item', 'inline flow-root list-item', 'math', 'ruby', 'ruby-text']) assert.equal(isInlineLevel(d), true, d);
   for (const d of ['block', 'flow-root', 'flex', 'grid', 'table', 'list-item', 'flow-root list-item', '-webkit-box', 'block math', 'block ruby', 'table-row', 'table-cell', 'table-caption', 'none', 'contents']) assert.equal(isInlineLevel(d), false, d);
 });
@@ -142,9 +160,9 @@ test('a computed display is inline-level when its outer keyword is inline, and b
 // ── the words a copy is dressed with (*one attribute has words*, 2026-10-10) ───────────────────────
 
 /** An element with the attribute verbs and a children list, the shape the copy registrations read. */
-function bearer(attr, ...children) {
+function bearer(attr: any, ...children: any[]) {
   const attrs = new Map(attr == null ? [] : [['data-beltype', attr]]);
-  return { children, attrs, getAttribute: (k) => attrs.get(k) ?? null, setAttribute: (k, v) => attrs.set(k, v), removeAttribute: (k) => attrs.delete(k) };
+  return { children, attrs, getAttribute: (k: any) => attrs.get(k) ?? null, setAttribute: (k: any, v: any) => attrs.set(k, v), removeAttribute: (k: any) => attrs.delete(k) };
 }
 
 test('a copy is dressed with its original\'s words as it is registered, added to whatever it inherited, and the original is never written', () => {
@@ -177,11 +195,11 @@ test('noteSource dresses one hollow copy; dressWords dresses a measuring clone w
 // ── the source point of a character (*the engine names the source point*, 2026-10-13) ───────────────
 
 /** A text node with the two verbs the record's writers call. */
-function textNode(data) {
+function textNode(data: any) {
   return {
     nodeType: 3,
     data,
-    splitText(off) {
+    splitText(off: any) {
       const tail = textNode(this.data.slice(off));
       this.data = this.data.slice(0, off);
       return tail;

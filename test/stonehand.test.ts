@@ -2,18 +2,22 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classBWindow, isMonolith, owShortfall, byMakeUpOrder, MAKE_UP_ORDER, adjudicate, adjudicateFlow } from '../src/stonehand.ts';
+import { classBWindow, isMonolith, owShortfall, byMakeUpOrder, MAKE_UP_ORDER, adjudicate as adjudicateTyped, adjudicateFlow as adjudicateFlowTyped } from '../src/stonehand.ts';
+import { byShape, fakeElement, fakeStyle } from './fakes.ts';
+
+const adjudicate = byShape(adjudicateTyped);
+const adjudicateFlow = byShape(adjudicateFlowTyped);
 
 /** A DOM-free stand-in for one measured page: the Gauge's report shape plus the computed styles the walk reads from sources. `adjudicate` touches only `el.tagName`, `el.ownerDocument.defaultView.getComputedStyle`, and the report's geometric primitives, so a plain object tree is a faithful subject — the same posture the Ledger's laws are tested under. */
-function measuredPage(specs, { rows = [] } = {}) {
+function measuredPage(specs: any, { rows = [] as string[][] } = {}) {
   const DEFAULTS = { breakBefore: 'auto', breakAfter: 'auto', breakInside: 'auto', orphans: '1', widows: '1', position: 'static', float: 'none', overflowX: 'visible', overflowY: 'visible', borderTopWidth: '0px', borderBottomWidth: '0px', paddingTop: '0px', paddingBottom: '0px', boxDecorationBreak: 'slice' };
   const styles = new Map<any, any>();
-  const doc = { defaultView: { getComputedStyle: (el) => styles.get(el) ?? DEFAULTS } };
-  const boxes = [];
+  const doc = { defaultView: { getComputedStyle: (el: any) => styles.get(el) ?? DEFAULTS } };
+  const boxes: any[] = [];
   const linesOf = new Map<any, any>();
   const gapOf = new Map<any, any>();
   const overflowing = new Set<any>();
-  const build = (spec, parent, depth) => {
+  const build = (spec: any, parent: any, depth: any) => {
     const el = { tagName: spec.tag ?? 'DIV', ownerDocument: doc };
     styles.set(el, { ...DEFAULTS, ...(spec.style ?? {}) });
     const box = { el, parent, depth, rect: { top: spec.top, bottom: spec.bottom }, inline: false, children: [], blockChildren: [], name: spec.name };
@@ -32,24 +36,24 @@ function measuredPage(specs, { rows = [] } = {}) {
   const report = {
     boxes: () => boxes,
     // The Gauge's procession, for a tree with no inline boxes in it: the nearest non-inline ancestor's block children, or the flow's own. The stub draws every box block-level, so the walk up through inline parents the real report performs has nothing to skip — what this stands in for is the ANSWER, which is the Gauge's to give since `word-space.js`' one walker replaced the Stonehand's own filtered box list.
-    processionOf: (b = null) => (b && b.parent ? b.parent.blockChildren : boxes.filter((x) => !x.parent)),
+    processionOf: (b: any = null) => (b && b.parent ? b.parent.blockChildren : boxes.filter((x) => !x.parent)),
     // The Gauge's rows, named by the boxes' names: the side-by-side siblings a box stands among, or null.
-    rowOf: (b) => {
+    rowOf: (b: any) => {
       const names = rows.find((r) => r.includes(b.name));
-      return names ? names.map((n) => boxes.find((x) => x.name === n)) : null;
+      return names ? names.map((n: any) => boxes.find((x) => x.name === n)) : null;
     },
-    linesOf: (b) => linesOf.get(b) ?? [],
+    linesOf: (b: any) => linesOf.get(b) ?? [],
     wordsOf: () => [],
-    endGapOf: (b) => gapOf.get(b) ?? null,
+    endGapOf: (b: any) => gapOf.get(b) ?? null,
     // The Gauge's bound on a line stack without measuring it: the box's bottom, or infinity where its content overflows (`spec.overflows`).
-    reachOf: (b) => (overflowing.has(b) ? Infinity : b.rect.bottom),
+    reachOf: (b: any) => (overflowing.has(b) ? Infinity : b.rect.bottom),
     gapAt: () => 0
   };
-  return { report, sourceOf: (el) => el, boxes };
+  return { report, sourceOf: (el: any) => el, boxes };
 }
 
 /** Line boxes at the given tops, one height. */
-const linesAt = (tops, h = 16) => tops.map((t) => ({ top: t, bottom: t + h, rectTop: t }));
+const linesAt = (tops: any, h = 16) => tops.map((t: any) => ({ top: t, bottom: t + h, rectTop: t }));
 
 test('class B window is [orphans-1, T-widows-1] in line indices', () => {
   assert.deepEqual(classBWindow(10, 2, 2), [1, 7]); // cut after lines 2..8 (1-based): 2 lines stay, 2 lines go
@@ -62,27 +66,27 @@ test('class B window is [orphans-1, T-widows-1] in line indices', () => {
 
 test('the monolith predicate: replaced elements and true scroll containers; hidden/clip fragment (may-zone, answered by the differential against Chromium print)', () => {
   // The shape a DOM element answers with: an HTML tag name in capitals, its local name in lower case, and its namespace — the predicate reads the last two.
-  const el = (tag) => ({ tagName: tag, localName: tag.toLowerCase(), namespaceURI: 'http://www.w3.org/1999/xhtml' });
+  const el = (tag: any) => fakeElement({ tagName: tag, localName: tag.toLowerCase(), namespaceURI: 'http://www.w3.org/1999/xhtml' });
   const visible = { overflowY: 'visible', overflowX: 'visible' };
-  assert.equal(isMonolith(el('IMG'), visible), true);
-  assert.equal(isMonolith(el('CANVAS'), visible), true);
-  assert.equal(isMonolith(el('DIV'), visible), false);
-  assert.equal(isMonolith(el('DIV'), { overflowY: 'scroll', overflowX: 'visible' }), true);
-  assert.equal(isMonolith(el('DIV'), { overflowY: 'visible', overflowX: 'auto' }), true);
-  assert.equal(isMonolith(el('DIV'), { overflowY: 'hidden', overflowX: 'visible' }), false, 'Chromium print slices overflow:hidden — observed, adopted');
-  assert.equal(isMonolith(el('DIV'), { overflowY: 'clip', overflowX: 'clip' }), false);
-  assert.equal(isMonolith(el('P'), visible), false);
+  assert.equal(isMonolith(el('IMG'), fakeStyle(visible)), true);
+  assert.equal(isMonolith(el('CANVAS'), fakeStyle(visible)), true);
+  assert.equal(isMonolith(el('DIV'), fakeStyle(visible)), false);
+  assert.equal(isMonolith(el('DIV'), fakeStyle({ overflowY: 'scroll', overflowX: 'visible' })), true);
+  assert.equal(isMonolith(el('DIV'), fakeStyle({ overflowY: 'visible', overflowX: 'auto' })), true);
+  assert.equal(isMonolith(el('DIV'), fakeStyle({ overflowY: 'hidden', overflowX: 'visible' })), false, 'Chromium print slices overflow:hidden — observed, adopted');
+  assert.equal(isMonolith(el('DIV'), fakeStyle({ overflowY: 'clip', overflowX: 'clip' })), false);
+  assert.equal(isMonolith(el('P'), fakeStyle(visible)), false);
 });
 
 test('a block-level drawing is a monolith, read by local name and namespace, never by tagName (case 70)', () => {
   const visible = { overflowY: 'visible', overflowX: 'visible' };
   const SVG = 'http://www.w3.org/2000/svg';
   // An inline <svg> in an HTML document reports `svg` for both names (Chromium 153, measured); a list compared against tagName in capitals never matched it.
-  assert.equal(isMonolith({ tagName: 'svg', localName: 'svg', namespaceURI: SVG }, visible), true);
-  assert.equal(isMonolith({ tagName: 'text', localName: 'text', namespaceURI: SVG }, visible), true, 'every element of the drawing is inside the atom, and is one with it');
-  assert.equal(isMonolith({ tagName: 'math', localName: 'math', namespaceURI: 'http://www.w3.org/1998/Math/MathML' }, visible), true);
-  assert.equal(isMonolith({ tagName: 'VIDEO', localName: 'video', namespaceURI: 'http://www.w3.org/1999/xhtml' }, visible), true);
-  assert.equal(isMonolith({ tagName: 'SVG', localName: 'svg-like', namespaceURI: 'http://www.w3.org/1999/xhtml' }, visible), false, 'a capitalised tagName is not what is asked');
+  assert.equal(isMonolith(fakeElement({ tagName: 'svg', localName: 'svg', namespaceURI: SVG }), fakeStyle(visible)), true);
+  assert.equal(isMonolith(fakeElement({ tagName: 'text', localName: 'text', namespaceURI: SVG }), fakeStyle(visible)), true, 'every element of the drawing is inside the atom, and is one with it');
+  assert.equal(isMonolith(fakeElement({ tagName: 'math', localName: 'math', namespaceURI: 'http://www.w3.org/1998/Math/MathML' }), fakeStyle(visible)), true);
+  assert.equal(isMonolith(fakeElement({ tagName: 'VIDEO', localName: 'video', namespaceURI: 'http://www.w3.org/1999/xhtml' }), fakeStyle(visible)), true);
+  assert.equal(isMonolith(fakeElement({ tagName: 'SVG', localName: 'svg-like', namespaceURI: 'http://www.w3.org/1999/xhtml' }), fakeStyle(visible)), false, 'a capitalised tagName is not what is asked');
 });
 
 test('the make-up order names its three keys, in the order things yield (I3)', () => {
@@ -124,8 +128,8 @@ test('the orphans/widows shortfall is zero exactly inside the window, and exact 
 });
 
 test('the make-up order: avoid dominates the shortfall, the shortfall dominates content (I3, C3)', () => {
-  const c = (avoid, ow, y, docIndex = 0) => ({ avoid, ow, y, docIndex });
-  const best = (...cs) => [...cs].sort(byMakeUpOrder)[0];
+  const c = (avoid: any, ow: any, y: any, docIndex = 0) => ({ avoid, ow, y, docIndex });
+  const best = (...cs: any[]) => [...cs].sort(byMakeUpOrder)[0];
 
   // A clean candidate outranks any violating one, however much content the violator would keep.
   assert.deepEqual(best(c(0, 0, 10), c(1, 0, 900)), c(0, 0, 10));
@@ -152,11 +156,11 @@ test('the make-up order: avoid dominates the shortfall, the shortfall dominates 
 });
 
 test('an impossible line stack moves whole — css-break-3 §3.3 and §4.5, and no branch anywhere says so', () => {
-  const c = (avoid, ow, y, docIndex = 0) => ({ avoid, ow, y, docIndex });
-  const best = (...cs) => [...cs].sort(byMakeUpOrder)[0];
+  const c = (avoid: any, ow: any, y: any, docIndex = 0) => ({ avoid, ow, y, docIndex });
+  const best = (...cs: any[]) => [...cs].sort(byMakeUpOrder)[0];
   // The candidate set a walk produces for a block whose stack cannot satisfy rule 3: the Class A
   // boundary before it (separates no lines, so shortfall zero) and every interior Class B cut.
-  const stack = (T, orphans, widows) => ({
+  const stack = (T: any, orphans: any, widows: any) => ({
     boundary: c(0, 0, 100),
     interior: Array.from({ length: T - 1 }, (_, k) => c(0, owShortfall(k, T, orphans, widows), 200 + k))
   });
@@ -251,7 +255,7 @@ test('the page edge never names a float as the box it slices — C10 versus The 
 test("§5.3's *leaving room*: a cut inside a cloned box is charged its block-end border and padding", () => {
   // A box of five 20px lines-as-children inside a 100px page, with a 4px border and 10px padding it clones onto every fragment. Under `slice` the boundary before the fifth child fits at y 84; under `clone` the fragment must also carry 14px of border and padding at its own block end, so 84 + 14 overflows and the cut retreats one child.
   const kids = [0, 1, 2, 3, 4].map((i) => ({ name: `k${i}`, top: 14 + i * 20, bottom: 34 + i * 20, lines: linesAt([14 + i * 20], 20) }));
-  const box = (decoration) => ({
+  const box = (decoration: any) => ({
     name: 'box',
     top: 0,
     bottom: 128,
@@ -307,8 +311,8 @@ test('the walk stops at the edge: a box below the limit offers its boundary and 
 });
 
 /** *A parallel flow is a fragmentainer* (2026-10-08): the candidate collection is a function of a procession, a limit and a start, run over a row item's own subtree with the row's height as its limit, and the row is priced by what its items' own verdicts cost. Pure arithmetic over injected providers; the cases (91, 95, 98, 99) are the proof against Chromium. */
-const cell = (name, top, bottom, children, style = {}) => ({ name, top, bottom, style, children });
-const para = (name, top, tops, h = 16, style = {}, extra = {}) => ({ name, top, bottom: top + tops.length * h, style, lines: linesAt(tops, h), ...extra });
+const cell = (name: any, top: any, bottom: any, children: any, style: any = {}) => ({ name, top, bottom, style, children });
+const para = (name: any, top: any, tops: any, h = 16, style: any = {}, extra: any = {}) => ({ name, top, bottom: top + tops.length * h, style, lines: linesAt(tops, h), ...extra });
 
 test("a flow's verdict at a height is the best cut its OWN procession offers at or above it — an avoid inside it is spent first (case 95)", () => {
   // A cell of a paragraph (2 lines, 0–32) and a kept paragraph (4 lines, 32–96), cut at 70: the lines of the kept paragraph standing above it are legal cuts only by yielding the avoid, and the boundary before it, at 32, is clean.
@@ -335,19 +339,19 @@ test("a flow's constraints are its own: nothing outside the root reaches in (C4)
 });
 
 test('a row is cut at the height its items each divide by their own verdicts — and a content-bearing item that shows nothing withdraws the offer (case 91)', () => {
-  const page = (secondCellLine) =>
+  const page = (secondCellLine: any) =>
     measuredPage(
       [
         para('p0', 0, [0], 20),
         { name: 'tr', top: 20, bottom: 90, children: [cell('c1', 20, 90, [], {}), cell('c2', 20, 90, [], {})] }
-      ].map((spec) => (spec.name === 'tr' ? { ...spec, children: [{ ...spec.children[0], lines: linesAt([20, 36, 52, 68], 16) }, { ...spec.children[1], lines: secondCellLine }] } : spec)),
+      ].map((spec: any) => (spec.name === 'tr' ? { ...spec, children: [{ ...spec.children[0], lines: linesAt([20, 36, 52, 68], 16) }, { ...spec.children[1], lines: secondCellLine }] } : spec)),
       { rows: [['c1', 'c2']] }
     );
   // Both cells have a line above the foot at 40: the first is divided after its first line (bottom 36), the second has shown its one line (bottom 36) and is done.
   const a = page(linesAt([20], 16));
   const r = adjudicate({ report: a.report, sourceOf: a.sourceOf, pageStart: 0, contentHeight: 40 });
   assert.equal(r.kind, 'R');
-  assert.deepEqual(r.items.map((i) => i.state), ['divided', 'done']);
+  assert.deepEqual(r.items.map((i: any) => i.state), ['divided', 'done']);
   assert.equal(r.items[0].verdict.kind, 'B');
   assert.equal(r.items[0].verdict.y, 36);
   // The second cell's one line is 30px tall and crosses the foot: it has content and shows none of it above, so the row is not divided there. The boundary before the row remains.
@@ -368,7 +372,7 @@ test("an item whose content begins below the height resumes whole — the break 
   );
   const v = adjudicate({ report, sourceOf, pageStart: 0, contentHeight: 60 });
   assert.equal(v.kind, 'R');
-  assert.deepEqual(v.items.map((i) => i.state), ['divided', 'below']);
+  assert.deepEqual(v.items.map((i: any) => i.state), ['divided', 'below']);
 });
 
 test("a row's shortfall is the SUM of its items' verdicts — orphans and widows and avoids, inside blocks as well as lines", () => {
@@ -380,7 +384,7 @@ test("a row's shortfall is the SUM of its items' verdicts — orphans and widows
   );
   const v = adjudicate({ report, sourceOf, pageStart: 0, contentHeight: 24 });
   assert.equal(v.kind, 'R');
-  assert.deepEqual(v.items.map((i) => i.verdict.violates.ow), [1, 1]);
+  assert.deepEqual(v.items.map((i: any) => i.verdict.violates.ow), [1, 1]);
   assert.deepEqual(v.violates, { avoid: true, ow: 2 });
 });
 
@@ -395,7 +399,7 @@ test("a forced break inside an item is the item's verdict and crosses the wall a
   const v = adjudicate({ report: on.report, sourceOf: on.sourceOf, pageStart: 0, contentHeight: 260, forcing: true });
   assert.equal(v.kind, 'R');
   assert.equal(v.forced, true);
-  assert.deepEqual(v.items.map((i) => i.state), ['divided', 'above']);
+  assert.deepEqual(v.items.map((i: any) => i.state), ['divided', 'above']);
   assert.equal(v.items[0].verdict.box.name, 'a1');
   assert.equal(v.items[0].verdict.y, 40, "the first cell's fragment ends where the forced break stands");
   assert.equal(v.y, 260, 'the row is cut at the page height, not at the forced break: the neighbour is divided at the foot by its own verdict');
@@ -417,17 +421,17 @@ test("a monolith the height crosses is sliced by the edge when nothing in its fl
 });
 
 /** *The break search is cheaper* (2026-10-12): the collection measures a box's lines only where they can still reach the lowest clean reading that fits, `y*`. A reading of a box that cannot is strictly worse than the one at `y*` on the make-up order's third key, so the verdict must be the one the collection that measures everything gives. Each case runs both, the second by a report whose `reachOf` says every box may reach anywhere. */
-const keyOf = (v) => v && { kind: v.kind, box: v.box?.name, y: v.y, k: v.k, T: v.T, cls: v.cls, violates: v.violates };
+const keyOf = (v: any) => v && { kind: v.kind, box: v.box?.name, y: v.y, k: v.k, T: v.T, cls: v.cls, violates: v.violates };
 /** The boxes whose line stacks the walk asked for, by name. */
-function asking(measured) {
+function asking(measured: any) {
   const asked = new Set<any>();
   const linesOf = measured.report.linesOf;
-  measured.report.linesOf = (b) => (asked.add(b.name), linesOf(b));
+  measured.report.linesOf = (b: any) => (asked.add(b.name), linesOf(b));
   return asked;
 }
-const fullOf = (measured) => ({ ...measured.report, reachOf: () => Infinity });
+const fullOf = (measured: any) => ({ ...measured.report, reachOf: () => Infinity });
 /** The verdict with the second phase pruning, the verdict without, and the stacks each measured. */
-function bothWays(specs, contentHeight, opts = {}, rows = []) {
+function bothWays(specs: any, contentHeight: any, opts: any = {}, rows: string[][] = []) {
   const a = measuredPage(specs, { rows });
   const askedA = asking(a);
   const pruned = adjudicate({ report: a.report, sourceOf: a.sourceOf, pageStart: 0, contentHeight, ...opts });
@@ -458,8 +462,8 @@ test('with no clean reading that fits, nothing is skipped', () => {
 
 test("a box whose content overflows it is measured whatever its bottom says — lines below a box's bottom can win (the Gauge's reachOf)", () => {
   // A 10px-tall paragraph whose lines (18px pitch) run on to 112, then boxes below. The boundary before the last box, at 90, is clean; a line of the overflowing paragraph ends at 94, which is lower, clean and fits the 100px page. Bounded by its border box the paragraph would be skipped and the cut would be 90; the Gauge says it overflows, and the cut is the line.
-  const p = (extra) => para('p1', 40, [40, 58, 76, 94], 18, {}, { bottom: 50, ...extra });
-  const specs = (extra) => [para('p0', 0, [0, 16], 20), p(extra), para('p2', 50, [50, 66], 20), para('p3', 90, [90, 106], 20)];
+  const p = (extra: any) => para('p1', 40, [40, 58, 76, 94], 18, {}, { bottom: 50, ...extra });
+  const specs = (extra: any) => [para('p0', 0, [0, 16], 20), p(extra), para('p2', 50, [50, 66], 20), para('p3', 90, [90, 106], 20)];
   const flagged = bothWays(specs({ overflows: true }), 100);
   assert.equal(flagged.pruned.kind, 'B');
   assert.equal(flagged.pruned.box.name, 'p1');
@@ -490,7 +494,7 @@ test("the floor is taken over what the forced row leaves, not over what it remov
 
 test("§5.3's cost is part of the fit that sets the floor: a clean boundary a cloned border pushes past the foot sets none", () => {
   // The boundary before p3, at 96, is clean but its cut would cost the cloned container's 30px border: 126 on a 100px page. It sets no floor, so p2's lines (which end at 80 and fit with the border) are measured and the cut is the line at 64.
-  const box = (name, top, tops) => para(name, top, tops);
+  const box = (name: any, top: any, tops: any) => para(name, top, tops);
   const specs = [{ name: 'cl', top: 0, bottom: 200, style: { boxDecorationBreak: 'clone', borderBottomWidth: '30px' }, children: [box('p1', 0, [0, 16]), box('p2', 32, [32, 48, 64, 80]), box('p3', 96, [96, 112])] }];
   const { pruned, askedA } = bothWays(specs, 100);
   assert.equal(pruned.kind, 'B');
@@ -502,7 +506,7 @@ test('on pages of every shape the cut with the second phase is the cut without i
   // A seeded fuzz: stacks of paragraphs and containers, keeps, orphans and widows, cloned borders, end gaps, boxes whose lines overflow them, and limits anywhere on the page.
   let seed = 20261012;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-  const pick = (n) => Math.floor(rnd() * n);
+  const pick = (n: any) => Math.floor(rnd() * n);
   let skipped = 0;
   for (let page = 0; page < 3000; page++) {
     let y = 0;
@@ -516,7 +520,7 @@ test('on pages of every shape the cut with the second phase is the cut without i
       y = spec.bottom + (rnd() < 0.3 ? 8 : 0);
       return spec;
     };
-    const specs = [];
+    const specs: any[] = [];
     for (let i = 3 + pick(10); i > 0; i--) {
       if (rnd() < 0.25) {
         const top = y;

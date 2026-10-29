@@ -1,10 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPositionIndex, indexBlocks, wordsBeforeChar, pageIntervals, pageOfPos, pageContaining, remaindersOf, extensionPx, presentationWidths, widthKeyOf, elAt, elAtIn, pathOf, normalizePath, pathAfter, cutAfter, divides, flattenResume, flowsOf, treeOf } from '../src/positions.ts';
+import { createPositionIndex, indexBlocks as indexBlocksTyped, wordsBeforeChar, pageIntervals as pageIntervalsTyped, pageOfPos, pageContaining, remaindersOf, extensionPx as extensionPxTyped, presentationWidths as presentationWidthsTyped, widthKeyOf, elAt, elAtIn, pathOf as pathOfTyped, normalizePath, pathAfter, cutAfter, divides, flattenResume as flattenResumeTyped, flowsOf, treeOf } from '../src/positions.ts';
+import { byShape } from './fakes.ts';
+
+const pathOf = byShape(pathOfTyped);
+const indexBlocks = byShape(indexBlocksTyped);
+const extensionPx = byShape(extensionPxTyped);
+const presentationWidths = byShape(presentationWidthsTyped);
+const flattenResume = byShape(flattenResumeTyped);
+const pageIntervals = byShape(pageIntervalsTyped);
 
 // Plain-object stand-ins: the builder touches only childNodes/nodeType/data, by contract.
-const t = (data) => ({ nodeType: 3, data });
-const el = (...childNodes) => ({ nodeType: 1, childNodes });
+const t = (data: any) => ({ nodeType: 3, data });
+const el = (...childNodes: any[]) => ({ nodeType: 1, childNodes });
 
 test('arithmetic core: bases, posOf, blockOf, split', () => {
   const idx = createPositionIndex({ wordCounts: [5, 0, 4], elementWords: new Map<any, any>() });
@@ -110,8 +118,8 @@ test('the char step refuses rather than clamps', () => {
  *
  * The indices count IN-FLOW children, which is the only reading that resolves in every tree a path is resolved in — the fixed predicate is injected here for the same reason `indexBlocks`' is, so an object tree can be asked a question only a computed style could otherwise answer.
  */
-const box = (...children) => ({ nodeType: 1, childNodes: children, children, parentElement: null });
-const link = (el) => { for (const c of el.children ?? []) { c.parentElement = el; link(c); } return el; };
+const box = (...children: any[]) => ({ nodeType: 1, childNodes: children, children, parentElement: null });
+const link = (el: any) => { for (const c of el.children ?? []) { c.parentElement = el; link(c); } return el; };
 
 test('a path counts IN-FLOW children from the block down, and elAt walks it back', () => {
   const plate = box();
@@ -120,7 +128,7 @@ test('a path counts IN-FLOW children from the block down, and elAt walks it back
   const rail = box(); // a `position: fixed` sibling: NOT counted — it is in no flow, and the three trees a path is resolved in do not all hold it
   const p = box();
   const block = link(box(rail, p, figure));
-  const fixed = (el) => el === rail;
+  const fixed = (el: any) => el === rail;
   assert.deepEqual(pathOf(figure, block, 3, fixed), [3, 1], 'the figure is the block’s second IN-FLOW child, the fixed rail passed over');
   assert.deepEqual(pathOf(plate, block, 3, fixed), [3, 1, 0]);
   assert.deepEqual(pathOf(block, block, 3, fixed), [3], 'the block itself is the bare path');
@@ -166,8 +174,8 @@ test('divides: a bare path at a block boundary divides nothing, and everything e
 });
 
 // An account is one entry per page: `pos` the flat position the NEXT page resumes at, `cut` its address.
-const bare = (b) => ({ path: [b], word: null, px: null });
-const acct = (...rows) => rows.map(([pos, b, px = null]) => ({ pos, cut: { path: [b], word: null, px }, closes: {} }));
+const bare = (b: any) => ({ path: [b], word: null, px: null });
+const acct = (...rows: any[]) => rows.map(([pos, b, px = null]) => ({ pos, cut: { path: [b], word: null, px }, closes: {} }));
 
 test('page intervals reconstruct [start, end) from the account, last page open', () => {
   const bases = [0, 4, 9];
@@ -254,8 +262,8 @@ test('the non-throwing door: an element outside the index is a refusal, not a pr
  * The document is `cases/34-the-word-at-the-seam` in miniature: `<p>…cd</p><p>ef…</p>`, no whitespace anywhere near the seam. Fused, it is one word and `wordsBefore` of the second paragraph answers 1, which is what made a continuation consume `ef` and print it nowhere.
  */
 test('a word stops at a block boundary, and both tokenizations stop at the same one', async () => {
-  const { joinedWords } = await import('../src/fragments.ts');
-  const isInline = (el) => !el.block;
+  const joinedWords = byShape((await import('../src/fragments.ts')).joinedWords);
+  const isInline = (el: any) => !el.block;
   const p0 = { nodeType: 1, block: true, childNodes: [t('ab cd')] };
   const p1 = { nodeType: 1, block: true, childNodes: [t('ef gh')] };
   const section = el(p0, p1);
@@ -265,51 +273,51 @@ test('a word stops at a block boundary, and both tokenizations stop at the same 
   assert.equal(idx.wordsBefore(p1), 2, 'the second paragraph starts after two words, not one');
   assert.equal(wordsBeforeChar(section, 5, isInline), 2, 'the same count, through the character door');
 
-  const words = joinedWords(section, isInline).map((w) => w.text);
+  const words = joinedWords(section, isInline).map((w: any) => w.text);
   assert.deepEqual(words, ['ab', 'cd', 'ef', 'gh'], 'the clone side divides the seam in the same place');
 
   // The fused reading, kept as the thing that must NOT come back: one predicate away, `cd` and `ef` are one word, and consuming two words takes `ef` with them.
-  const fused = joinedWords(section, () => true).map((w) => w.text);
+  const fused = joinedWords(section, () => true).map((w: any) => w.text);
   assert.deepEqual(fused, ['ab', 'cdef', 'gh']);
   assert.deepEqual(indexBlocks([section], () => true).wordCounts, [3]);
 });
 
 test('an inline seam still joins — the rule is about block boundaries and nothing else', async () => {
-  const { joinedWords } = await import('../src/fragments.ts');
-  const isInline = (el) => !el.block;
+  const joinedWords = byShape((await import('../src/fragments.ts')).joinedWords);
+  const isInline = (el: any) => !el.block;
   const em = { nodeType: 1, childNodes: [t('cd')] };
   const block = { nodeType: 1, block: true, childNodes: [t('ab'), em, t(' ef')] };
   assert.deepEqual(indexBlocks([block], isInline).wordCounts, [2]);
-  assert.deepEqual(joinedWords(block, isInline).map((w) => w.text), ['abcd', 'ef']);
+  assert.deepEqual(joinedWords(block, isInline).map((w: any) => w.text), ['abcd', 'ef']);
 });
 
 /** A `<br>` ENDS A WORD (*a line inside a word is a break point*, 2026-09-23), in every tokenization — and the engine's own `br` (the word `break`) does not, because the Compositor puts one inside a word at a hyphenated break in a clone whose source carries none. `cases/63-the-line-inside-a-word`'s joined block in miniature: `ab<br>cd`, no whitespace beside the break. */
 test('an author\'s <br> ends a word in every tokenization, and the engine\'s own break does not', async () => {
-  const { joinedWords } = await import('../src/fragments.ts');
-  const bearing = (value) => ({ getAttribute: (k) => (k === 'data-beltype' ? value : null) });
+  const joinedWords = byShape((await import('../src/fragments.ts')).joinedWords);
+  const bearing = (value: any) => ({ getAttribute: (k: any) => (k === 'data-beltype' ? value : null) });
   const br = { nodeType: 1, tagName: 'BR', ...bearing(null), childNodes: [] };
   const block = { nodeType: 1, childNodes: [t('ab'), br, t('cd ef')] };
   assert.deepEqual(indexBlocks([block], () => true).wordCounts, [3], 'ab, cd, ef — the break is a boundary although the box is inline');
   assert.equal(wordsBeforeChar(block, 2, () => true), 1, 'the character door agrees: ab lies wholly before cd');
-  assert.deepEqual(joinedWords(block, () => true).map((w) => w.text), ['ab', 'cd', 'ef'], 'the clone side divides at the same place');
+  assert.deepEqual(joinedWords(block, () => true).map((w: any) => w.text), ['ab', 'cd', 'ef'], 'the clone side divides at the same place');
 
   const hinted = { nodeType: 1, tagName: 'BR', ...bearing('break'), childNodes: [] };
   const clone = { nodeType: 1, childNodes: [t('ex‐'), hinted, t('ample')] };
   assert.deepEqual(indexBlocks([clone], () => true).wordCounts, [1], 'a composed hyphen break stays inside its word');
-  assert.deepEqual(joinedWords(clone, () => true).map((w) => w.text), ['ex‐ample']);
+  assert.deepEqual(joinedWords(clone, () => true).map((w: any) => w.text), ['ex‐ample']);
 });
 
 /** THE HYPHEN THE COMPOSITOR WROTE IS A PART THAT HOLDS NO CHARACTERS (*the hyphen is written at the cut*, 2026-10-06): the clone's word is the source's word, its text carries the source's characters alone, and the hyphen is still a part of it, so consuming the whole word takes it too. */
 test('the clone side counts the source\'s characters in a word and keeps the engine\'s hyphen as a part with none', async () => {
-  const { joinedWords } = await import('../src/fragments.ts');
-  const { noteEngineText } = await import('../src/word-space.ts');
+  const joinedWords = byShape((await import('../src/fragments.ts')).joinedWords);
+  const noteEngineText = byShape((await import('../src/word-space.ts')).noteEngineText);
   const hyphen = t('‐');
   noteEngineText(hyphen);
-  const hinted = { nodeType: 1, tagName: 'BR', getAttribute: (k) => (k === 'data-beltype' ? 'break' : null), childNodes: [] };
+  const hinted = { nodeType: 1, tagName: 'BR', getAttribute: (k: any) => (k === 'data-beltype' ? 'break' : null), childNodes: [] };
   const clone = { nodeType: 1, childNodes: [t('abcdefgh'), hyphen, hinted, t('­ijklmnop p0w024')] };
   const words = joinedWords(clone, () => true);
-  assert.deepEqual(words.map((w) => w.text), ['abcdefgh­ijklmnop', 'p0w024'], 'the source\'s word, soft hyphen and all, with no hyphen the engine wrote in it');
-  assert.deepEqual(words[0].parts.map((p) => !!p.engine), [false, true, false], 'the hyphen is a part, between the two halves');
+  assert.deepEqual(words.map((w: any) => w.text), ['abcdefgh­ijklmnop', 'p0w024'], 'the source\'s word, soft hyphen and all, with no hyphen the engine wrote in it');
+  assert.deepEqual(words[0].parts.map((p: any) => !!p.engine), [false, true, false], 'the hyphen is a part, between the two halves');
   assert.equal(indexBlocks([{ nodeType: 1, childNodes: [t('abcdefgh­ijklmnop p0w024')] }], () => true).wordCounts[0], words.length, 'the source counts the same words');
 });
 
@@ -317,7 +325,7 @@ test('a fixed subtree is not in the word space, at any depth', () => {
   // CSS 2.1 §9.6.1 repeats a fixed box on every page and says nothing about depth, so its footprint is zero wherever it sits — and a footprint of zero means no position in the word space. The clone side agrees by construction: `fragments.js`' stripFixedBoxes removes the box before `joinedWords` ever tokenizes it, and the two tokenizations must never disagree.
   const rail = el(t('RAIL'));
   const deep = el(t('one two'), el(t('three'), rail), t('four'));
-  const idx = indexBlocks([deep], () => false, (node) => node === rail);
+  const idx = indexBlocks([deep], () => false, (node: any) => node === rail);
   assert.deepEqual(idx.wordCounts, [4], 'RAIL is not a word of the flow');
   assert.equal(idx.wordsBefore(deep), 0);
   assert.equal(idx.wordCountIn(deep), 4);
@@ -326,8 +334,8 @@ test('a fixed subtree is not in the word space, at any depth', () => {
 });
 
 /** §5.3's extension, the account's own arithmetic (*the end gap takes no extension*, 2026-09-15). Plain objects, because that is exactly what it reads: an interval from `pageIntervals` and the account entry that closes it. */
-const cut = (path, word = null, px = null) => ({ path, word, px });
-const pg = (over = {}) => ({
+const cut = (path: any, word: any = null, px: any = null) => ({ path, word, px });
+const pg = (over: any = {}) => ({
   blank: false,
   start: { b: 0, w: 0, cut: cut([0]), carried: null },
   end: { b: 0, w: 40, cut: cut([0], 40), carried: null },
@@ -359,8 +367,8 @@ test('the extension is the room the cut left, and zero wherever no content resum
 });
 
 test("a shell is the end gap only where nothing resumes beside it: a divided row's last item may end in one and the cells still reach the foot", () => {
-  const shell = (remaining, paint = null) => cut([0, 0, 0, 1], null, { remaining, paint });
-  const row = (end, carried) => [pg({ end: { b: 0, w: 40, cut: end, carried: null } }), { usedPx: 230, cost: 0, carried }];
+  const shell = (remaining: any, paint: any = null) => cut([0, 0, 0, 1], null, { remaining, paint });
+  const row = (end: any, carried: any) => [pg({ end: { b: 0, w: 40, cut: end, carried: null } }), { usedPx: 230, cost: 0, carried }];
   assert.equal(extensionPx(...row(shell(86), [{ pos: 3, item: [0, 0, 0, 0], cut: cut([0, 0, 0, 0], 15) }])), 10, 'the other item resumes at a word: content resumes past the cut');
   assert.equal(extensionPx(...row(shell(86), [{ pos: 3, item: [0, 0, 0, 0], cut: cut([0, 0, 0, 0]) }])), 10, 'and so does an item that resumes at its own start');
   assert.equal(extensionPx(...row(shell(86), [{ pos: 3, item: [0, 0, 0, 0], cut: cut([0, 0, 0, 0], null, { remaining: 0, paint: null }) }])), 0, 'an item with nothing left resumes nothing: the exception stands');
@@ -396,13 +404,13 @@ test('the presentation composes each width over the blocks its own pages show �
 
 // --- the resume tree and its wire form (*a parallel flow is a fragmentainer*, 2026-10-08) ---
 
-const cutAt = (...path) => ({ path, word: null, px: null });
-const place = (pos, path, extra = {}) => ({ pos, cut: cutAt(...path), ...extra });
+const cutAt = (...path: any[]) => ({ path, word: null, px: null });
+const place = (pos: any, path: any, extra: any = {}) => ({ pos, cut: cutAt(...path), ...extra });
 
 test('a block break in a word does not straddle: a space, a new block or a line break ends the word the offset is in', () => {
   // "ab" <p>cd</p> "ef": a block boundary ends a run (word-space.js), so offset 2 is the first character of "cd" and offset 4 of "ef" — no word straddles either.
   const block = el(t('ab'), { nodeType: 1, childNodes: [t('cd')], style: 'block' }, t('ef'));
-  const inline = (n) => n.style !== 'block';
+  const inline = (n: any) => n.style !== 'block';
   assert.equal(wordsBeforeChar(block, 2, inline), 1);
   assert.equal(wordsBeforeChar(block, 3, inline), 1, 'inside "cd"');
   assert.equal(wordsBeforeChar(block, 4, inline), 2, 'the first character of "ef" after the block: "ab" and "cd" are wholly before it');
@@ -421,8 +429,8 @@ test('flattenResume writes the main path first and every other node in post-orde
   tree.flows[0].flows[1].flows = [];
   tree.flows[1].flows = [];
   const flat = flattenResume(tree);
-  assert.deepEqual(flat.map((p) => p.pos), [93, 10, 20, 30, 60], 'the root first, then a float after the items that stand before its place, then the main row item');
-  assert.ok(flat.every((p) => !('flows' in p)), 'the wire form carries the fields of a path and not the tree');
+  assert.deepEqual(flat.map((p: any) => p.pos), [93, 10, 20, 30, 60], 'the root first, then a float after the items that stand before its place, then the main row item');
+  assert.ok(flat.every((p: any) => !('flows' in p)), 'the wire form carries the fields of a path and not the tree');
   assert.deepEqual(treeOf(flat), tree, 'and the round trip is the identity');
   assert.deepEqual(flattenResume(treeOf(flat)), flat);
 });
@@ -455,7 +463,7 @@ test('a float adopts the items before it; the items left at the end are the main
   const floatA = place(20, [1, 0, 1]);
   const itemB = place(70, [3, 0, 0], { item: [3, 0, 0] });
   const tree = treeOf([main, itemA, floatA, itemB]);
-  assert.deepEqual(tree.flows.map((n) => [n.pos, n.flows.map((m) => m.pos)]), [[20, [10]], [70, []]]);
+  assert.deepEqual(tree!.flows.map((n) => [n.pos, n.flows.map((m) => m.pos)]), [[20, [10]], [70, []]]);
 });
 
 test('the terminal entry has no tree and a missing tree has no paths', () => {
@@ -479,5 +487,5 @@ test('a word in a carried float`s remainder is on the page the float continues o
   assert.equal(pageContaining(pages, { b: 1, w: 11 }), 0);
   assert.equal(pageContaining(pages, { b: 1, w: 12 }), 1);
   assert.equal(pageContaining(pages, { b: 1, w: 24 }), 2);
-  assert.throws(() => pageIntervals([{ ...account[0], carried: [{ ...account[0].carried[0], item: [0, 1] }] }], bases), /endOf/, 'a flow below the top level needs the index');
+  assert.throws(() => pageIntervals([{ ...account[0], carried: [{ ...account[0].carried![0], item: [0, 1] }] }], bases), /endOf/, 'a flow below the top level needs the index');
 });

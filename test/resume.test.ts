@@ -1,14 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEntry } from '../src/ledger.ts';
+import { createEntry as createEntryTyped } from '../src/ledger.ts';
 import { cutAfter } from '../src/positions.ts';
-import { clearOfEdit, composeResumed, converge, holderPage, keyOf, namesNoPlace, priorKeys, restartPage } from '../src/resume.ts';
+import { clearOfEdit as clearOfEditTyped, composeResumed, converge as convergeTyped, holderPage, keyOf as keyOfTyped, namesNoPlace as namesNoPlaceTyped, priorKeys, restartPage } from '../src/resume.ts';
+import { byShape } from './fakes.ts';
 
-const conditions = (extra = {}) => ({ contentW: 500, contentH: 700, pageNumber: 1, parity: 'right', counters: {}, ...extra });
-const cut = (path, word = null, extra = {}) => ({ path, word, px: null, ...extra });
+const createEntry = byShape(createEntryTyped);
+const keyOf = byShape(keyOfTyped);
+const converge = byShape(convergeTyped);
+const clearOfEdit = byShape(clearOfEditTyped);
+const namesNoPlace = byShape(namesNoPlaceTyped);
+
+const conditions = (extra: any = {}) => ({ contentW: 500, contentH: 700, pageNumber: 1, parity: 'right', counters: {}, ...extra });
+const cut = (path: any, word: any = null, extra: any = {}) => ({ path, word, px: null, ...extra });
 /** A main-flow entry closing at `at`, optionally with carried flows, an owed parity and a changed page number / parity / flat projection / measured y — the members the key must read, and those it must not. */
-const entry = ({ at, pos = 0, cls = 'A', trace = {}, closes = {}, carried = [], owes = null }) =>
-  createEntry({ paths: [{ pos, cut: at }, ...carried.map((c) => ({ pos, ...c }))], cls, trace: { kind: cls, y: 10, ...trace }, closes: conditions(closes), ...(owes ? { owes } : {}) });
+const entry = ({ at, pos = 0, cls = 'A', trace = {}, closes = {}, carried = [], owes = null }: any) =>
+  createEntry({ paths: [{ pos, cut: at }, ...carried.map((c: any) => ({ pos, ...c }))], cls, trace: { kind: cls, y: 10, ...trace }, closes: conditions(closes), ...(owes ? { owes } : {}) });
 
 test('the key is the address: pos, page number, the measured y and the box are out of it', () => {
   const a = entry({ at: cut([3, 1], 12), pos: 40, closes: { pageNumber: 5 }, trace: { y: 600 } });
@@ -84,7 +91,7 @@ test('several boxes edited since the prior run: an address is clear only past ev
 
 test('the page whose interval holds the address, and the restart one page before it', () => {
   const prior = [cut([2]), cut([3, 0], 10), cut([5]), cut([8])].map((at) => entry({ at }));
-  const after = (a, b) => cutAfter(a, b);
+  const after = (a: any, b: any) => cutAfter(a, b);
   assert.equal(holderPage(prior, { path: [1, 4], word: 2 }, after), 0, 'before the first cut: page one');
   assert.equal(holderPage(prior, { path: [3, 0], word: 4 }, after), 1, 'inside block 3, before its word 10');
   assert.equal(holderPage(prior, { path: [3, 0], word: 10 }, after), 2, 'AT a cut: the page that begins there holds it');
@@ -97,7 +104,7 @@ test('a cut inside the edited box is past the box\'s start, however the new tree
   // The chapter at block 4 is the edited box (it gained a child). Its first page ended at [4,2,1] word 17 and the second at [4,2,4] word 31: addresses into the tree that was replaced.
   const prior = [cut([3, 6]), cut([4]), cut([4, 2, 1], 17), cut([4, 2, 4], 31), cut([4, 3]), cut([5])].map((at) => entry({ at }));
   // `after` as the driver gives it when the new tree has no such box: the cut projects to the block's start, which ties with the address.
-  const tie = (a, b) => (a.path.length > b.path.length && b.path.every((n, i) => n === a.path[i]) ? false : cutAfter(a, b));
+  const tie = (a: any, b: any) => (a.path.length > b.path.length && b.path.every((n: any, i: any) => n === a.path[i]) ? false : cutAfter(a, b));
   assert.equal(holderPage(prior, { path: [4], word: 0 }, tie), 2, 'the page that ends inside the box holds the edit, not a later one');
   assert.equal(restartPage(holderPage(prior, { path: [4], word: 0 }, tie)), 1, 'and the run restarts one page before it');
   assert.equal(holderPage(prior, { path: [4], word: 5 }, (a, b) => cutAfter(a, b)), 2, 'an address with a word in it is ordered by the cut itself');
@@ -105,7 +112,7 @@ test('a cut inside the edited box is past the box\'s start, however the new tree
 });
 
 test('a page whose cut names no box is not a page to resume from; the end of the document is not a dangling address', () => {
-  const hasBox = (c) => c.path.length <= 2;
+  const hasBox = (c: any) => c.path.length <= 2;
   assert.equal(namesNoPlace(entry({ at: cut([4, 2]) }), hasBox, 9), false);
   assert.equal(namesNoPlace(entry({ at: cut([4, 2, 1], 17) }), hasBox, 9), true, 'a path into a tree that is not there');
   assert.equal(namesNoPlace(entry({ at: cut([4]), carried: [{ cut: cut([4, 2, 1], 3) }] }), hasBox, 9), true, 'a carried flow counts too');
