@@ -1,0 +1,15 @@
+// seam/facsimile.js emitted again, alone, without rewriteRelativeImportExtensions, over the main build's copy. Its one import is computed (pdf.js, by URL), and under that option tsc wraps a computed import in a helper that rewrites a `.ts` path: identity on the URL it is given, but a change of the emitted program. The file has no relative import to rewrite. Checked and declared by the main build; this pass only emits (noCheck, noResolve).
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "noCheck": true,
+    "noResolve": true,
+    "declaration": false,
+    "outDir": "dist/seam",
+    "rootDir": "seam",
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": false
+  },
+  "include": ["seam/facsimile.ts"]
+}

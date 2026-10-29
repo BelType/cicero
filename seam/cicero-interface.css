@@ -1,0 +1,42 @@
+/* =========================================================================
+ * Cicero — the engine's interface sheet (BelType seam, beta; Cicero enters the seam in beta).
+ *
+ * The engine's screen chrome, and nothing else. It is LINKED into the head
+ * BEFORE author sheets, so every rule here loses a tie on source order — an
+ * author who wants a different backdrop simply says so.
+ *
+ * The page frames themselves are NOT styled from here: `<beltype-page>` lives
+ * in `<beltype-root>`'s shadow tree, which this sheet cannot reach, and the
+ * root carries its own presentation rules (src/root.js). What is left for a
+ * document-level sheet is the surround.
+ *
+ * WHAT IS NOT HERE ANY MORE, and why (the interface sheet splits, 2026-08-27): the root
+ * `line-height` that satisfies I5's second half used to open this file. It is
+ * a conformance provision, not chrome, and a provision that can 404 is not a
+ * provision — a missing sheet would have surfaced as a law refusing on a
+ * typographic claim when the real fault was a missing file. It now lives as a
+ * string literal in `index.js`, emitted inline, where it cannot fail to
+ * arrive. This file linking rather than inlining is what lets the adapter be
+ * imported by a host with no filesystem.
+ * ========================================================================= */
+
+@media screen {
+  body {
+    background: #6d7378;
+    margin: 0;
+    padding: 24px 0;
+  }
+
+  /* The intake moment made visible. Until `run()` adopts the document, the
+   * body holds unpaginated content against the backdrop above; giving it the
+   * page's own ground keeps a slow first paint from looking like a failure. */
+  beltype-root { display: block; }
+  beltype-page { background: #fff; }
+}
+
+/* In genuine print the surround has no job — the page boxes are the sheets.
+ * `renderPdf` refuses in beta (the Press's print delivery is undesigned), so
+ * this is here for an operator's own Ctrl-P and claims nothing more. */
+@media print {
+  body { background: none; margin: 0; padding: 0; }
+}

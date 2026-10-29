@@ -1,0 +1,182 @@
+/**
+ * The measure pass (first-coding-round.md, item 2): a hidden measurement container at true content width, off-viewport, one block flow, shared by every page of one geometry. The Chase is not in it and does not measure. Geometry comes from clones laid out here; law (break-* constraints, orphans, widows) is read from the source elements in the live document, so neutralization below never blinds legality reading.
+ *
+ * *Render-identical conditions* (I5) are pinned here: they are asserted at intake (unit DPR, explicit line-height — the DPR ruling), fonts and images are awaited once before the first measure, and native break properties plus orphans/widows are neutralized in the measure context. They are inert in an unfragmented column anyway — neutralization is stated, not assumed.
+ *
+ * The images are awaited as a stand-in for the first run, and `awaitImages` says why in full.
+ *
+ * @packageDocumentation
+ */
+
+/** The measurement context {@link createMeasureContext} hands back: the hidden container, the one act that lays a feed out in it, and its removal. */
+export type MeasureContext = ReturnType<typeof createMeasureContext>;
+
+import { ensureDressing } from './dressing.ts';
+
+const CONTAINER_ID = '__beltype-measure';
+/** The style text last written to a measure container, so a context can tell whether another context changed it since. */
+const APPLIED = new WeakMap<any, any>();
+const NEUTRALIZE_ID = '__beltype-neutralize';
+
+/**
+ * The intake under *render-identical conditions* (I5): refuse to adjudicate under conditions print will not reproduce. `relaxDpr` is the preview's escape hatch only — decisions are then valid for the screen being looked at, not for print; no gate ever sets it.
+ *
+ * @throws Error — bare and deliberate (`src/` may not import BelType's error types): a device pixel ratio other than 1 without `relaxDpr`, or a document root whose line-height is not explicit (*render-identical conditions*, I5).
+ */
+export function assertRenderConditions(doc: Document, { relaxDpr = false }: { relaxDpr?: boolean; } = {}) {
+  const win = (doc.defaultView as Window & typeof globalThis);
+  if (!relaxDpr && win.devicePixelRatio !== 1) {
+    throw new Error(`I5: unit device pixel ratio required for adjudication, got ${win.devicePixelRatio}`);
+  }
+  const lh = win.getComputedStyle(doc.documentElement).lineHeight;
+  if (!/^-?[\d.]+px$/.test(lh)) {
+    throw new Error(`I5 (DPR ruling): explicit line-height required, document root computes '${lh}'`);
+  }
+}
+
+/**
+ * Await font readiness once — late-arriving truth handled before the first measure, never during adjudication.
+ *
+ * @remarks `faces` is font preloading by its platform name, `FontFaceSet.load()`: the faces the `@page` margin boxes name ({@link readGeometryTable}'s `furnitureFaces`). Text in a margin box is laid out after the cuts, so a face only page furniture uses would otherwise be requested then, and its `loadingdone` would cost one more whole run. Only the faces asked for are fetched, never every declared face.
+ *
+ * @param faces - `FontFaceSet.load()` arguments, awaited beside `fonts.ready`.
+ */
+export async function awaitFonts(doc: Document, faces: string[] = []) {
+  // Font preloading (`FontFaceSet.load()`): a face is otherwise requested only when laid-out text uses it. A refused or failed load is the face being requested the old way, later, and not an error here.
+  await Promise.all(faces.map((face) => doc.fonts.load(face).catch(() => [])));
+  await doc.fonts.ready;
+}
+
+/**
+ * Await every image that has not settled — [*images are awaited at intake*](../../../.claude/decisions/cicero/images-are-awaited-at-intake.md), reported as beltype#39.
+ *
+ * **This is a stand-in, and the difference matters to whoever reads it next.** The tablet's model does not say images are awaited: it says they are *measured at declared or placeholder sizes*, and that the wrong measurement is then corrected through the one machinery all late-arriving truth shares — void from the box, rebuild forward — which since 2026-10-13 is the resumable run, called by the rim at the seam (`seam/rim.js`, *late truth is an edit*): a picture that becomes pending after the first measure is heard and resumed from, so for such a picture the correction exists. The await below is therefore a stand-in for the first run only: the choice there is still between awaiting and measuring an `<img>` at zero for the first paint, which is what the engine did until 2026-09-18, and what put whole blocks on no page. Retiring it trades a known-good first paint for one resume per image, and what that costs on the manual is a measurement owed (the record's Consequences), not a ruling.
+ *
+ * **A measurement the engine has no way to correct must not be taken early.** The first run has the way now and does not use it; the await goes when that trade is measured and ruled.
+ *
+ * A failed load settles at its error size: the wait resolves on `error` as it resolves on `load`, because what adjudication needs is that the geometry has stopped changing, not that it is the one the author wanted. `allSettled` for the same reason — one picture that never arrives must not hold the others.
+ *
+ * **A `loading="lazy"` image is made eager and awaited like the others** (*late truth is an edit*, 2026-10-13). Measured that day: a lazy image with no box never issues its request, and a parked original has no box, so the load the old paragraph hoped for ("the event may simply never come") was not a risk but the rule — the picture was measured at zero and never revisited. Lazy loading optimises for a viewport, and print has no viewport: there is nothing for it to save, and *the source document is never written* (C5) is untouched because the attribute is set on the original's `loading` property, which is a request for the bytes and not a change to what the document says. The clones the measure container receives copy the attribute, so they are eager too.
+ *
+ * **It reads the originals and never the copies** (2026-10-08). A presented document carries a clone of every box on every page, and `document.images` met each picture once per copy — 19 468 images for 157 real ones on a 123-page manual, walked on every edit. A host that has presented hands the top-level boxes it took at intake and only their pictures are asked; a first run has no copies and is handed the document.
+ *
+ * @param scope - a Document answers `images`; an element is asked for its own; a list of elements (the intake's top-level boxes) is asked box by box, each box included.
+ * @returns how many images were looked at — read by the run's timing and by nothing that decides.
+ */
+export async function awaitImages(scope: Document|Element|Element[]): Promise<number> {
+  const pending = [];
+  let seen = 0;
+  const images = Array.isArray(scope)
+    ? scope.flatMap((el) => (el.localName === 'img' ? [(el as HTMLImageElement)] : [...el.querySelectorAll('img')]))
+    : (scope as Document).images ?? scope.querySelectorAll('img');
+  // A snapshot of a live collection, and no event can fire between the test and the listener: the loop is one synchronous turn.
+  for (const img of images) {
+    seen++;
+    if (img.complete) continue;
+    if (img.loading === 'lazy') img.loading = 'eager'; // before the listeners: setting it starts the request a lazy image never made
+    pending.push(new Promise<any>((resolve) => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true });
+    }));
+  }
+  if (pending.length) await Promise.allSettled(pending);
+  return seen;
+}
+
+/**
+ * The clones' images, awaited where they are measured — the same stand-in, one step further in (2026-09-21, found by the Chromium 153 census).
+ *
+ * `awaitImages(doc)` settles the document's own `<img>` elements, and the engine measures clones of them, mounted in the measure container. That was sound only on an unstated premise: that a clone of a loaded image is available synchronously — HTML's *list of available images*, which lets a second `<img>` for an already-fetched URL be `complete` the moment it is inserted. Chromium 150 honoured it everywhere. **Chromium 153 does not in a document a Service Worker controls**: measured in the editing tools' pane, every clone answered `complete: false` and a height of 0 in the turn it was mounted, and its real height 300 ms later — so every figure measured nothing, the cuts fell late, and the presentation then clipped what the account believed it had placed (the Caster specimen lost Figure 2 and the drawing after it, on no page at all). The CLI's dev server has no worker and was untouched, which is why the battery did not see it.
+ *
+ * So the premise is checked instead of assumed: after a mount, if any image in the container has not settled, wait for it and lay out again. It costs nothing where the premise holds, and *a measurement the engine has no way to correct must not be taken early* is already this file's rule.
+ *
+ * @param container - the measure container, just mounted.
+ * @returns whether it waited — read by the run's timing (*the run keeps time*) and by nothing that decides.
+ */
+export async function awaitCloneImages(container: HTMLElement): Promise<boolean> {
+  let unsettled = false;
+  for (const img of container.querySelectorAll('img')) if (!img.complete) { unsettled = true; break; }
+  if (!unsettled) return false;
+  await awaitImages(container);
+  void container.offsetHeight;
+  return true;
+}
+
+/** What a page publishes on its host, as a measure container wears it: the page counters reset (`page N pages T`) and the named strings' custom properties (*the page carries its conditions*, 2026-10-21). */
+export type PagePublish = { counterReset: string, props: Record<string, string> };
+
+/** The declarations {@link publishOn} last wrote on a container, so the next call takes them off. */
+const PUBLISHED: WeakMap<HTMLElement,string[]> = new WeakMap<any, any>();
+
+/** Write a page's published values on the measure container, and take the previous page's off. */
+function publishOn(container: HTMLElement, publish: PagePublish|null) {
+  for (const prop of PUBLISHED.get(container) ?? []) container.style.removeProperty(prop);
+  const written: string[] = [];
+  if (publish) {
+    if (publish.counterReset) {
+      container.style.counterReset = publish.counterReset;
+      written.push('counter-reset');
+    }
+    for (const [prop, value] of Object.entries(publish.props ?? {})) {
+      container.style.setProperty(prop, value);
+      written.push(prop);
+    }
+  }
+  PUBLISHED.set(container, written);
+}
+
+/**
+ * Create the measurement context: a hidden container at true content width in the same document (same stylesheets, same cascade — render-identical by construction), plus the stated neutralization of native fragmentation properties inside it.
+ *
+ * @param contentWidthPx - the page's true content width — the one geometry decisions are valid under (*render-identical conditions*, I5).
+ */
+export function createMeasureContext(doc: Document, contentWidthPx: number) {
+  ensureDressing(doc); // the words sheet is part of the conditions a feed is measured under: a divided box's truncated margin is the room the cut was decided against
+  let style = doc.getElementById(NEUTRALIZE_ID);
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = NEUTRALIZE_ID;
+    // Transforms are neutralized too, since 2026-09-15 (*fragmentation comes first*): css-break-3 §5.5 says fragmentation *"occurs before relative positioning, transforms, and any other graphical effects"*, and the Gauge's only rulers — `getBoundingClientRect` and `Range` rects — are both post-transform. So a box turned four degrees measured as its own rotated bounding box, which reaches lower than its lines do, and the cut fell a line early. Neutralizing here is the same act the break properties get and for the same reason: the measure context exists to answer what the layout is, and this is the one property that makes the browser answer about the paint instead. `rotate`/`scale`/`translate` go with `transform` because they are the same three transformations spelled as independent properties, and `perspective` because it is the transform's own third dimension. The presentation is untouched — the author's transform applies there exactly as written, per fragment, which is §5.5's second sentence.
+    style.textContent = `#${CONTAINER_ID}, #${CONTAINER_ID} * { break-before: auto !important; break-after: auto !important; break-inside: auto !important; orphans: 2 !important; widows: 2 !important; transform: none !important; rotate: none !important; scale: none !important; translate: none !important; perspective: none !important; }`;
+    doc.head.appendChild(style);
+  }
+
+  let container = doc.getElementById(CONTAINER_ID);
+  if (!container) {
+    container = doc.createElement('div');
+    container.id = CONTAINER_ID;
+    doc.body.appendChild(container);
+  }
+  // flow-root: child margins stay inside, so the container's box is the measured flow's coordinate space. Off-viewport, never display:none — display:none has no geometry.
+  const css = `position: absolute; left: -100000px; top: 0; width: ${contentWidthPx}px; display: flow-root;`;
+  container.style.cssText = css;
+  /** The container is one element for every context, and a run that stops at a page shares it (*the pages are cut as far as they are asked*, 2026-10-12): the presentation composes a page with a context of its own, at its own width, and puts it away — which removes the container and the neutralizing style from under a run that is waiting to go on. So every measure makes sure of both, and of the width it was created for, before it lays anything out. Nothing else changes: where no other context ran in between, all three are already so. */
+  const ensure = () => {
+    if (!style.isConnected) doc.head.appendChild(style);
+    if (!container.isConnected) doc.body.appendChild(container);
+    if (APPLIED.get(container) !== css) container.style.cssText = css;
+    APPLIED.set(container, css);
+  };
+  APPLIED.set(container, css);
+
+  return {
+    container,
+    /**
+     * Lay out a feed of nodes and force one layout. The caller obtains geometry only through a Gauge report taken afterward — obtaining the report seals the mutation phase (*render-identical conditions*, I5, by type; see gauge.js).
+     *
+     * @param nodes - cloned feed content; never source elements (*the source document is never written*, C5, and never moved).
+     * @param publish - what the page the feed is for publishes on its host (*the page carries its conditions*, 2026-10-21), written on the container so a flow site that reads a page fact is measured with it standing; absent, the container carries none, and such a site reads its reservation.
+     */
+    measure(nodes: Node[], publish: PagePublish|null = null) {
+      ensure();
+      publishOn(container, publish);
+      container.replaceChildren(...nodes);
+      void container.offsetHeight; // the one forced layout
+      return container;
+    },
+    dispose() {
+      container.remove();
+      style.remove();
+    }
+  };
+}
