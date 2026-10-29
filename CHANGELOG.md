@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-10-29
+
+- **A seventh face, `./rewrite`**: `seam/rewrite-document.ts`, `rewriteDocumentSheets` alone. The host face `.` also carries `ciceroEngine`, which imports node's `url`, so a page could reach the rewrite only by a path inside `dist/`. No code change. Ruled by Egildo on 2026-10-29.
+
 ## 0.1.1 — 2026-10-29
 
 - **A sixth face, `./page`**: `src/chase.ts`, the `<beltype-page>` element, which a view imported as `./internal/chase`. Loading it defines the element once, as before; only its address is new. Ruled by Egildo on 2026-10-29: the element is public, so it does not live under the unstable face.

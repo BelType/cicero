@@ -9,6 +9,7 @@ Cicero is a paged-media engine for the live browser. It cuts a document into pag
 | Import | What |
 | --- | --- |
 | `@beltype/cicero` | The host face: `ciceroEngine` (BelType's engine seam) and `rewriteDocumentSheets`. |
+| `@beltype/cicero/rewrite` | `rewriteDocumentSheets` alone, for a page: the host face also carries `ciceroEngine`, which imports node's `url` and so cannot load in a browser. |
 | `@beltype/cicero/client` | The page side: loading it sets `window.__beltypeCicero`, typed in `seam/handle.d.ts`. |
 | `@beltype/cicero/facsimile` | The embedded PDF page (`<object type="application/pdf">`). |
 | `@beltype/cicero/fragmentation` | The members a view adapter builds on, re-exported unchanged. |
@@ -18,7 +19,7 @@ Cicero is a paged-media engine for the live browser. It cuts a document into pag
 Installed as a git dependency for now:
 
 ```json
-"@beltype/cicero": "git+ssh://git@codeberg.org/BelType/cicero.git#v0.1.1"
+"@beltype/cicero": "git+ssh://git@codeberg.org/BelType/cicero.git#v0.1.2"
 ```
 
 `prepare` builds `dist/`, so the install is a built package.
