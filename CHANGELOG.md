@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 — 2026-10-30
+
+- **`@beltype/common` comes from npm.** The dependency was a Codeberg git address over SSH, which only an installer with a Codeberg key could reach; it is now `0.1.1`, exact, from npmjs.com. No code change.
+- **The release workflow**, `.github/workflows/release.yml`: a tag `vX.Y.Z` publishes to npm by trusted publishing, once the tag, `package.json` and this heading agree. `repository.url` names the GitHub mirror, as npm's provenance asks; `homepage` and `bugs` name Codeberg.
+
 ## 0.1.3 — 2026-10-29
 
 - **The tests are type-checked.** `tsconfig.test.json` adds `test/` to the program and `npm run check` runs it: 1 076 errors read before, 0 now. The parameters are typed, the fake DOM objects are cast once each in `test/fakes.ts` (`fake`, `fakeElement`, `fakeText`, `fakeRect`, `fakeStyle`, `fakeDocument`, and `byShape` for engine entry points handed a fake and read by shape), and the possibly-null reads carry `!`. No assertion and no input value changed; the 389 tests pass as before. No code change under `src/` or `seam/`.
