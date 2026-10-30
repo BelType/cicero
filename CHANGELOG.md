@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 — 2026-10-30
+
+- **`ciceroFlags`**, the run-wide flags in `@beltype/common`'s shape, exported from the host face (`@beltype/cicero`). One flag: `composed`, default `false`. `run()` behaves as before; the client runs in a tab that cannot resolve `@beltype/common`, so it keeps the literal default and a test pins it to the table. The call-level options `until`, `resumeAt` and `layer` are not flags.
+
 ## 0.1.4 — 2026-10-30
 
 - **`@beltype/common` comes from npm.** The dependency was a Codeberg git address over SSH, which only an installer with a Codeberg key could reach; it is now `0.1.1`, exact, from npmjs.com. No code change.

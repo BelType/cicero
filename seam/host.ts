@@ -9,3 +9,4 @@
 
 export { ciceroEngine } from './index.ts';
 export { rewriteDocumentSheets } from './rewrite-document.ts';
+export { ciceroFlags } from './flags.ts';
