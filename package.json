@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://codeberg.org/BelType/cicero.git"
+    "url": "git+https://github.com/BelType/cicero.git"
   },
   "homepage": "https://codeberg.org/BelType/cicero",
   "engines": {
@@ -66,5 +66,8 @@
     "onlyBuiltDependencies": [
       "@beltype/common"
     ]
+  },
+  "bugs": {
+    "url": "https://codeberg.org/BelType/cicero/issues"
   }
 }
