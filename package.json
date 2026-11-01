@@ -20,6 +20,14 @@
       "types": "./dist/seam/host.d.ts",
       "import": "./dist/seam/host.js"
     },
+    "./engine": {
+      "types": "./dist/seam/index.d.ts",
+      "import": "./dist/seam/index.js"
+    },
+    "./flags": {
+      "types": "./dist/seam/flags.d.ts",
+      "import": "./dist/seam/flags.js"
+    },
     "./rewrite": {
       "types": "./dist/seam/rewrite-document.d.ts",
       "import": "./dist/seam/rewrite-document.js"

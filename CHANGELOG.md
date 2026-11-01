@@ -3,6 +3,7 @@
 ## 0.1.5 — 2026-10-30
 
 - **`ciceroFlags`**, the run-wide flags in `@beltype/common`'s shape, exported from the host face (`@beltype/cicero`). One flag: `composed`, default `false`. `run()` behaves as before; the client runs in a tab that cannot resolve `@beltype/common`, so it keeps the literal default and a test pins it to the table. The call-level options `until`, `resumeAt` and `layer` are not flags.
+- **Two light subpaths**, `@beltype/cicero/engine` (`ciceroEngine`) and `@beltype/cicero/flags` (`ciceroFlags`), so a host that never rewrites sheets does not load css-tree through the host face (about 24 ms in node).
 
 ## 0.1.4 — 2026-10-30
 

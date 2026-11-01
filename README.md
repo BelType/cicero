@@ -9,6 +9,8 @@ Cicero is a paged-media engine for the live browser. It cuts a document into pag
 | Import | What |
 | --- | --- |
 | `@beltype/cicero` | The host face: `ciceroEngine` (BelType's engine seam) and `rewriteDocumentSheets`. |
+| `@beltype/cicero/engine` | `ciceroEngine` alone, without the sheet rewriter and its css-tree: a host that only serves a page (BelType's CLI) loads this. |
+| `@beltype/cicero/flags` | `ciceroFlags` alone, the run-wide flags in common's shape. |
 | `@beltype/cicero/rewrite` | `rewriteDocumentSheets` alone, for a page: the host face also carries `ciceroEngine`, which imports node's `url` and so cannot load in a browser. |
 | `@beltype/cicero/client` | The page side: loading it sets `window.__beltypeCicero`, typed in `seam/handle.d.ts`. |
 | `@beltype/cicero/facsimile` | The embedded PDF page (`<object type="application/pdf">`). |
