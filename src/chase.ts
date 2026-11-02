@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 
-import { MARGIN_CELLS, ALIGN_X, ALIGN_Y, HORIZONTAL_BANDS, bandWidths, translateAlignment } from './margin-boxes.ts';
+import { MARGIN_CELLS, ALIGN_X, ALIGN_Y, HORIZONTAL_BANDS, bandTracks, bandWidths, translateAlignment } from './margin-boxes.ts';
 import { counterLevels } from './document-state.ts';
 import { encodeStringProp, STRING_KEYWORDS } from './gcpm-encoding.ts';
 import { cssString } from './reads.ts';
@@ -195,9 +195,9 @@ export class BeltypePage extends HTMLElement {
     this.style.containIntrinsicSize = `${pageW}px ${pageH - 1}px`;
     this.#bandWidth = pageW - margins.left - margins.right;
     this.#pageH = pageH;
-    const cw3 = this.#bandWidth / 3;
+    const [wa, wb, wc] = bandTracks(this.#bandWidth);
     const ch3 = (pageH - margins.top - margins.bottom) / 3;
-    this.style.gridTemplateColumns = `${margins.left}px ${cw3}px ${cw3}px ${cw3}px ${margins.right}px`;
+    this.style.gridTemplateColumns = `${margins.left}px ${wa}px ${wb}px ${wc}px ${margins.right}px`;
     this.style.gridTemplateRows = `${margins.top}px ${ch3}px ${ch3}px ${ch3}px ${Math.max(0, margins.bottom - 1)}px`;
   }
 

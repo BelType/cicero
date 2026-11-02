@@ -58,6 +58,18 @@ export const MARGIN_BOXES = MARGIN_CELLS.map(([name]) => name);
 export const ALIGN_X: Record<string,string> = { left: 'flex-start', start: 'flex-start', right: 'flex-end', end: 'flex-end', center: 'center', justify: 'flex-start' };
 export const ALIGN_Y: Record<string,string> = { top: 'flex-start', 'text-top': 'flex-start', middle: 'center', bottom: 'flex-end', 'text-bottom': 'flex-end' };
 
+/**
+ * The three tracks the page grid gives the band between its margins, in CSS px.
+ *
+ * @remarks
+ * Chromium lays a length out in 1/64 px and drops the remainder of every track on its own, so three thirds of 423.307 px are three tracks of 141.09375 and sum to 423.28125 px, while the measure container, one box of that width, floors the whole to 423.296875. A line that fits the one and not the other is measured on one line and shown on two (specimen `trattato`, page 111). The tracks are therefore whole 1/64 px units that sum to the floor of the band, the last one taking the remainder: no third of a unit is left for the grid to drop, and the content area is as wide as the container it was measured in.
+ */
+export function bandTracks(band: number): [number,number,number] {
+  const units = Math.floor(band * 64);
+  const third = Math.floor(units / 3);
+  return [third / 64, third / 64, (units - 2 * third) / 64];
+}
+
 /** The three boxes of each horizontal band, in band order — what `bandWidths` sizes, and the only membership test `chase.js` needs to know which cells leave the outer grid. */
 export const HORIZONTAL_BANDS = {
   top: ['top-left', 'top-center', 'top-right'],
