@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 — unreleased (branch `round/specimen-findings`)
+
+The round *specimen findings*: faults the `delibera` and `trattato` specimens surfaced.
+
+- **The page's content area is as wide as the container it was measured in.** The page grid gave the band between the margins as three thirds, and Chromium lays out in 1/64 px and drops the remainder of each track: 112 mm (423.307 px) became 423.28125 px on the page and 423.296875 px in the measure container. A justified line that fits the second by a hair wrapped on the first, so the cut counted one line where the page showed two, and a paragraph the page could not hold was placed whole, its last line below the page area (trattato page 111, 9.7 pt, the only page of 220; on screen the flow's clip hid it, in print Caster put it beside the folio). `bandTracks` (`margin-boxes.ts`) gives three whole 1/64 px tracks that sum to the floor of the band, and `Chase.applyConditions` writes them. `test/band-tracks.test.ts` is the red case. Articles 139 to 141 of the specimen alone reproduce it (Caster's tiling invariant refused the print: 46 characters left below the clip); a hanging `float: left` number on the list items is what made the line a hair too long, and turning the float off made the specimen's two lines fit.
+
 ## 0.1.5 — 2026-10-30
 
 - **`ciceroFlags`**, the run-wide flags in `@beltype/common`'s shape, exported from the host face (`@beltype/cicero`). One flag: `composed`, default `false`. `run()` behaves as before; the client runs in a tab that cannot resolve `@beltype/common`, so it keeps the literal default and a test pins it to the table. The call-level options `until`, `resumeAt` and `layer` are not flags.
