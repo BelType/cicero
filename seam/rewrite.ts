@@ -501,6 +501,37 @@ function splitPageSelectorLists(source: string) {
   return { text: applyEdits(source, edits), split: edits.length };
 }
 
+/** An address the sheet's own href is the base of: not one with a scheme (`data:`, `https:`), and not a fragment, which names the document (`clip-path: url(#c)`). */
+const isRelative = (url: string) => url !== '' && !url.startsWith('#') && !/^[a-z][a-z\d+.-]*:/i.test(url);
+
+/**
+ * A linked sheet's relative addresses, resolved against its own href, for the `<style>` that takes its place (`rewrite-document.js`).
+ *
+ * @remarks A `<style>` resolves `url()` against the document, a `<link>` against the sheet: once a sheet in `css/` is moved into a `<style>`, `url("./font.ttf")` asks for the document's `./font.ttf` (the tester's case, 2026-11-03: a font inside `@media print`, whose opening made the sheet a `<style>`). Paged.js resolves a sheet it inlines the same way. Every `url()` and every `@import "…"` string is written absolute, in place, so no line moves; a sheet css-tree cannot parse is returned as it is.
+ *
+ * ponytail: `url()` and the `@import` string only. A url in a custom property's value (kept raw) or a string in `image-set()` still resolves against the document; add them when a document needs them.
+ *
+ * @param base - the absolute href the sheet was fetched from.
+ */
+export function rebaseUrls(source: string, base: string): string {
+  let ast;
+  try {
+    ast = parse(source, SHEET_OPTIONS);
+  } catch {
+    return source;
+  }
+  const edits: Edit[] = [];
+  const absolute = (url: string) => `"${new URL(url, base).href}"`;
+  walkStyled(ast, source, SHEET_OPTIONS, {
+    enter(node) {
+      if (node.type === 'Url' && node.loc && isRelative(node.value)) edits.push({ start: node.loc.start.offset, end: node.loc.end.offset, text: `url(${absolute(node.value)})` });
+      const first = node.type === 'Atrule' && String(node.name).toLowerCase() === 'import' ? node.prelude?.children?.first : null;
+      if (first?.type === 'String' && first.loc && isRelative(first.value)) edits.push({ start: first.loc.start.offset, end: first.loc.end.offset, text: absolute(first.value) });
+    }
+  });
+  return applyEdits(source, edits);
+}
+
 /** The console line a host says once per document it rewrote — what moved and why a reader of the sheet will meet two strange forms. */
 export function rewriteNote(counts: Partial<Record<string,number>>): string|null {
 
