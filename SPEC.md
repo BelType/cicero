@@ -358,6 +358,7 @@ Of the members below, `run`, `settled` and `table` exist from load, and `last` a
 | `buildAll` | `() → Promise<number>` | Builds every page. |
 | `sourceOf` | `(el) → Element \| null` | The original a copy copies. |
 | `table` | `GeometryTable \| null` | The geometry the intake captured. |
+| `release` | `() → Promise<void>` | Lets go of everything the client registered. |
 
 ### XII.1 `run`
 
@@ -402,6 +403,12 @@ The handle carries further members that this article does not make API. They are
 
 - **Host doors in use by BelType's editing tools:** `present(selector, make)` (see *a-copy-may-be-presented*), `reveal(el, options)` (see *only-the-pages-near-the-reader-are-built*), `sourcePoint(node, offset)` and `pointOn(node, offset, page)` (see *the-engine-names-the-source-point*), `box(i)` and `patch(i, path, el)` (see *the-run-resumes-from-an-entry*).
 - **Harness doors**, which a venue test uses to ask what a run costs when it borrows nothing: `compositionCache`, `forcingMemo`, `forgetJudgedSheets`, `measured(el)` (see *the-forced-break-index-is-kept-across-runs*, *a-box-announces-its-own-size*). They are not product surface.
+
+### XII.7 `release`
+
+1. `release()` lets the client go, for a host that replaces the document in the same window (`document.open()` keeps the window, its font set and their listeners). After it, nothing the client registered runs: the font-set listener is removed, the rim is stopped, the late-truth batch is dropped, the root's idle build, observer and window listeners are released, the facsimile's observer is disconnected, and the handle is deleted from the window (Egildo's ruling of 2026-11-03, the kept page of beltype serve).
+2. A run stopped at a page is let go and its pages stay on screen. A run measuring stops at its next page, and one that cannot be paced finishes. The promise resolves when nothing is under way. A later `run()` rejects by name, and a second `release()` is a no-op (same ruling).
+3. The custom-element classes are the window's and are not released, so `release()` sets no state they read. The next document's client loads only under a module URL the window has not imported, and the host keys it (same ruling).
 
 ## 16. Article XIII — The package faces
 
