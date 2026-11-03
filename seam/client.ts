@@ -163,6 +163,7 @@ function patchBox(index: number, path: number[], el: Element): Address|null {
 
 /** THE RIM, from the intake until the frame lets the run go (`rim.js`, *late truth is an edit*): the subscription to the facts that arrive after a measure. `null` before the intake. */
 let rim: ReturnType<typeof watchLateTruth>|null = null;
+function stopRim() { rim?.stop(); rim = null; }
 
 /**
  * The rim's default action (*late truth is an edit*, Decision four, 2026-10-13): what a signal the host did not cancel does. Signals are coalesced over one animation frame into one batch; a batch that holds a font is one whole run (a face is a condition of every box), and any other — an image, an element, a store's write, a box's size — is one `run({ resumeAt })` per box, the earliest in the document first and one at a time, since convergence is believed past one edited box. A signal that arrives while a run is under way waits for it; a run stopped at a page is let go and the answer stays within the pages it had cut, as an edit's does. The runs go through the host's own door, the `run` property of the handle object this module put on the window, read at each call, so a host that replaces that property (the essay's init scripts and tests do) sees the rim's runs as it sees its own. A host that replaces the whole object `window.__beltypeCicero` does not: the rim keeps calling this module's own handle (so a client that was released, or one a newer client replaced, never reaches into the next document's), and nothing in the repositories searched does that.
@@ -368,8 +369,7 @@ async function takeIntake(relaxDpr: boolean) {
     undo() {
       for (const [el, parent, next] of moved.toReversed()) parent?.insertBefore(el, next);
       root.remove();
-      rim?.stop();
-      rim = null;
+      stopRim();
       presented = null;
     }
   };
@@ -585,6 +585,7 @@ async function runOnce({ composed = false, resumeAt = null, until = null, layer 
     ...(target != null ? { pace: (progress) => pacer(session, progress) } : {})
   });
   live = session;
+  if (released) session.cancelled = true; // called before the release, so the first page it cuts is its last
   return settle(session, t0);
 }
 
@@ -610,6 +611,7 @@ async function settle(session: Session, t0: number) {
     });
   } catch (error) {
     if (live === session) live = null;
+    if (error === LET_GO && released && !session.partial && session.fresh) presented?.undo(); // a first run released before it showed a page
     if (error !== LET_GO) {
       forcingMemo.clear(); // a run that threw filled it with reads no one vouched for
       if (!session.partial && session.fresh) presented?.undo(); // the document goes back as it was, and the host says so truthfully
@@ -707,7 +709,7 @@ function answerOf(session: Session, t0: number, progress: Progress, resumed: any
 /**
  * Let go of everything this client registered in the page, so a document that replaces it (`document.open()` keeps the `Window`, its `FontFaceSet` and its listeners) is not answered by this one's.
  *
- * It removes the `loadingdone` listener, stops the rim, drops the batch of late truth waiting to be answered, takes the idle build, the observer and the window listeners from the root, disconnects the facsimile's observer and deletes the handle from the window. All of that is done before the first `await`. A run stopped at a page is let go and its pages stay on screen; a run measuring stops at its next page, and one that cannot be paced finishes, so the promise resolves when nothing is under way. A `run()` made afterwards is rejected by name. Calling it again is a no-op.
+ * It removes the `loadingdone` listener, stops the rim, drops the batch of late truth waiting to be answered and deletes the handle from the window, all before the first `await`. A run stopped at a page is let go and its pages stay on screen. A run under way with a pace (`until`) rejects with the let-go error at its next page, and a first run that has shown nothing puts the document back as it found it; one without a pace finishes and presents. When nothing is under way, the promise resolves, after the root's idle build, observer and window listeners and the facsimile's observer have been let go. A `run()` made afterwards is rejected by name. Calling it again is a no-op.
  *
  * @remarks **Host obligations.** The custom-element registry belongs to the window and is not released: the next document's `<beltype-root>`, `<beltype-page>` and PDF element are built from the classes this module defined, which keep no state about the document they were defined for. The handle is gone, and the next client module runs only under a URL the window has not imported (measured 2026-11-03: the same URL after `document.open()` does not run again, a keyed one does, and a second `customElements.define` of a name throws, which the three definitions guard against). The host keys the URL.
  * @see SPEC.md Article XII.7
@@ -716,13 +718,14 @@ export async function release(): Promise<void> {
   if (released) return;
   released = true;
   fonts.removeEventListener('loadingdone', countFaces);
-  rim?.stop();
-  rim = null;
+  stopRim();
   batch = null;
-  presented?.root.dispose();
-  facsimile?.dispose();
   if (window.__beltypeCicero === handle) delete (window as Partial<Window>).__beltypeCicero;
+  await Promise.allSettled([...calls]); // a call made before the release has no session yet: it gets one, cancelled, in `runOnce`
   if (live) await letGo();
+  stopRim(); // the intake of a call that was under way made one after the first stop
+  presented?.root.dispose(); // last, so a presentation that finished above does not arm what it just let go
+  facsimile?.dispose();
 }
 
 /** THE HANDLE — `window.__beltypeCicero`, the host's one door onto the engine in the page. The calls are set at load; the doors onto the presentation are seated by every presentation ({@link seatDoors}), so they are absent before the first; `last` and `ledger` are the last run's. */

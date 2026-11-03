@@ -407,7 +407,7 @@ The handle carries further members that this article does not make API. They are
 ### XII.7 `release`
 
 1. `release()` lets the client go, for a host that replaces the document in the same window (`document.open()` keeps the window, its font set and their listeners). After it, nothing the client registered runs: the font-set listener is removed, the rim is stopped, the late-truth batch is dropped, the root's idle build, observer and window listeners are released, the facsimile's observer is disconnected, and the handle is deleted from the window (Egildo's ruling of 2026-11-03, the kept page of beltype serve).
-2. A run stopped at a page is let go and its pages stay on screen. A run measuring stops at its next page, and one that cannot be paced finishes. The promise resolves when nothing is under way. A later `run()` rejects by name, and a second `release()` is a no-op (same ruling).
+2. A run stopped at a page is let go and its pages stay on screen. A run with a pace stops at its next page and rejects with the let-go error, and a first run that has shown no page puts the document back as it found it. A run without a pace finishes and presents. The promise resolves when nothing is under way, and the root's idle build, observer and window listeners and the facsimile's observer are let go then. A later `run()` rejects by name, and a second `release()` is a no-op (same ruling).
 3. The custom-element classes are the window's and are not released, so `release()` sets no state they read. The next document's client loads only under a module URL the window has not imported, and the host keys it (same ruling).
 
 ## 16. Article XIII — The package faces

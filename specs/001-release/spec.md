@@ -6,7 +6,7 @@
 
 **Requirements** (SPEC.md Article XII.7)
 1. The handle gains `release()`. After it, nothing the client registered still runs: the `loadingdone` listener is removed, the rim is stopped, the batch of late truth is dropped, the root's idle build, observer and window listeners are released, the facsimile observer is disconnected and the handle is deleted from the window.
-2. A run stopped at a page is let go. A run measuring stops at its next page; one that cannot be paced finishes. The promise resolves when nothing is under way.
+2. A run stopped at a page is let go. A run with a pace stops at its next page and rejects with the let-go error; a first run that showed nothing puts the document back. A run without a pace finishes and presents. The promise resolves when nothing is under way.
 3. `run()` after `release()` rejects by name. `release()` twice is a no-op.
 4. No state of the custom-element classes is changed: the window keeps their definitions, and the next document is built from them.
 
