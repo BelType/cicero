@@ -58,6 +58,7 @@
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.facsimile.json && node scripts/copy-assets.js",
     "check": "tsc -p tsconfig.test.json",
     "test": "node --test 'test/*.test.ts'",
+    "test:browser": "node --test --test-concurrency=1 'test/browser/*.browser.ts'",
     "prepare": "npm run build"
   },
   "dependencies": {
@@ -68,6 +69,7 @@
   "devDependencies": {
     "@types/css-tree": "^3.2.0",
     "@types/node": "^22.20.4",
+    "playwright-core": "1.63.0",
     "typescript": "7.0.2"
   },
   "pnpm": {

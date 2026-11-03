@@ -358,6 +358,7 @@ Of the members below, `run`, `settled` and `table` exist from load, and `last` a
 | `buildAll` | `() → Promise<number>` | Builds every page. |
 | `sourceOf` | `(el) → Element \| null` | The original a copy copies. |
 | `table` | `GeometryTable \| null` | The geometry the intake captured. |
+| `release` | `() → Promise<void>` | Lets go of everything the client registered. |
 
 ### XII.1 `run`
 
@@ -369,7 +370,7 @@ Of the members below, `run`, `settled` and `table` exist from load, and `last` a
 6. A resume falls back to a whole run, silently and correctly, when the last call ran in the other mode, under other conditions, or over a different number of top-level blocks (see *the-run-resumes-from-an-entry*).
 7. `layer` names the cascade layer for the document's own sheets, and a name that is not a layer name throws a `TypeError`. No record owns it (see Article X.9).
 8. The result is `{ pages, ms, composed, complete, resumed, why, composition }`. `resumed` is `{ from, to, shift, converged, kept }` or `null`, and `why` is a sentence exactly when `resumed` is `null`. `composition` is `{ blocks, hits, misses, laid }` in the composed mode and `null` otherwise (see *the-run-resumes-from-an-entry*).
-9. Every call of `run`, the rim's included, goes through this handle, so a host that wraps it sees every run (see *late-truth-is-an-edit*).
+9. Every call of `run`, the rim's included, goes through this handle, so a host that replaces its `run` property sees every run; the handle object is the module's own, and replacing the whole object on `window` is not wrapping it (see *late-truth-is-an-edit*).
 
 ### XII.2 `last` and `ledger`
 
@@ -402,6 +403,12 @@ The handle carries further members that this article does not make API. They are
 
 - **Host doors in use by BelType's editing tools:** `present(selector, make)` (see *a-copy-may-be-presented*), `reveal(el, options)` (see *only-the-pages-near-the-reader-are-built*), `sourcePoint(node, offset)` and `pointOn(node, offset, page)` (see *the-engine-names-the-source-point*), `box(i)` and `patch(i, path, el)` (see *the-run-resumes-from-an-entry*).
 - **Harness doors**, which a venue test uses to ask what a run costs when it borrows nothing: `compositionCache`, `forcingMemo`, `forgetJudgedSheets`, `measured(el)` (see *the-forced-break-index-is-kept-across-runs*, *a-box-announces-its-own-size*). They are not product surface.
+
+### XII.7 `release`
+
+1. `release()` lets the client go, for a host that replaces the document in the same window (`document.open()` keeps the window, its font set and their listeners). After it, nothing the client registered runs: the font-set listener is removed, the rim is stopped, the late-truth batch is dropped, the root's idle build, observer and window listeners are released, the facsimile's observer is disconnected, and the handle is deleted from the window (Egildo's ruling of 2026-11-03, the kept page of beltype serve).
+2. A run stopped at a page is let go and its pages stay on screen. A run with a pace stops at its next page and rejects with the let-go error, and a first run that has shown no page puts the document back as it found it. A run without a pace finishes and presents. The promise resolves when nothing is under way, and the root's idle build, observer and window listeners and the facsimile's observer are let go then. A later `run()` rejects by name, and a second `release()` is a no-op (same ruling).
+3. The custom-element classes are the window's and are not released, so `release()` sets no state they read. The next document's client loads only under a module URL the window has not imported, and the host keys it (same ruling).
 
 ## 16. Article XIII — The package faces
 

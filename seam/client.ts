@@ -77,7 +77,10 @@ let fontEpoch = 0;
 /** The document's face set, kept: it is the same object for the life of the document, and a test that watches how often the engine asks the document for it (progressive.test.js) counts the intake's and the driver's asks and no others. */
 const fonts = document.fonts;
 knowLoadedFaces(fonts);
-fonts.addEventListener('loadingdone', (event) => { if (bringsNewFace(event)) fontEpoch++; });
+const countFaces = (event: Event) => { if (bringsNewFace(event)) fontEpoch++; };
+fonts.addEventListener('loadingdone', countFaces);
+/** Set by {@link release}: this module instance is finished with its document, and answers no more. A flag of this instance, never of the classes it defined, which the next document's module scripts inherit from the window. */
+let released = false;
 
 /**
  * The run's conditions, as one string (*a break decision is valid only under render-identical conditions* (I5), applied to the memo — Decision one of *the run resumes from an entry*): the measuring realm's media environment — the viewport, the device pixel ratio, the colour scheme — the text of the stylesheets the document wears, as the rewrite and the presentation left them (the document's own: a sheet inside an `<svg>` or inside a copy the engine made is a box's, and what it changes is that box's extent, which the rim hears — *the conditions are the sheets of the document*, 2026-10-22), and the font epoch the run began under, and how many presenters are registered (*a copy may be presented*: a presenter is a condition of every copy, and a registration after a run is seen here as the change it is). The delivered read values are the driver's to compare, not this string's. Taken after a presentation and again before the next run, so the two readings see the same engine litter (the press `<style>` is left out) and a difference between them is the host's own.
@@ -153,16 +156,17 @@ function patchBox(index: number, path: number[], el: Element): Address|null {
     boxes[index] = el;
   }
   rim?.add(boxes[index], top); // the replacement may hold a picture still loading, or an element not yet defined
-  const address = (window.__beltypeCicero.addressOf as NonNullable<Handle['addressOf']>)(el);
+  const address = (handle.addressOf as NonNullable<Handle['addressOf']>)(el);
   if (address) edited.push(address);
   return address;
 }
 
 /** THE RIM, from the intake until the frame lets the run go (`rim.js`, *late truth is an edit*): the subscription to the facts that arrive after a measure. `null` before the intake. */
 let rim: ReturnType<typeof watchLateTruth>|null = null;
+function stopRim() { rim?.stop(); rim = null; }
 
 /**
- * The rim's default action (*late truth is an edit*, Decision four, 2026-10-13): what a signal the host did not cancel does. Signals are coalesced over one animation frame into one batch; a batch that holds a font is one whole run (a face is a condition of every box), and any other — an image, an element, a store's write, a box's size — is one `run({ resumeAt })` per box, the earliest in the document first and one at a time, since convergence is believed past one edited box. A signal that arrives while a run is under way waits for it; a run stopped at a page is let go and the answer stays within the pages it had cut, as an edit's does. The runs go through the host's own door, `window.__beltypeCicero.run`, so a host that wraps it sees the rim's runs as it sees its own.
+ * The rim's default action (*late truth is an edit*, Decision four, 2026-10-13): what a signal the host did not cancel does. Signals are coalesced over one animation frame into one batch; a batch that holds a font is one whole run (a face is a condition of every box), and any other — an image, an element, a store's write, a box's size — is one `run({ resumeAt })` per box, the earliest in the document first and one at a time, since convergence is believed past one edited box. A signal that arrives while a run is under way waits for it; a run stopped at a page is let go and the answer stays within the pages it had cut, as an edit's does. The runs go through the host's own door, the `run` property of the handle object this module put on the window, read at each call, so a host that replaces that property (the essay's init scripts and tests do) sees the rim's runs as it sees its own. A host that replaces the whole object `window.__beltypeCicero` does not: the rim keeps calling this module's own handle (so a client that was released, or one a newer client replaced, never reaches into the next document's), and nothing in the repositories searched does that.
  *
  * A box heard through a piece a page draws it with (*a fragment announces its own size*, 2026-10-22) carries the page it was heard on, and its resume is at the address that page begins at, the earliest such page; every other box carries `null` and is resumed at its own address.
  */
@@ -202,12 +206,12 @@ async function lateTruth() {
   while (batch) {
     const { font, boxes } = batch;
     batch = null;
-    const h = window.__beltypeCicero;
+    const h = handle;
     try {
       /** One step, after any run under way has ended; `null` where the run before left nothing to answer. */
       const ready = async () => {
         while (live && !live.gate) await live.finished;
-        return previous?.composed ?? null;
+        return released ? null : previous?.composed ?? null;
       };
       if (font) {
         const composed = await ready();
@@ -309,6 +313,7 @@ function reached(session: Session) {
 /** The driver's `pace`: called after every page of the first layout. It stops the run where the host asked it to stop — by returning a promise the next call releases — and otherwise lets it go on without a pause. */
 function pacer(session: Session, progress: Progress) {
   session.progress = progress;
+  if (session.cancelled) return Promise.reject(LET_GO); // a run released while it measures stops at its next page
   if (!reached(session)) return undefined;
   return new Promise<any>((resolve, reject) => {
     session.gate = () => (session.cancelled ? reject(LET_GO) : resolve(undefined));
@@ -364,8 +369,7 @@ async function takeIntake(relaxDpr: boolean) {
     undo() {
       for (const [el, parent, next] of moved.toReversed()) parent?.insertBefore(el, next);
       root.remove();
-      rim?.stop();
-      rim = null;
+      stopRim();
       presented = null;
     }
   };
@@ -393,7 +397,7 @@ async function takeFacsimile() {
 async function cutTo(el: Element) {
   const session = live;
   if (!session) return;
-  if (session.gate) await window.__beltypeCicero.run({ composed: session.composed, until: el });
+  if (session.gate) await handle.run({ composed: session.composed, until: el });
   else await session.finished;
 }
 
@@ -442,7 +446,7 @@ function show(session: Session, { account, index, total, from, to, resume }: { a
 /** The host's doors onto the presentation, seated on the handle after every presentation (*the engine answers the page*, 2026-09-04; beltype#19, beltype#20). A verb, never the index: the tokenization stays in the realm it is checked in, and a verb survives the parked horizon of the engine leaving this realm where an exposed index holding live DOM references would not. */
 function seatDoors(blocks: Element[]) {
   const { root } = (presented as NonNullable<typeof presented>);
-  const h = window.__beltypeCicero;
+  const h = handle;
   h.pageOf = (el, charOffset = 0) => root.pageOf(el, charOffset);
   // The windowing's doors (*only the pages near the reader are built*, 2026-10-12): the pages near the reader are built with the presentation and the rest as the reader nears them or the browser is idle, so a host about to read a page asks for it first. `reveal` builds the page that begins a source element and scrolls its drawn copy into view; `buildPage` builds one page; `buildAll` builds every page and is awaited by whoever reads them all (the printer, a gate); `built` says how many pages have their content.
   h.reveal = (el, options) => root.reveal(el, options);
@@ -487,6 +491,7 @@ function seatDoors(blocks: Element[]) {
  * @returns what the console line reports; the presented pages stay live in the DOM. `pages` is how many are cut; `complete` whether that is the document's end. `resumed` names the pages cut again, from 1: `from` through `to`, with `shift` the pages the run added (or, negative, removed) and `kept` the prior pages after `to` left standing. `why` is a plain sentence, set exactly when `resumed` is `null`: the first run on a frame, no `resumeAt`, another mode, conditions that moved (and which part), a block count that moved, or a reference whose page number sent the run round again. `composition` is the composed mode's count (`null` in the default): `misses` the paragraphs composed, `hits` the ones found already composed, `blocks` their sum, and `laid` the top-level blocks cloned and measured to read their widths (the rest were answered by the cache whole).
  */
 export function run(opts?: { composed?: boolean; resumeAt?: Address|null; until?: number|Element|null; layer?: string|null; }): Promise<{ pages: number; ms: number; composed: boolean; complete: boolean; resumed: { from: number; to: number; shift: number; converged: boolean; kept: number; }|null; why: string|null; composition: { blocks: number; hits: number; misses: number; laid: number; }|null; }> {
+  if (released) return Promise.reject(new Error('BelType/Cicero: this client was released; the next document loads its own'));
   const call = runOnce(opts);
   calls.add(call);
   const answered = () => calls.delete(call);
@@ -580,12 +585,13 @@ async function runOnce({ composed = false, resumeAt = null, until = null, layer 
     ...(target != null ? { pace: (progress) => pacer(session, progress) } : {})
   });
   live = session;
+  if (released) session.cancelled = true; // called before the release, so the first page it cuts is its last
   return settle(session, t0);
 }
 
 async function carryOn(session: Session, until: number|Element|null, t0: number) {
   session.target = until;
-  if (reached(session)) return (window.__beltypeCicero.last as Awaited<ReturnType<typeof run>>); // already cut as far as it is asked
+  if (reached(session)) return (handle.last as Awaited<ReturnType<typeof run>>); // already cut as far as it is asked
   dress(false);
   (presented as NonNullable<typeof presented>).root.hold();
   const settled = settle(session, t0);
@@ -605,6 +611,7 @@ async function settle(session: Session, t0: number) {
     });
   } catch (error) {
     if (live === session) live = null;
+    if (error === LET_GO && released && !session.partial && session.fresh) presented?.undo(); // a first run released before it showed a page
     if (error !== LET_GO) {
       forcingMemo.clear(); // a run that threw filled it with reads no one vouched for
       if (!session.partial && session.fresh) presented?.undo(); // the document goes back as it was, and the host says so truthfully
@@ -632,11 +639,11 @@ async function settle(session: Session, t0: number) {
     edited.splice(0, session.taken);
     session.taken = 0;
     compositionCache.conditions = conditions;
-    window.__beltypeCicero.last = { ...answerOf(session, t0, progress, resumed), complete: false };
-    window.__beltypeCicero.ledger = progress.account;
+    handle.last = { ...answerOf(session, t0, progress, resumed), complete: false };
+    handle.ledger = progress.account;
     console.info(`BelType/Cicero: ${k} pages cut so far, in ${Math.round(performance.now() - t0)} ms — the run is stopped at a page and goes on when asked`);
     await reloadKnownFaces(); // the presentation re-created a layered frame's faces, and the next slice measures in them
-    return window.__beltypeCicero.last;
+    return handle.last;
   }
 
   // Complete: the run reached the document's end.
@@ -671,9 +678,9 @@ async function settle(session: Session, t0: number) {
   session.taken = 0;
   compositionCache.conditions = conditions; // the reading after the presentation, which is the one the next call sees (the first call's was taken before there was any litter to leave out)
   // A host embedding this document (the editing tools' preview iframe, same-origin) reads its own render condition here rather than the devtools console nobody opens — set before returning, on the same handle the bootstrap already holds.
-  window.__beltypeCicero.last = result;
+  handle.last = result;
   // The run's Ledger itself, beside the summary and not inside it: `last` is read across frames and serialised by hosts, and the account holds live `box` pointers that no host should be handed by accident. A venue test reads it in-page to compare two runs entry by entry (*the run resumes from an entry*).
-  window.__beltypeCicero.ledger = account;
+  handle.ledger = account;
   if (live === session) live = null;
   // The presentation re-created a layered frame's faces, and a host reads the pages next: their loads are STARTED here and not awaited, so they are `loading` (and `document.fonts.ready` waits for them) by the time the call answers. Awaiting them put a task between the presentation and the answer, and a host that puts the caret back when the run answers (the studio experiment) lost a keystroke typed in that gap: the browser had no caret to type at, and fired no beforeinput.
   void reloadKnownFaces();
@@ -699,6 +706,28 @@ function answerOf(session: Session, t0: number, progress: Progress, resumed: any
 // `present` is the host's say over what a copy of an element is (*a copy may be presented*, `src/presenters.js`): `present(selector, make)`, registered before the first run. One registered after a run changes the conditions key, so the next call is a whole run on a presented frame — nothing a presenter touched is reused — and a run stopped at a page goes on under the presenters it began with, its pages already built keeping the elements they were built with.
 // `measured` is the same kind of door again (*a box announces its own size*): a venue test asks what height the last run measured for a top-level box, the number the `size` kind compares a presented box's observed size with.
 // `table` is the geometry the intake captured from the author's `@page` rules, margin boxes and their `content` included, or null before an intake: the root clears every margin box's `content` from the CSSOM when it presents, so a second host in the same document, whose pages are not the root's, cannot read a table of its own from the sheets and takes this one (see CHANGELOG 2026-10-28).
+/**
+ * Let go of everything this client registered in the page, so a document that replaces it (`document.open()` keeps the `Window`, its `FontFaceSet` and its listeners) is not answered by this one's.
+ *
+ * It removes the `loadingdone` listener, stops the rim, drops the batch of late truth waiting to be answered and deletes the handle from the window, all before the first `await`. A run stopped at a page is let go and its pages stay on screen. A run under way with a pace (`until`) rejects with the let-go error at its next page, and a first run that has shown nothing puts the document back as it found it; one without a pace finishes and presents. When nothing is under way, the promise resolves, after the root's idle build, observer and window listeners and the facsimile's observer have been let go. A `run()` made afterwards is rejected by name. Calling it again is a no-op.
+ *
+ * @remarks **Host obligations.** The custom-element registry belongs to the window and is not released: the next document's `<beltype-root>`, `<beltype-page>` and PDF element are built from the classes this module defined, which keep no state about the document they were defined for. The handle is gone, and the next client module runs only under a URL the window has not imported (measured 2026-11-03: the same URL after `document.open()` does not run again, a keyed one does, and a second `customElements.define` of a name throws, which the three definitions guard against). The host keys the URL.
+ * @see SPEC.md Article XII.7
+ */
+export async function release(): Promise<void> {
+  if (released) return;
+  released = true;
+  fonts.removeEventListener('loadingdone', countFaces);
+  stopRim();
+  batch = null;
+  if (window.__beltypeCicero === handle) delete (window as Partial<Window>).__beltypeCicero;
+  await Promise.allSettled([...calls]); // a call made before the release has no session yet: it gets one, cancelled, in `runOnce`
+  if (live) await letGo();
+  stopRim(); // the intake of a call that was under way made one after the first stop
+  presented?.root.dispose(); // last, so a presentation that finished above does not arm what it just let go
+  facsimile?.dispose();
+}
+
 /** THE HANDLE — `window.__beltypeCicero`, the host's one door onto the engine in the page. The calls are set at load; the doors onto the presentation are seated by every presentation ({@link seatDoors}), so they are absent before the first; `last` and `ledger` are the last run's. */
 export type Handle = {
   run: typeof run;
@@ -724,6 +753,8 @@ export type Handle = {
   addressOf?: (el: Element, word?: number) => Address | null;
   box?: (i: number) => Element | null;
   patch?: typeof patchBox;
+  release: typeof release;
 };
-window.__beltypeCicero = { run, present,
+const handle: Handle = { run, present, release,
  settled, compositionCache, forcingMemo, forgetJudgedSheets: () => { judgedSheets = new WeakMap<any, any>(); }, measured: (el) => previous?.result.heights?.get(el), get table() { return presented?.table ?? null; } };
+window.__beltypeCicero = handle;

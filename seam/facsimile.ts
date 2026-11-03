@@ -172,6 +172,9 @@ const watcher = () => seen ??= new IntersectionObserver((entries) => {
   for (const entry of entries) if (entry.isIntersecting) { seen?.unobserve(entry.target); draw((entry.target as HTMLObjectElement)); }
 }, { rootMargin: '300px' });
 
+/** Let go of the observer, which the next element to connect makes again: the element's class is the window's and outlives the client that defined it. */
+export function dispose() { seen?.disconnect(); seen = null; }
+
 /** The drawn page, at the box's width. The canvas takes the page's own ratio and the CSS says how it sits (`object-fit: contain`, in the box the author sized). */
 async function draw(el: HTMLObjectElement) {
   if (!el.isConnected || el.closest('#__beltype-measure')) return; // a measuring copy is measured, never drawn — the Gauge's container by its own id (as `src/reads.js` names it), never every id that begins `__beltype`, which a host's own wrappers may wear (the studio's `#__beltype-studio`, measured: every copy stayed blank)

@@ -146,6 +146,8 @@ export class BeltypeRoot extends HTMLElement {
   #idleIsRic = false;
   #held = false;
   #listening = false;
+  /** What undoes each window listener {@link dispose} must take off. */
+  #offs: Array<() => void> = [];
   #buildMs = 0;
 
   constructor() {
@@ -708,13 +710,16 @@ export class BeltypeRoot extends HTMLElement {
       this.#ensure(target);
     }, true);
     // And after it, the place is shown: a target that is no box of its own — a divided block, drawn on its pages through copies — is scrolled to where its copy is. An address typed into the bar while the document is still being cut asks for the cut the same way.
-    view.addEventListener('hashchange', () => {
+    const onHash = () => {
       const target = targetOf(view.location.hash);
       if (!target) return;
       if (this.cutTo && this.pageOf(target) === NOT_YET) void this.cutTo(target).then(() => this.reveal(target));
       else this.reveal(target);
-    });
-    view.addEventListener('beforeprint', () => void this.buildAll());
+    };
+    const onPrint = () => void this.buildAll();
+    view.addEventListener('hashchange', onHash);
+    view.addEventListener('beforeprint', onPrint);
+    this.#offs.push(() => view.removeEventListener('hashchange', onHash), () => view.removeEventListener('beforeprint', onPrint));
   }
 
   /** Build the page that begins the element, when the engine can name it.@param [charOffset] @returns the page's index, or null. */
@@ -779,6 +784,16 @@ export class BeltypeRoot extends HTMLElement {
   hold() {
     this.#held = true;
     this.#unkick();
+  }
+
+  /** Let go of what this root registered outside itself: the idle build, the observer and the window's listeners. The root is finished with after it; the class is not, since the window keeps it. */
+  dispose() {
+    this.#held = true;
+    this.#unkick();
+    this.#observer?.disconnect();
+    this.#observer = null;
+    for (const off of this.#offs.splice(0)) off();
+    this.#listening = false;
   }
 
   release() {
