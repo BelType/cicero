@@ -9,12 +9,14 @@
  *
  * **With a layer named, every sheet of the document goes into it** (*the author's sheets in a layer the host names*, 2026-10-17): a `<style>` holds its text wrapped (`wrapInLayer`), and every `<link>` becomes a `<style>` of its wrapped text at the same position. **The address is not kept, on a measurement**: `<style>@import url(<the href>) layer(<name>)</style>` would keep it, and Chromium fetches an imported sheet once for every frame that imports it, but it parses it again in each (measured 2026-10-17 in the studio experiment, an 11 MB sheet in four same-origin frames: +9 MB a further frame linked, +61–74 MB imported), so an import buys a host no shared copy a `<style>` does not, and it hides the sheet from every walk that reads `document.styleSheets`' top level (`@page`, `@font-face` for a printer, `position: fixed`). A host that shared a linked sheet's parsed copy across frames loses that sharing under a layer, and the loss is the host's to weigh. **And the engine's root line-height provision moves into the engine's own layer**, the first one: unlayered, it would outrank every rule of the author's now-layered sheets, the author's own root line-height among them, where it was written to lose every tie. **And the order of the two layers is stated first in the head**, `@layer <the engine's>, <the host's>;` in the engine's own layers element (made where it is not there yet): a layer's place is where it is first named, and a host that seats the author's sheets before the engine's head (the HTML lane, the studio, its print frame) would otherwise name the author's layer before the engine's, putting the engine's `!important` trimming below an author's and its provision above the author's normal rules. Without a layer nothing here changes.
  *
+ * **A replaced `<link>`'s relative addresses are written against its href** (`rebaseUrls`), because a `<style>` resolves them against the document.
+ *
  * **The `<link>` is replaced, not merely disabled.** A disabled link leaves the browser's own copy of the rules out of the CSSOM but leaves the element in the document, and the next thing to walk `document.styleSheets` would meet two sheets where the author wrote one.
  *
  * @packageDocumentation
  */
 
-import { rewriteSheet, rewriteNote, isLayerName } from './rewrite.ts';
+import { rewriteSheet, rewriteNote, isLayerName, rebaseUrls } from './rewrite.ts';
 import { CICERO_INTERFACE, CICERO_PROVISION, LAYER as ENGINE_LAYER, WORDS_RULES, hasWord } from '../src/data-beltype.ts';
 import { LAYERS_ID } from '../src/dressing.ts';
 
@@ -113,10 +115,12 @@ export async function rewriteDocumentSheets(doc: Document, judged: WeakMap<Eleme
       judged.set(node, out.text); // the text the next run will find there
       return;
     }
+    // A `<style>` resolves its addresses against the document, so the sheet's own are written out first.
+    const text = rebaseUrls(out.text, new URL((node.getAttribute('href') as string), doc.baseURI).href);
     const style = doc.createElement('style');
-    style.textContent = out.text;
+    style.textContent = text;
     node.replaceWith(style); // in place, so the sheet keeps its seat in the cascade
-    judged.set(style, out.text);
+    judged.set(style, text);
   });
 
   const note = rewriteNote(counts);

@@ -338,6 +338,41 @@ test('a sheet already judged is not fetched or judged again, a style edited in p
   assert.equal(fetched.length, 3, 'a fresh memo judges the link still in the document again — the conditions moved');
 });
 
+test("a link the rewrite replaces keeps its addresses: a relative url() or @import resolves against the sheet's own href, not the document's", async (t) => {
+  // The tester's case (2026-11-03): css/font-in-media-print.css opens its @media print, so the link became a <style> and "./liberation-mono.ttf" was asked for at the document's root.
+  t.mock.method(console, 'info', () => {});
+  const sheet = [
+    '@import "more.css";',
+    '@import url(../up.css) print;',
+    '@media print {',
+    '  @font-face { font-family: L; src: url("./liberation-mono.ttf") format("truetype"); }',
+    '}',
+    'a { background: url(img/a.png), url(data:image/gif;base64,R0lGOD), url("https://example.invalid/b.png"); clip-path: url(#c); }',
+    'b { & i { background: url(\'deep/c.png\') } }'
+  ].join('\n');
+  const linked = fakeNode('LINK', { rel: 'stylesheet', href: 'css/font-in-media-print.css' });
+  const style = fakeNode('STYLE', {}, '@media print { p { background: url(own.png) } }');
+  const doc = {
+    baseURI: 'http://localhost/doc/index.html',
+    defaultView: { location: { origin: 'http://localhost' }, fetch: async () => ({ ok: true, text: async () => sheet }) },
+    createElement: (tag: any) => ({ tag, tagName: tag.toUpperCase(), textContent: '', attrs: {} as Record<string, any>, setAttribute(k: any, v: any) { this.attrs[k] = v; } }),
+    querySelectorAll: () => [style, linked]
+  };
+  await rewriteDocumentSheets(doc);
+  const text = linked.replacedBy!.textContent as string;
+  const at = 'http://localhost/doc/css/';
+  assert.match(text, /@import "http:\/\/localhost\/doc\/css\/more\.css";/);
+  assert.match(text, /@import url\("http:\/\/localhost\/doc\/up\.css"\) print;/);
+  assert.ok(text.includes(`src: url("${at}liberation-mono.ttf") format("truetype")`), text);
+  assert.ok(text.includes(`url("${at}img/a.png")`), 'an unquoted url');
+  assert.ok(text.includes(`url("${at}deep/c.png")`), 'a url inside a nested rule');
+  assert.ok(text.includes('url(data:image/gif;base64,R0lGOD)'), 'a data: url is left as written');
+  assert.ok(text.includes('url("https://example.invalid/b.png")'), 'an absolute url is left as written');
+  assert.ok(text.includes('url(#c)'), 'a fragment names the document, and is left as written');
+  assert.equal(text.split('\n').length, sheet.split('\n').length, 'every rule stays on its line');
+  assert.match(style.textContent, /url\(own\.png\)/, "a <style> is the document's own, and resolves against it as before");
+});
+
 // ── :has(), *one attribute has words* (2026-10-10) ─────────────────────────────────────────────────
 
 /** The registry rule's arguments, read back the way the capture reads them. */
