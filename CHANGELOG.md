@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.6 — 2026-11-04
 
 - **`release()`**, a door on the handle for a host that replaces the document in the same window: the client's `loadingdone` listener, the rim, the late-truth batch, the root's window listeners, idle build and observer, and the facsimile's observer are all let go, and the handle leaves the window (Egildo's ruling of 2026-11-03, the kept page of beltype serve; SPEC.md XII.7). `specs/001-release/`.
 
