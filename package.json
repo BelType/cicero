@@ -61,7 +61,7 @@
     "prepare": "npm run build"
   },
   "dependencies": {
-    "@beltype/common": "0.1.1",
+    "@beltype/common": "0.1.2",
     "css-tree": "^3.2.1",
     "pdfjs-dist": "6.2.108"
   },

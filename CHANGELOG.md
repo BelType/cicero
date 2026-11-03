@@ -1,13 +1,10 @@
 # Changelog
 
-## 0.1.6 — unreleased (branch `round/specimen-findings`)
+## 0.1.5 — 2026-11-03
 
-The round *specimen findings*: faults the `delibera` and `trattato` specimens surfaced.
-
+- **Common 0.1.2**, the version that carries `@beltype/common/flags`.
 - **The page's content area is as wide as the container it was measured in.** The page grid gave the band between the margins as three thirds, and Chromium lays out in 1/64 px and drops the remainder of each track: 112 mm (423.307 px) became 423.28125 px on the page and 423.296875 px in the measure container. A justified line that fits the second by a hair wrapped on the first, so the cut counted one line where the page showed two, and a paragraph the page could not hold was placed whole, its last line below the page area (trattato page 111, 9.7 pt, the only page of 220; on screen the flow's clip hid it, in print Caster put it beside the folio). `bandTracks` (`margin-boxes.ts`) gives three whole 1/64 px tracks that sum to the floor of the band, and `Chase.applyConditions` writes them. `test/band-tracks.test.ts` is the red case. Articles 139 to 141 of the specimen alone reproduce it (Caster's tiling invariant refused the print: 46 characters left below the clip); a hanging `float: left` number on the list items is what made the line a hair too long, and turning the float off made the specimen's two lines fit.
 - **A linked sheet the rewrite replaces keeps its addresses.** A `<link>` whose sheet the rewrite changes becomes a `<style>` of the new text, and a `<style>` resolves `url()` against the document: a font declared inside `@media print` in `css/` was asked for at the document's root, because opening the print block is a change (the tester's case, 2026-11-03), and under a named layer every linked sheet was exposed. `rebaseUrls` (`seam/rewrite.ts`) now writes each relative `url()` and `@import` string against the link's href, in place; `data:`, absolute and `#fragment` addresses stay as written. `test/rewrite.test.ts` holds the red case.
-
-## 0.1.5 — 2026-10-30
 
 - **`ciceroFlags`**, the run-wide flags in `@beltype/common`'s shape, exported from the host face (`@beltype/cicero`). One flag: `composed`, default `false`. `run()` behaves as before; the client runs in a tab that cannot resolve `@beltype/common`, so it keeps the literal default and a test pins it to the table. The call-level options `until`, `resumeAt` and `layer` are not flags.
 - **Two light subpaths**, `@beltype/cicero/engine` (`ciceroEngine`) and `@beltype/cicero/flags` (`ciceroFlags`), so a host that never rewrites sheets does not load css-tree through the host face (about 24 ms in node).
