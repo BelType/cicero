@@ -370,7 +370,7 @@ Of the members below, `run`, `settled` and `table` exist from load, and `last` a
 6. A resume falls back to a whole run, silently and correctly, when the last call ran in the other mode, under other conditions, or over a different number of top-level blocks (see *the-run-resumes-from-an-entry*).
 7. `layer` names the cascade layer for the document's own sheets, and a name that is not a layer name throws a `TypeError`. No record owns it (see Article X.9).
 8. The result is `{ pages, ms, composed, complete, resumed, why, composition }`. `resumed` is `{ from, to, shift, converged, kept }` or `null`, and `why` is a sentence exactly when `resumed` is `null`. `composition` is `{ blocks, hits, misses, laid }` in the composed mode and `null` otherwise (see *the-run-resumes-from-an-entry*).
-9. Every call of `run`, the rim's included, goes through this handle, so a host that wraps it sees every run (see *late-truth-is-an-edit*).
+9. Every call of `run`, the rim's included, goes through this handle, so a host that replaces its `run` property sees every run; the handle object is the module's own, and replacing the whole object on `window` is not wrapping it (see *late-truth-is-an-edit*).
 
 ### XII.2 `last` and `ledger`
 
