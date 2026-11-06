@@ -20,7 +20,7 @@ import { takeReport } from './gauge.ts';
 import { adjudicate, adjudicateFlow, firstBelowTheEdge, isAbsolutelyPositioned, isOutOfFlow, isMonolith, neverCutInside, reachesBelowTheEdge, processionBottoms, fitsPage } from './stonehand.ts';
 import { composeDocument, applyRecordsUnder } from './compose-dom.ts';
 import { CompositionCache } from './composition-key.ts';
-import { readGeometryTable, effectivePageName, styleSheetsOf, registerGcpmProperties, sheetsUseHas, sheetReach } from './capture.ts';
+import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, registerGcpmProperties, sheetsUseHas, sheetReach } from './capture.ts';
 import { snapshotOfStyle } from './forcing-memo.ts';
 import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, truncateFrom } from './fragments.ts';
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
@@ -165,26 +165,24 @@ export function pageNameDownFrom(el: Element, { styleOf, runBefore, blockChildre
 }
 
 /**
- * Read the document's @page geometry from the CSSOM — every sheet the document wears, adopted ones included (`capture.js`'s `styleSheetsOf`; the capture reads adopted sheets). Returns page and content box sizes in px.
+ * Read the document's @page geometry from the CSSOM — every sheet the document wears, adopted ones included, and the rules inside its layers and conditions (`capture.ts`'s `pageRulesOf`). Returns page and content box sizes in px.
  *
  * **Margins only, and that is now a stated limit rather than the whole story** *(a page box has a border and a padding, 2026-09-07)*. The capture models a page's `border` and `padding` and subtracts both from the page area; this reader does not, so a document declaring either gets a content box too large here. Its one caller is `packages/essay`'s benchmark, over a corpus that writes `size` and margins into its page rules and nothing else — so the difference is unreachable there. It is not widened rather than left quietly wrong: this is the legacy single-geometry reader, and a second implementation of the page area is exactly what `readGeometryTable` exists to be the only one of.
  */
 export function readPageGeometry(doc: Document) {
-  for (const sheet of styleSheetsOf(doc)) {
-    for (const rule of sheet.cssRules) {
-      if (!(rule instanceof (doc.defaultView as Window & typeof globalThis).CSSPageRule)) continue;
-      const text = rule.cssText;
-      const size = /size:\s*([^;}]+)/.exec(text)?.[1].trim().split(/\s+/) ?? [];
-      const marginRaw = /(?:^|[\s{;])margin:\s*([^;}]+)/.exec(text)?.[1].trim().split(/\s+/) ??
-        ['top', 'right', 'bottom', 'left'].map((side) => new RegExp(`margin-${side}:\\s*([^;}]+)`).exec(text)?.[1].trim() ?? '0px');
-      if (size.length === 0) throw new Error('@page without an explicit size — the corpus always pins geometry (I5)');
-      const [w, h] = size.length === 1 ? [size[0], size[0]] : size;
-      const [mt, mr = mt, mb = mt, ml = mr] = marginRaw;
-      const pageW = toPx(w);
-      const pageH = toPx(h);
-      const margins = { top: toPx(mt), right: toPx(mr), bottom: toPx(mb), left: toPx(ml) };
-      return { pageW, pageH, margins, contentW: pageW - margins.left - margins.right, contentH: pageH - margins.top - margins.bottom };
-    }
+  const { layered, unlayered } = pageRulesOf(doc);
+  for (const rule of [...unlayered, ...layered]) {
+    const text = rule.cssText;
+    const size = /size:\s*([^;}]+)/.exec(text)?.[1].trim().split(/\s+/) ?? [];
+    const marginRaw = /(?:^|[\s{;])margin:\s*([^;}]+)/.exec(text)?.[1].trim().split(/\s+/) ??
+      ['top', 'right', 'bottom', 'left'].map((side) => new RegExp(`margin-${side}:\\s*([^;}]+)`).exec(text)?.[1].trim() ?? '0px');
+    if (size.length === 0) throw new Error('@page without an explicit size — the corpus always pins geometry (I5)');
+    const [w, h] = size.length === 1 ? [size[0], size[0]] : size;
+    const [mt, mr = mt, mb = mt, ml = mr] = marginRaw;
+    const pageW = toPx(w);
+    const pageH = toPx(h);
+    const margins = { top: toPx(mt), right: toPx(mr), bottom: toPx(mb), left: toPx(ml) };
+    return { pageW, pageH, margins, contentW: pageW - margins.left - margins.right, contentH: pageH - margins.top - margins.bottom };
   }
   throw new Error('no @page rule found');
 }

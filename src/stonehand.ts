@@ -13,6 +13,7 @@
  */
 
 import { isAtom, READS_ITS_CHILDREN } from './word-space.ts';
+import { ARTIFACT, hasWord } from './data-beltype.ts';
 
 import type { Box, MeasureReport, Px } from './gauge.ts';
 import type { CutClass, Violates } from './ledger.ts';
@@ -288,9 +289,11 @@ function walkOf(report: MeasureReport, sourceOf: (cloneEl: Element) => Element|n
   /** A row's items are parallel flows too (*every branch gets a place*, 2026-09-21; §2.1's own list — the cells of a row, grid items, flex items). `report.rowOf` is the Gauge's answer: the side-by-side siblings a box stands among, or null. An item's interior offers nothing, exactly as a float's does, and the boundary between two items of one row is not a place in any procession — they stand beside each other, so nothing lies between them on the block axis. A row therefore offers two readings and no more: the boundary before it, on its first item, and the page edge through it. */
   const rowOf = ( box: Box) => (box === root ? null : report.rowOf?.(box) ?? null);
   const insideRowItem = ( box: Box) => climb(box, (p) => !!rowOf(p), false);
-  /** Does the walk read this box at all? Not an inline box, nothing inside a monolith, a parallel flow or a row item — and a row answers once, at its first item (see `rowOf`). */
+  /** A copy the engine repeats (`artifact`), the table's header on a continuation: furniture with a footprint, no content of the flow, so no break point stands in it (*an artifact is never read*). */
+  const copy = (box: Box) => !box.anonymous && hasWord(box.el, ARTIFACT);
+  /** Does the walk read this box at all? Not an inline box, nothing inside a monolith, a parallel flow, a row item or a repeated copy — and a row answers once, at its first item (see `rowOf`). */
   const walks = ( box: Box) => {
-    if (box.inline || insideMonolith(box) || insideParallel(box) || insideRowItem(box)) return false;
+    if (box.inline || copy(box) || insideMonolith(box) || insideParallel(box) || insideRowItem(box) || climb(box, copy, false)) return false;
     const row = rowOf(box);
     return !row || row[0] === box;
   };
@@ -300,7 +303,7 @@ function walkOf(report: MeasureReport, sourceOf: (cloneEl: Element) => Element|n
    * A float, an absolutely positioned box and a row are not where it stops: a float's top is where the float was pushed, not the procession's, and a row's first item is not the row's top. The premise is stated rather than proved — that in-flow tops do not go backward in document order — and a negative margin taller than the box above it, or a relative offset, would break it. A table's footer written before its rows broke it too, and is walked where it is laid out instead (`gauge.js`'s `laidOutLast`, case 110).
    */
   const standsBelow = (box: Box, limit: Px, eps: Px) => !rowOf(box) && !parallelBox(box) && box.rect.top > limit + eps;
-  return { report, sourceOf, boxes, win, root, styleCache, forcing, styleOfBox, monolithic, insideMonolith, parallelBox, insideParallel, rowOf, insideRowItem, walks, standsBelow };
+  return { report, sourceOf, boxes, win, root, styleCache, forcing, styleOfBox, monolithic, insideMonolith, parallelBox, insideParallel, rowOf, insideRowItem, copy, walks, standsBelow };
 }
 
 /** Does this feed hold the box the retreat walk stops at — the first in-flow box whose top lies below the page's limit? The check a bounded feed must pass before anything is decided on it (*the Cast-off bounds the feed*, 2026-09-26): a feed that holds that box gives the walk everything it reads, and one that does not stopped above the edge and is poured again. */
@@ -354,7 +357,7 @@ export function firstBelowTheEdge({ report, sourceOf, limit, eps = 0.25, sourced
  * @param a.stats - when given, counts what the collection costs: the boxes it visited, the line stacks it measured and the ones it skipped, and the milliseconds the lines and the end gaps took (`adjudicate` publishes it as the measure's detail).
  */
 function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, stats }: { boxes: Box[]; limit: Px; pageStart: Px; eps: Px; stats?: { boxes: number; lined: number; skipped: number; linesMs: number; gapMs: number; }; }): Candidate[] {
-  const { report, win, root, styleOfBox, monolithic, parallelBox, rowOf, walks, standsBelow } = w;
+  const { report, win, root, styleOfBox, monolithic, parallelBox, rowOf, copy, walks, standsBelow } = w;
   /**
    * §5.3's *leaving room*, priced (*the fragment that wraps itself*, 2026-09-15). *"When a box breaks, its content box extends to fill any remaining fragmentainer extent (leaving room for any margins/borders/padding applied by `box-decoration-break: clone`)."* So a cut inside a box that clones its decoration costs the page that box's block-end border and padding, on top of the content above it — and every ancestor the same cut breaks costs its own.
    *
@@ -434,7 +437,8 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
       // Two siblings answer here, and they are not always the same one. **The keeps** are the immediately-adjacent box's, because §4.1 names *"a float and an immediately-adjacent in-flow or floated box"* as a Class A pair in as many words — a float's own `break-after` binds the boundary after it, which is §3.1's *should* on floats that this engine honours and Chromium declines. **The position** is the previous in-flow sibling's bottom border edge, because a parallel flow's extent is not a place in the procession the cuts divide (§2.1): the float is laid out beside the content, so the page closes where the previous in-flow box ended and the float's own bottom says nothing about it. Pricing this at the float's bottom is how a 96mm rail put every slab standing beside it off the page — measured, `cases/21-parallel-flows`, where the boundary before the first slab was priced at y 400 in a 264px page area.
       const pair = siblings[si - 1];
       const anchor = last(siblings.slice(0, si).filter((b) => !parallelBox(b))) ?? null;
-      if (anchor) {
+      // Before the rows of a continuation only the repeated header stands, and a copy is furniture (*an artifact is never read*): a boundary there takes nothing of the box, and would send the page back to where the box began.
+      if (anchor && !siblings.slice(0, si).every((b) => parallelBox(b) || copy(b))) {
         candidates.push({
           kind: 'A',
           cls: 'A',
@@ -529,7 +533,7 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
     // The place it names is before the box's first in-flow child, past the gap (*the cut divides its ancestors*, 2026-09-29): the page before carries the box's border, its padding and whatever stands in the gap — an empty float, the clearance under it — and the page after resumes the box divided, its first child whole. So the position is the child's outer top, which is the content edge plus the gap; it used to be the box's top plus its border, which put the padding on the next page and offered a break point §4.1 does not provide (`packages/essay/cases/71-the-box-that-begins-a-page`).
     const startGap = box.blockChildren.length ? report.gapAt({ box, edge: 'start' }) : 0;
     const firstInFlow = startGap > eps ? box.blockChildren.find((c) => !parallelBox(c)) : undefined;
-    if (firstInFlow) {
+    if (firstInFlow && !copy(firstInFlow)) {
       const prevSibling = si > 0 ? siblings[si - 1] : null;
       const bs = (win as Window).getComputedStyle(box.el);
       candidates.push({

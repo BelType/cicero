@@ -14,6 +14,7 @@ class Fake {
   declare assigned: any[] | undefined;
   constructor(tagName: any) { Object.assign(this, { tagName, nodeType: 1, childNodes: [], dataset: {}, style: {} as any, parentNode: null, assigned: [] }); }
   appendChild(node: any) { node.parentNode?.childNodes.splice(node.parentNode.childNodes.indexOf(node), 1); node.parentNode = this; this.childNodes.push(node); return node; }
+  setAttribute() {}
   replaceChildren(...nodes: any[]) { this.childNodes = []; for (const n of nodes) this.appendChild(n); }
   assign(...nodes: any[]) { this.assigned = nodes; }
 }

@@ -18,7 +18,7 @@ function measuredPage(specs: any, { rows = [] as string[][] } = {}) {
   const gapOf = new Map<any, any>();
   const overflowing = new Set<any>();
   const build = (spec: any, parent: any, depth: any) => {
-    const el = { tagName: spec.tag ?? 'DIV', ownerDocument: doc };
+    const el = { tagName: spec.tag ?? 'DIV', ownerDocument: doc, getAttribute: () => null };
     styles.set(el, { ...DEFAULTS, ...(spec.style ?? {}) });
     const box = { el, parent, depth, rect: { top: spec.top, bottom: spec.bottom }, inline: false, children: [], blockChildren: [], name: spec.name };
     boxes.push(box);

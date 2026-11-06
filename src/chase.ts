@@ -160,6 +160,7 @@ export class BeltypePage extends HTMLElement {
     for (const [band, row] of ([['top', 1], ['bottom', 5]] as [string, number][])) {
       const el = doc.createElement('div');
       el.className = 'band';
+      el.setAttribute('aria-hidden', 'true'); // pagination furniture is never read (*an artifact is never read*)
       el.dataset.band = band;
       el.style.gridArea = `${row} / 2 / ${row + 1} / 5`;
       this.#bands[band] = el;
@@ -169,6 +170,7 @@ export class BeltypePage extends HTMLElement {
     for (const [name, row, col] of MARGIN_CELLS) {
       const cell = doc.createElement('div');
       cell.className = 'margin-cell';
+        cell.setAttribute('aria-hidden', 'true');
       cell.dataset.box = name;
       const band = Object.keys(HORIZONTAL_BANDS).find((b) => (HORIZONTAL_BANDS as Record<string, string[]>)[b].includes(name));
       if (band) {
