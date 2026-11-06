@@ -21,5 +21,5 @@ export { assertRenderConditions, awaitCloneImages, awaitFonts, createMeasureCont
 export { divides, elAt, extensionPx, indexBlocks, normalizePath, pageContaining, pageIntervals, pathOf, placeAt } from './positions.ts';
 export { present, presentation } from './presenters.ts';
 export { cssString, findPageSites, settleReads } from './reads.ts';
-export { adjudicate, fitsPage, isOutOfFlow, neverCutInside, processionBottoms, reachesBelowTheEdge } from './stonehand.ts';
+export { adjudicate, firstBelowTheEdge, fitsPage, isOutOfFlow, neverCutInside, processionBottoms, reachesBelowTheEdge } from './stonehand.ts';
 export { BREAKING_SPACE, copyOf, isFixedBox, isInlineBox, isLineBreak, noteSource } from './word-space.ts';

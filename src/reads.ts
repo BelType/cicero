@@ -74,7 +74,7 @@ export const MAX_RUNS = 3;
 export const RESERVATION = '0';
 
 /** A CSS string literal for any text: a quote, a backslash and a line break escaped, nothing else. */
-export const cssString = (text: string) => `"${String(text).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\a ')}"`;
+export const cssString = (text: string) => `"${String(text).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\u0000-\u001f\u007f]/g, (ch) => `\\${ch.charCodeAt(0).toString(16)} `)}"`;
 
 /** The selector a delivery is keyed by: the attribute the function reads, at the value this element carries. */
 export const attrSelector = (attr: string, value: string) => `[${attr}=${cssString(value)}]`;

@@ -83,6 +83,7 @@ test('two elements opening at one word are two places: a heading sees its sectio
 test('the value is spelled before it travels, in the style the read names', () => {
   assert.equal(format(2, 'lower-roman'), 'ii');
   assert.equal(cssString(format(11, 'decimal')), '"11"');
+  for (const [control, escape] of [['\n', '\\a '], ['\r', '\\d '], ['\f', '\\c '], ['\u0000', '\\0 '], ['\u007f', '\\7f ']]) assert.equal(cssString(`a${control}b`), `"a${escape}b"`, 'a control character cannot end the string, in any of the forms CSS treats as a newline');
   assert.equal(cssString('The "Pequod" \\ x'), '"The \\"Pequod\\" \\\\ x"', 'a quote and a backslash in a target`s text are escaped, not trusted');
   assert.equal(RESERVATION, '0');
 });

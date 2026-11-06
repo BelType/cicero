@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **No break point stands in a repeated copy or beside it.** A table with a header whose first row under the copy did not fit took a place before where the page resumed, and the run refused the document with *entry position runs backward (I1)*. The row now divides under the copy, page for page with Chromium.
+- **`@page` rules inside `@layer`, `@supports`, `@media` and imported sheets count** (`pageRulesOf`), and an unlayered rule beats a layered one whatever their order.
+- **`cssString` escapes every control character**, so a carriage return or a form feed in a value cannot end the string.
+- **Each measure context has its own container**, so two fills in flight do not measure in each other's.
+- **The bands and the margin cells are `aria-hidden`.**
+- `firstBelowTheEdge` is on the `fragmentation` face.
+
 ## 0.1.6 — 2026-11-04
 
 - **`release()`**, a door on the handle for a host that replaces the document in the same window: the client's `loadingdone` listener, the rim, the late-truth batch, the root's window listeners, idle build and observer, and the facsimile's observer are all let go, and the handle leaves the window (Egildo's ruling of 2026-11-03, the kept page of beltype serve; SPEC.md XII.7). `specs/001-release/`.

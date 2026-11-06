@@ -816,20 +816,41 @@ function marginBoxesOf(rule: CSSPageRule): Record<string,string> {
 }
 
 /**
+ * Every `@page` rule the document wears, wherever it stands: at a sheet's top, or inside an `@layer`, a `@supports` or an `@media` that holds, or an imported sheet. `layered` loses to `unlayered`, as the cascade has it, whatever their order.
+ *
+ * @remarks ponytail: the layers keep their document order, not their declared order; a page rule that must win over another layer is unlayered, as BelType's own is.
+ */
+export function pageRulesOf(doc: Document): { layered: CSSPageRule[]; unlayered: CSSPageRule[] } {
+  const win = doc.defaultView as Window & typeof globalThis;
+  const found: { layered: CSSPageRule[]; unlayered: CSSPageRule[] } = { layered: [], unlayered: [] };
+  const rulesOf = (sheet: CSSStyleSheet): Iterable<any> => {
+    try { return sheet.cssRules; } catch { return []; } // cross-origin sheet: not ours to read
+  };
+  const walk = (rules: Iterable<any>, inLayer: boolean) => {
+    for (const rule of rules) {
+      if (rule instanceof win.CSSPageRule) (inLayer ? found.layered : found.unlayered).push(rule);
+      else if (rule.constructor?.name === 'CSSLayerBlockRule') walk(rule.cssRules, true);
+      else if (rule.constructor?.name === 'CSSSupportsRule') { if (win.CSS?.supports?.(rule.conditionText)) walk(rule.cssRules, inLayer); }
+      else if (rule.constructor?.name === 'CSSMediaRule') { if (win.matchMedia(rule.media.mediaText).matches) walk(rule.cssRules, inLayer); }
+      else if (rule.constructor?.name === 'CSSImportRule' && rule.styleSheet) walk(rulesOf(rule.styleSheet), inLayer || rule.layerName != null);
+    }
+  };
+  for (const sheet of styleSheetsOf(doc)) walk(rulesOf(sheet), false);
+  return found;
+}
+
+/**
  * Clear every author @page margin-box's own `content` declaration in the live CSSOM — never its `size`/`margin`, never anything outside a margin-at-rule. Called once the geometry table above has already read what it needs from these rules (the second channel a named page cannot close).
  *
  * Margin-box chrome is delivered exclusively as a shadow-DOM literal (chase.js's own note under *content is one document*, I6: "it does not live once, so it cannot live twice"), but the author's own @page rules stay linked in the document throughout — their non-page rules keep styling the light-DOM content, so the whole stylesheet can never simply be disabled. Once the press sheet (root.js) renames every `<beltype-page>` to a synthetic geometry name, no author rule with a page-name selector (`@page title`, `@page :left`, …) can be name-matched by the browser's own native cascade any more — only the bare, unnamed base rule still matches every page unconditionally, becoming a second, uncontrolled channel that paints the very same chrome the shadow DOM already delivers correctly. `cases/17-the-borrowed-dress` found this the hard way: a named page's `content: normal` override was honored inside the shadow DOM (confirmed by direct inspection) while the printed page still showed the un-overridden base string, painted by this exact channel. Clearing `content` closes it by construction, for every page, independent of the precise cascade mechanism that let it through.
  */
 export function neutralizeMarginBoxes(doc: Document) {
-  for (const sheet of styleSheetsOf(doc)) {
-    let rules: CSSRuleList;
-    try { rules = sheet.cssRules; } catch { continue; } // cross-origin sheet: not ours to touch
-    for (const rule of rules) {
-      if (!(rule instanceof (doc.defaultView as Window & typeof globalThis).CSSPageRule) || !rule.cssRules) continue;
-      for (const child of (rule.cssRules as Iterable<MarginRuleLike>)) {
-        const name = (child.name ?? child.selectorText ?? '').replace(/^@/, '');
-        if (MARGIN_BOXES.includes(name)) child.style?.removeProperty('content');
-      }
+  const { layered, unlayered } = pageRulesOf(doc);
+  for (const rule of [...layered, ...unlayered]) {
+    if (!rule.cssRules) continue;
+    for (const child of (rule.cssRules as unknown as Iterable<MarginRuleLike>)) {
+      const name = (child.name ?? child.selectorText ?? '').replace(/^@/, '');
+      if (MARGIN_BOXES.includes(name)) child.style?.removeProperty('content');
     }
   }
 }
@@ -950,44 +971,36 @@ export function readGeometryTable(doc: Document): { pageFor: (cond?: PageConditi
     split: { host: Decl[], cell: Decl[] };
   };
   const rules: PageRuleRecord[] = [];
-  for (const sheet of styleSheetsOf(doc)) {
-    let list: CSSRuleList;
-    try {
-      list = sheet.cssRules;
-    } catch {
-      continue; // cross-origin sheet: not ours to capture
-    }
-    for (const rule of list) {
-      if (!(rule instanceof (doc.defaultView as Window & typeof globalThis).CSSPageRule)) continue;
-      const sel = parseSelector(rule.selectorText);
-      // The rule's own declaration block, never its serialized text: `rule.cssText` carries the nested margin boxes inside it, so a regex over it credits a folio's `margin-top` to the page and reads a running head's `font-size` as the page's `size` (a page rule reads its own declarations; the arithmetic is on the checklist, the case is `15-the-margin-box`). `size` is a descriptor rather than a property and is exposed here anyway — measured, not assumed.
-      const declared = ( prop: string) => rule.style?.getPropertyValue(prop).trim() || null;
-      const size = declared('size')?.split(/\s+/) ?? null;
-      // Longhands only: the CSSOM has already expanded whatever shorthand was written, and re-expanding it here would re-implement the browser's own work.
-      //
-      // Except where it has expanded nothing. A shorthand carrying a `var()` is held in pending substitution — the block answers `margin` with the author's text and every one of `margin-top`…`margin-left` with the empty string — so reading longhands alone reports no declaration at all, and the page lays out against a default. That is not a plausible failure: measured 2026-09-09, `@page { margin: var(--outer) }` with `--outer: 12mm` composed against BelType's own inlined default of 20mm and against 0 in a bare document, both silently, and the case is `33-the-shorthand-the-cssom-cannot-expand`. So the shorthand is consulted only when all four longhands are empty, which is exactly the pending-substitution state and nothing else — the browser expands every shorthand it can, so a non-empty longhand means there is nothing here to do. `expandBox` hands back the author's raw values, which the resolver then seats and measures per side exactly as it does a longhand's; nothing about lengths is decided here.
-      //
-      // Its reach is one level: `border: 5px var(--style)` leaves `border-width` empty too, and that stays unread. Naming it rather than widening the door — a shorthand of shorthands is a second expansion with a second grammar, and no document has asked for it.
-      const perSide: (prefix: string,suffix?: string) => Sides<string|null> = (prefix, suffix = ''): Sides<string|null> => {
-        const sides = { top: declared(`${prefix}-top${suffix}`), right: declared(`${prefix}-right${suffix}`), bottom: declared(`${prefix}-bottom${suffix}`), left: declared(`${prefix}-left${suffix}`) };
-        if (sides.top || sides.right || sides.bottom || sides.left) return sides;
-        const shorthand = declared(`${prefix}${suffix}`);
-        return (shorthand && expandBox(shorthand)) || sides;
-      };
-      rules.push(({
-        sel,
-        size,
-        style: declarationsOf((rule.style as CSSPageDescriptors & Iterable<string>)),
-        area: areaDeclarationsOf((rule.style as CSSPageDescriptors & Iterable<string>)),
-        boxStyles: marginBoxStylesOf(rule),
-        margins: perSide('margin'),
-        // A border width's used value is zero unless a style is set, so the style is read beside the width and the two are accumulated separately — a `@page { border: 5px }` declares a width and no style, and takes no room at all.
-        borderWidths: perSide('border', '-width'),
-        borderStyles: perSide('border', '-style'),
-        paddings: perSide('padding'),
-        marginBoxes: marginBoxesOf(rule)
-      } as PageRuleRecord));
-    }
+  const { layered, unlayered } = pageRulesOf(doc);
+  for (const rule of [...layered, ...unlayered]) {
+    const sel = parseSelector(rule.selectorText);
+    // The rule's own declaration block, never its serialized text: `rule.cssText` carries the nested margin boxes inside it, so a regex over it credits a folio's `margin-top` to the page and reads a running head's `font-size` as the page's `size` (a page rule reads its own declarations; the arithmetic is on the checklist, the case is `15-the-margin-box`). `size` is a descriptor rather than a property and is exposed here anyway — measured, not assumed.
+    const declared = ( prop: string) => rule.style?.getPropertyValue(prop).trim() || null;
+    const size = declared('size')?.split(/\s+/) ?? null;
+    // Longhands only: the CSSOM has already expanded whatever shorthand was written, and re-expanding it here would re-implement the browser's own work.
+    //
+    // Except where it has expanded nothing. A shorthand carrying a `var()` is held in pending substitution — the block answers `margin` with the author's text and every one of `margin-top`…`margin-left` with the empty string — so reading longhands alone reports no declaration at all, and the page lays out against a default. That is not a plausible failure: measured 2026-09-09, `@page { margin: var(--outer) }` with `--outer: 12mm` composed against BelType's own inlined default of 20mm and against 0 in a bare document, both silently, and the case is `33-the-shorthand-the-cssom-cannot-expand`. So the shorthand is consulted only when all four longhands are empty, which is exactly the pending-substitution state and nothing else — the browser expands every shorthand it can, so a non-empty longhand means there is nothing here to do. `expandBox` hands back the author's raw values, which the resolver then seats and measures per side exactly as it does a longhand's; nothing about lengths is decided here.
+    //
+    // Its reach is one level: `border: 5px var(--style)` leaves `border-width` empty too, and that stays unread. Naming it rather than widening the door — a shorthand of shorthands is a second expansion with a second grammar, and no document has asked for it.
+    const perSide: (prefix: string,suffix?: string) => Sides<string|null> = (prefix, suffix = ''): Sides<string|null> => {
+      const sides = { top: declared(`${prefix}-top${suffix}`), right: declared(`${prefix}-right${suffix}`), bottom: declared(`${prefix}-bottom${suffix}`), left: declared(`${prefix}-left${suffix}`) };
+      if (sides.top || sides.right || sides.bottom || sides.left) return sides;
+      const shorthand = declared(`${prefix}${suffix}`);
+      return (shorthand && expandBox(shorthand)) || sides;
+    };
+    rules.push(({
+      sel,
+      size,
+      style: declarationsOf((rule.style as CSSPageDescriptors & Iterable<string>)),
+      area: areaDeclarationsOf((rule.style as CSSPageDescriptors & Iterable<string>)),
+      boxStyles: marginBoxStylesOf(rule),
+      margins: perSide('margin'),
+      // A border width's used value is zero unless a style is set, so the style is read beside the width and the two are accumulated separately — a `@page { border: 5px }` declares a width and no style, and takes no room at all.
+      borderWidths: perSide('border', '-width'),
+      borderStyles: perSide('border', '-style'),
+      paddings: perSide('padding'),
+      marginBoxes: marginBoxesOf(rule)
+    } as PageRuleRecord));
   }
   if (!rules.length) throw new Error('no @page rule found — the corpus and the venue always pin geometry (I5)');
 

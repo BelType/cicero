@@ -141,16 +141,14 @@ export function createMeasureContext(doc: Document, contentWidthPx: number) {
     doc.head.appendChild(style);
   }
 
-  let container = doc.getElementById(CONTAINER_ID);
-  if (!container) {
-    container = doc.createElement('div');
-    container.id = CONTAINER_ID;
-    doc.body.appendChild(container);
-  }
+  // Each context has a container of its own, so two fills in flight never measure in each other's. They share the one id on purpose, transiently: the neutralizing sheet and `reads.ts` select by it, at the specificity the sheet needs against an author's `!important`.
+  const container = doc.createElement('div');
+  container.id = CONTAINER_ID;
+  doc.body.appendChild(container);
   // flow-root: child margins stay inside, so the container's box is the measured flow's coordinate space. Off-viewport, never display:none — display:none has no geometry.
   const css = `position: absolute; left: -100000px; top: 0; width: ${contentWidthPx}px; display: flow-root;`;
   container.style.cssText = css;
-  /** The container is one element for every context, and a run that stops at a page shares it (*the pages are cut as far as they are asked*, 2026-10-12): the presentation composes a page with a context of its own, at its own width, and puts it away — which removes the container and the neutralizing style from under a run that is waiting to go on. So every measure makes sure of both, and of the width it was created for, before it lays anything out. Nothing else changes: where no other context ran in between, all three are already so. */
+  /** A context can stand idle while another runs (*the pages are cut as far as they are asked*, 2026-10-12), and a host may move what it wears, so every measure makes sure of the sheet, the container and the width before it lays anything out. Where nothing moved, all three are already so. */
   const ensure = () => {
     if (!style.isConnected) doc.head.appendChild(style);
     if (!container.isConnected) doc.body.appendChild(container);
@@ -176,7 +174,7 @@ export function createMeasureContext(doc: Document, contentWidthPx: number) {
     },
     dispose() {
       container.remove();
-      style.remove();
+      if (!doc.querySelector(`#${CONTAINER_ID}`)) style.remove();
     }
   };
 }
