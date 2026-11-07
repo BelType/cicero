@@ -99,3 +99,34 @@ test('hyphenate-limit-chars: the limits bind an exception as well as a pattern',
   assert.deepEqual(hyphenationOffsets('associate', en, { total: 20 }), []);
   assert.ok(hyphenationOffsets('associate', en, { before: 6 }).every((o) => o >= 6));
 });
+
+const it = languageFor('it');
+
+test('Italian: the syllables UNI 6461 asks for, two letters allowed at the end', () => {
+  assert.equal(languageFor('it-IT'), it);
+  const expected = {
+    articolo: ['ar', 'ti', 'co', 'lo'],
+    presente: ['pre', 'sen', 'te'],
+    parlamento: ['par', 'la', 'men', 'to'],
+    consiglio: ['con', 'si', 'glio'],
+    deliberando: ['de', 'li', 'be', 'ran', 'do'],
+    psicologia: ['psi', 'co', 'lo', 'gia']
+  };
+  for (const [word, parts] of Object.entries(expected)) assert.deepEqual(hyphenationOffsets(word, it), partsToOffsets(parts), word);
+});
+
+test('Italian: accents, elisions and punctuation', () => {
+  assert.deepEqual(hyphenationOffsets('città', it), [3]); // cit-tà
+  assert.deepEqual(hyphenationOffsets('finalità,', it), hyphenationOffsets('finalità', it)); // what follows a word moves nothing
+  assert.deepEqual(hyphenationOffsets('“Misure', it), hyphenationOffsets('Misure', it).map((o) => o + 1)); // what precedes it moves every offset
+  assert.deepEqual(hyphenationOffsets('dell’Unione', it), hyphenationOffsets("dell'Unione", it)); // both apostrophes are one letter
+  const elided = 'l’articolo';
+  for (const off of hyphenationOffsets(elided, it)) assert.ok(elided[off] !== '’' && elided[off - 1] !== '’', `no break beside the apostrophe at ${off}`);
+  assert.deepEqual(hyphenationOffsets('5.12.2024', it), []);
+  assert.deepEqual(hyphenationOffsets('D.Lgs.', it), []);
+});
+
+test('English still reads only plain letters', () => {
+  assert.deepEqual(hyphenationOffsets('computer,', en), []);
+  assert.deepEqual(hyphenationOffsets("computer's", en), []);
+});

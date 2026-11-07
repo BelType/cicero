@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-/** A pattern set as a language module supplies it — `hyphen-patterns/en-us.js` is the one that exists. */
+/** A pattern set as a language module supplies it, as `hyphen-patterns/en-us.js` and `hyphen-patterns/it.js` do. */
 export type LanguageData = {
   /** Every `lang` value the set answers, lower-case. */
   id: string[];
@@ -18,6 +18,8 @@ export type LanguageData = {
   patterns: string[];
   /** Hyphenations given literally, `-` at every division. */
   exceptions?: string[];
+  /** What counts as a word, as three groups: what stands before it, the word the patterns read, and what stands after it. Absent, plain ASCII letters and nothing around them. */
+  word?: RegExp;
 };
 
 /** A registered language: the trie built once. A trie node maps a letter to its child node and `'$'` to the digit list of the pattern ending there, which is why its values are untyped. */
@@ -27,6 +29,7 @@ export type Language = {
   exceptions: Map<string, string>;
   leftmin: number;
   rightmin: number;
+  word: RegExp;
 };
 
 /** css-text-4 §6.3.4's three values; a null or an absence is `auto`. */
@@ -37,6 +40,7 @@ export type HyphenateLimits = {
 };
 
 import enUs from './hyphen-patterns/en-us.ts';
+import it from './hyphen-patterns/it.ts';
 
 const LANGS: Map<string,Language> = new Map<any, any>();
 
@@ -65,12 +69,13 @@ export function registerLanguage(data: LanguageData): Language {
   for (const ex of data.exceptions ?? []) {
     exceptions.set(ex.replace(/-/g, ''), ex);
   }
-  const lang = { trie, exceptions, leftmin: data.leftmin, rightmin: data.rightmin };
+  const lang = { trie, exceptions, leftmin: data.leftmin, rightmin: data.rightmin, word: data.word ?? /^()([a-zA-Z]+)()$/ };
   for (const id of data.id) LANGS.set(id, lang);
   return lang;
 }
 
 registerLanguage(enUs);
+registerLanguage(it);
 
 /** Resolve a lang attribute value to a registered language, or null (no language, no candidates — auto-hyphenation is never guessed). */
 export function languageFor(langAttr: string|null|undefined): Language|null {
@@ -97,11 +102,16 @@ export function resolveLimits(lang: Pick<Language,'leftmin'|'rightmin'>, limits:
  *
  * @param lang - from `languageFor`; null yields no candidates.
  */
-export function hyphenationOffsets(word: string, lang: Language|null, limits: HyphenateLimits = {}): number[] {
+export function hyphenationOffsets(text: string, lang: Language|null, limits: HyphenateLimits = {}): number[] {
   if (!lang) return [];
   const { before, after, total } = resolveLimits(lang, limits);
-  if (word.length < total || word.length < before + after || !/^[a-zA-Z]+$/.test(word)) return [];
-  const lower = word.toLowerCase();
+  const found = lang.word.exec(text);
+  if (!found) return [];
+  const lead = found[1].length;
+  const word = found[2];
+  if (word.length < total || word.length < before + after) return [];
+  // Both apostrophes are one letter to a pattern; the replacement keeps every offset.
+  const lower = word.toLowerCase().replace(/’/g, "'");
 
   const exception = lang.exceptions.get(lower);
   if (exception !== undefined) {
@@ -109,7 +119,7 @@ export function hyphenationOffsets(word: string, lang: Language|null, limits: Hy
     let pos = 0;
     for (const part of exception.split('-').slice(0, -1)) {
       pos += part.length;
-      if (pos >= before && word.length - pos >= after) offsets.push(pos);
+      if (pos >= before && word.length - pos >= after) offsets.push(lead + pos);
     }
     return offsets;
   }
@@ -134,7 +144,7 @@ export function hyphenationOffsets(word: string, lang: Language|null, limits: Hy
   // points index p corresponds to the boundary before marked[p]; word offset = p - 1.
   for (let p = 2; p < marked.length - 1; p++) {
     const off = p - 1;
-    if (points[p] % 2 === 1 && off >= before && word.length - off >= after) offsets.push(off);
+    if (points[p] % 2 === 1 && off >= before && word.length - off >= after) offsets.push(lead + off);
   }
   return offsets;
 }
