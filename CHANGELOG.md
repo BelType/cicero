@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.8 — 2026-11-07
 
 - **A kept frame wears the words sheet and the values sheet again on its second print.** `ensureDressing` answered the record it kept per document, and `deliverValues` adopted the values sheet only the first time it made one, so a host that empties a kept document's `adoptedStyleSheets` before printing again (the CLI's kept page does) printed the second time without the engine's trimming rules, where the provision does not carry them, and without any `--beltype-slice` value, since no word was new. Both now ask the document whether it wears the sheet and adopt it again where it does not, and the layer is named again in the head, as the continuation dressing already did (*the engine asks the document for its sheets*). The red case is in `test/dressing.test.ts`.
 - **A `target-text()` reference prints only the document's own text.** Its target was `getElementById`'s answer over the whole page, with no check that it stood among the blocks, so a host application's element carrying the same id as an author's (a toolbar label, a panel heading) had its text printed on the page and into the PDF. A target is now looked for among the originals the host hands, and a text target outside `blocksOf()`'s blocks shows nothing, as a counter or page target there already did. The red case is in `test/reads-hosts.test.ts`.
