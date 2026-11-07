@@ -13,7 +13,7 @@
  */
 
 import { READ_PREFIX, STRING_KEYWORDS, STRING_PROP_PREFIX, decodeRead, encodeStringProp, splitTopLevel } from './gcpm-encoding.ts';
-import { styleSheetsOf } from './capture.ts';
+import { sheetsCountInPseudos, styleSheetsOf } from './capture.ts';
 import { format as formatCounter } from './counter-styles.ts';
 import { collapse, counterStatesAfter, counterValue, counterValues, documentOpsOf } from './document-state.ts';
 import { indexBlocks, pageContaining, pageIntervals, pathOf } from './positions.ts';
@@ -414,6 +414,7 @@ export function staticValues(sites: Site[], { doc, blocks, index = null, keep = 
     const win = (doc.defaultView as Window);
     const ops = documentOpsOf(blocks, index ?? indexBlocks(blocks), {
       styleOf: (el) => win.getComputedStyle(el),
+      pseudoStyleOf: sheetsCountInPseudos(doc) ? (el, pseudo) => win.getComputedStyle(el, pseudo) : null,
       ancestors: [doc.documentElement, doc.body].filter(Boolean),
       marks: new Set(counted.map((s) => (s.target as Element))),
       keep

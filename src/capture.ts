@@ -16,7 +16,7 @@ import { CUSTOM_PROPS, decodeContentFn, decodePageName, encodeStringProp } from 
 import { HAS_PROPERTY_PREFIX, bareHasCount, decodeHasArgument, isHasRegistryRule } from './data-beltype.ts';
 
 import type { Decl } from './margin-boxes.ts';
-import type { counterStateAt } from './document-state.ts';
+import { pairsOf, type counterStateAt, type PageCounterOps } from './document-state.ts';
 import type { Px } from './gauge.ts';
 
 export type Side = 'top' | 'right' | 'bottom' | 'left';
@@ -50,6 +50,8 @@ export type PageGeometry = {
   /** Raw `content` values per margin box, transliterated per page by {@link transliterateContent}. */
   marginBoxes: Record<string, string>;
   pageStyle: PageStyle;
+  /** What the page context's rules do to the page counter, which `document-state.ts`'s `pageNumberAt` applies and the host never wears. */
+  pageCounter: PageCounterOps;
 };
 
 /** What a page is asked for by: the four conditions css-page-3 §4 selects `@page` rules on. */
@@ -115,6 +117,11 @@ export function styleSheetsOf(doc: Document): CSSStyleSheet[] {
  */
 export function sheetsUseHas(doc: Document): boolean {
   return someRule(doc, (rule) => !!rule.selectorText && bareHasCount(rule.selectorText) > 0);
+}
+
+/** Whether a rule sets a counter on a `::before` or an `::after`: only then does the counter walk ask every element's pseudo-elements for their counters (`document-state.ts`'s `documentOpsOf`), which costs two style reads an element. A sheet the engine cannot read answers yes. */
+export function sheetsCountInPseudos(doc: Document): boolean {
+  return someRule(doc, (rule) => !!rule.selectorText && /::?(?:before|after)\b/i.test(rule.selectorText) && /\bcounter-(?:reset|increment|set)\s*:/.test((rule as CSSStyleRule).style?.cssText ?? ''));
 }
 
 /** The arguments the host rewrote, read back from the registry rules (`:not(*) { --beltype-has-<h>: "<A>" }`, one per rewritten sheet): hash → the argument's canonical text. The capture reads the CSSOM and nothing else, so the arguments come from the rule the rewriter appended and no selector is ever parsed back. */
@@ -680,6 +687,34 @@ function declarationsOf(style: DeclarationBlock, owned: (prop: string) => boolea
   return out;
 }
 
+/** The three counter properties, each with the value an unnumbered name takes. */
+const PAGE_COUNTER_PROPS: Record<string, number> = { 'counter-reset': 0, 'counter-increment': 1, 'counter-set': 0 };
+
+/**
+ * A page rule's declarations with the page counter taken out of its `counter-reset`, `counter-increment` and `counter-set`: the page number is `pageNumberAt`'s, written on the host as `page N`, and an increment the host wore beside it was added to N (`@page { counter-increment: page 2 }` printed 3, 4, 5 where Chromium prints 2, 4, 6) while the host's inline reset hid every `@page` reset. Another counter's pair stays where it was.
+ */
+function withoutPageCounter(decls: Decl[]): Decl[] {
+  return decls.flatMap((d): Decl[] => {
+    const fallback = PAGE_COUNTER_PROPS[d[0]];
+    if (fallback === undefined) return [d];
+    const pairs = pairsOf(d[1], fallback);
+    if (!pairs.some(([name]) => name === 'page')) return [d];
+    const rest = pairs.filter(([name]) => name !== 'page');
+    return rest.length ? [[d[0], rest.map(([name, value]) => `${name} ${value}`).join(' '), d[2]]] : [];
+  });
+}
+
+/** The page counter's value in each of a condition's three winning counter declarations, `null` where the winner names no `page`: the cascade over the applicable rules, in ascending specificity, `!important` beating normal. */
+function pageCounterOf(rules: Array<{ style: Decl[] }>): PageCounterOps {
+  const winners: Record<string, Decl> = {};
+  for (const r of rules) for (const d of r.style) if (d[0] in PAGE_COUNTER_PROPS && (d[2] === 'important' || winners[d[0]]?.[2] !== 'important')) winners[d[0]] = d;
+  const pageOf = (prop: string) => {
+    const pair = pairsOf(winners[prop]?.[1], PAGE_COUNTER_PROPS[prop]).findLast(([name]) => name === 'page');
+    return pair ? pair[1] : null;
+  };
+  return { reset: pageOf('counter-reset'), increment: pageOf('counter-increment'), set: pageOf('counter-set') };
+}
+
 /**
  * The faces page furniture asks for, as `FontFaceSet.load()` arguments (the platform's font preloading) — read from the `@page` rules' own declarations, where the families are already in hand.
  *
@@ -1047,7 +1082,7 @@ export function readGeometryTable(doc: Document): { pageFor: (cond?: PageConditi
   try {
     for (const r of rules) {
       r.split = { host: [], cell: [] };
-      for (const decl of r.style) (inheritance.reaches(decl) ? r.split.cell : r.split.host).push(decl);
+      for (const decl of withoutPageCounter(r.style)) (inheritance.reaches(decl) ? r.split.cell : r.split.host).push(decl);
     }
   } finally {
     inheritance.dispose();
@@ -1105,7 +1140,7 @@ export function readGeometryTable(doc: Document): { pageFor: (cond?: PageConditi
     const b = (Object.fromEntries(SIDES.map((side) => [side, borderIsDrawn(borderStyles[side]) ? resolve(borderWidths[side] ?? 'medium', basePx(side), `${label} border-${side}-width`, 'borderTopWidth') : 0])) as Sides<Px>);
     const area = pageArea({ pageW, pageH, margins: m, borders: b, paddings: p });
     assertPageArea(area, label);
-    return { pageW, pageH, margins: m, borders: b, paddings: p, ...area, marginBoxes, pageStyle };
+    return { pageW, pageH, margins: m, borders: b, paddings: p, ...area, marginBoxes, pageStyle, pageCounter: pageCounterOf(applicable) };
   }
 
   /**
