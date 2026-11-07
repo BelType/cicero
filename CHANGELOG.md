@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **The rim is a face: `@beltype/cicero/rim`.** `watchLateTruth`, `bringsNewFace` and `knowLoadedFaces` lived in `dist/seam/rim.js`, which the engine's own client imports, but no export reached them, since `./internal/*` maps `dist/src` only; a view that holds its own pages (prosemirror-beltype's) had to hand-roll its listeners for images, undefined elements, fonts and sizes. The new export is that same file, so a host's `knowLoadedFaces` and the client's share one record of the faces already announced. `test/faces.test.ts` holds that the face is the client's module and that a face told to it is one the engine knows (SPEC XIII.4; XIII.5 now says `./internal/*` is `src/` only, as it always was).
+
 ## 0.1.9 — 2026-11-07
 
 - **An ordered list a page cut divides numbers its items on from the page before, as Chromium prints them.** Under Cicero alone an `<ol>` numbered its items from 1 again on every page it continued onto, `start` and an item's `value` or `counter-set: list-item` were forgotten there, and the first page of a `reversed` list counted down from the items it held rather than from the whole list's; it matched Chromium only through the BelType CLI, where Caster makes each marker real text before the cut. Every `<ol>` a cut divides now carries, on its copy, a `start` of the ordinal HTML gives the first item the piece keeps (`listOrdinals`, `numberDividedLists` in `src/fragments.ts`), so the browser's own `list-item` counter and marker continue. Held to Chromium's print in `test/browser/list-continuation.browser.ts`: a plain list, `start`, `value`, `reversed` with and without `start`, `counter-set` before and after the cut, an inner list crossing the cut, a list divided twice, and an item the cut divides. A `counter-reset: list-item` on an item is not modelled, and `counter(list-item)` read by an author's own content on a continued page still reads low, as `document-state.ts` says.

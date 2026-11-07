@@ -31,3 +31,15 @@ test('the fragmentation face carries the leading-decoration door, and it is the 
     assert.ok(face.hasWord(el, face.SPLIT) && !face.hasWord(el, face.START), `${decoration}: divided at its start`);
   }
 });
+
+test('the rim face answers the module the engine\'s own client imports', async () => {
+  const face = await import('@beltype/cicero/rim');
+  // The client imports `./rim.js` beside it in `dist/seam/`, so the face must be that file and no copy: `knowLoadedFaces` and `bringsNewFace` share the engine's set of announced faces only through the same module instance.
+  const own = await import(new URL('../dist/seam/rim.js', import.meta.url).href);
+  assert.deepEqual(Object.keys(face).sort(), ['TOLERANCE', 'bringsNewFace', 'frame', 'isKnownFace', 'knowLoadedFaces', 'watchLateTruth']);
+  for (const name of ['watchLateTruth', 'bringsNewFace', 'knowLoadedFaces', 'isKnownFace'] as const) assert.equal(face[name], own[name], name);
+  const face0 = { family: 'F', style: 'normal', weight: '400', stretch: 'normal', unicodeRange: 'U+0-10FFFF', featureSettings: 'normal', status: 'loaded' } as unknown as FontFace;
+  face.knowLoadedFaces([face0] as unknown as FontFaceSet);
+  assert.ok(own.isKnownFace(face0), 'a face the host told the face about is one the engine knows');
+  assert.equal(face.bringsNewFace({ fontfaces: [face0] } as unknown as Event), false);
+});
