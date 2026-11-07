@@ -552,9 +552,10 @@ function createLengthResolver(doc: Document) {
       const raw = String(rawIn).trim().toLowerCase();
       const fast = absoluteToPx(raw);
       if (fast !== null) return fast;
-      if (basePx === null) throw refuse(raw, where, 'a `size` descriptor is resolved before either page dimension exists, so only absolute lengths and the named sizes can be answered there (css-page-3 §7.1 gives `size` no percentage values at all)');
+      // A `size` is resolved before either page dimension exists, so it has no percentage base; css-page-3 §7.1 gives `size` no percentage values at all. Every other length the browser resolves is measured as a margin's is: an `em` resolves against the root's font, which the probe's wrapper wears (Codeberg issue 10; until 2026-11-07 every relative unit refused here).
+      if (basePx === null && raw.includes('%')) throw refuse(raw, where, 'a `size` descriptor is resolved before either page dimension exists, and css-page-3 §7.1 gives `size` no percentage values at all');
       if (raw === 'auto') throw refuse(raw, where, '`auto` on a page margin means UA-determined, and the probe would read it as a plain 0 — a number this engine would then lay out against as though the author had written one');
-      const px = measured(raw, basePx, prop);
+      const px = measured(raw, basePx ?? 0, prop);
       if (px === null) throw refuse(raw, where, 'the browser resolves it to nothing — an unknown unit, a malformed value, or a custom property that is never declared');
       return px;
     }
@@ -580,11 +581,22 @@ const SIZE_NAMES: Record<string,[number,number]> = {
   ledger: [279.4, 431.8] // css-page-3 ledger 11 × 17in; Chromium 279.40 × 431.80mm
 };
 
-/** A `size` descriptor's tokens → [widthPx, heightPx]. Handles lengths, named sizes, and orientation keywords. A `size` is resolved before either page dimension is known, so its lengths get a null percentage base and anything relative refuses by name (css-page-3 §7.1). */
+/** css-page-3 §7.1's two orientation keywords. */
+const ORIENTATIONS = new Set(['portrait', 'landscape']);
+
+/** Is this `size` an orientation keyword and nothing else? Then it turns the sheet the cascade already gave ({@link sizeToPx}). */
+export const isOrientationOnly = (tokens: string[]) => tokens.length === 1 && ORIENTATIONS.has(tokens[0].toLowerCase());
+
+/**
+ * A `size` descriptor's tokens → [widthPx, heightPx]. Handles lengths, named sizes, and orientation keywords. A `size` is resolved before either page dimension is known, so its lengths get a null percentage base, and a percentage refuses by name (css-page-3 §7.1).
+ *
+ * @remarks
+ * An orientation keyword turns whatever sheet stands beside it: `landscape` puts the longer side across, `portrait` down, for a named size and for a pair of lengths alike. §7.1 says a keyword alone means the UA's default sheet turned that way; this engine pins geometry (I5) and has no default sheet, so `pageFor` hands the keyword the sheet the cascade's less specific rule gave (the WPT print reftests' `@page :first { size: portrait }` on their 5 in by 3 in default), and a keyword with no such sheet refuses by name (Codeberg issue 10; until 2026-11-07 it refused as the length `undefined`).
+ */
 export function sizeToPx(tokens: string[], resolve: Resolve): [Px,Px] {
-  const t = tokens.map((s) => s.toLowerCase()).filter((s) => s !== 'portrait');
-  const landscape = t.includes('landscape');
-  const rest = t.filter((s) => s !== 'landscape');
+  const t = tokens.map((s) => s.toLowerCase());
+  const orientation = t.find((s) => ORIENTATIONS.has(s)) ?? null;
+  const rest = t.filter((s) => !ORIENTATIONS.has(s));
   const where = 'a `size` descriptor';
   let w;
   let h;
@@ -592,10 +604,29 @@ export function sizeToPx(tokens: string[], resolve: Resolve): [Px,Px] {
     [w, h] = SIZE_NAMES[rest[0]].map((mm) => mm * PX_PER.mm);
   } else if (rest.length === 1) {
     w = h = resolve(rest[0], null, where);
+  } else if (rest.length === 0) {
+    throw refuse(orientation ?? '', where, 'an orientation keyword alone means the UA\'s default sheet turned that way, and this engine has none: declare the sheet in a less specific @page rule, or beside the keyword');
   } else {
     [w, h] = [resolve(rest[0], null, where), resolve(rest[1], null, where)];
   }
-  return landscape ? [h, w] : [w, h];
+  if (orientation === 'landscape') return [Math.max(w, h), Math.min(w, h)];
+  if (orientation === 'portrait') return [Math.min(w, h), Math.max(w, h)];
+  return [w, h];
+}
+
+/**
+ * The root's custom properties substituted into a page-context value (css-page-3 §4.1: the page context inherits from the root element, so a `var()` there reads the root's value). The probe already inherits them for a longhand it seats, but a shorthand goes through `expandBox` before any probe, and `--margin: 20px 40px` must be split before it is seated (Codeberg issue 10, `page-context-inherits-from-root-custom-property`). A property the root does not declare takes the `var()`'s fallback, or stays as written for the probe to refuse by name.
+ */
+function substituteRootVars(doc: Document, text: string): string {
+  if (!text.includes('var(')) return text;
+  const root = (doc.defaultView as Window).getComputedStyle(doc.documentElement);
+  let out = text;
+  for (let i = 0; i < 8 && out.includes('var('); i++) {
+    const next = out.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)/g, (whole, name: string, fallback: string|undefined) => root.getPropertyValue(name).trim() || fallback?.trim() || whole);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
 }
 
 /**
@@ -993,7 +1024,7 @@ export function readGeometryTable(doc: Document): { pageFor: (cond?: PageConditi
       const sides = { top: declared(`${prefix}-top${suffix}`), right: declared(`${prefix}-right${suffix}`), bottom: declared(`${prefix}-bottom${suffix}`), left: declared(`${prefix}-left${suffix}`) };
       if (sides.top || sides.right || sides.bottom || sides.left) return sides;
       const shorthand = declared(`${prefix}${suffix}`);
-      return (shorthand && expandBox(shorthand)) || sides;
+      return (shorthand && expandBox(substituteRootVars(doc, shorthand))) || sides;
     };
     rules.push(({
       sel,
@@ -1045,7 +1076,7 @@ export function readGeometryTable(doc: Document): { pageFor: (cond?: PageConditi
     // The author's own style for this condition, accumulated in ascending specificity — the rules are already sorted that way, so appending reproduces the cascade inside the single rule these triples are re-emitted into: later wins, `!important` beats normal, and this file decides none of it.
     const pageStyle: PageStyle = { host: [], cell: [], area: [], boxes: {} };
     for (const r of applicable) {
-      if (r.size) size = r.size;
+      if (r.size) size = isOrientationOnly(r.size) && size ? [...size.filter((t) => !ORIENTATIONS.has(t.toLowerCase())), ...r.size] : r.size; // a keyword alone turns the sheet the cascade gave (`sizeToPx`)
       for (const side of SIDES) {
         if (r.margins[side] != null) margins[side] = r.margins[side];
         if (r.borderWidths[side] != null) borderWidths[side] = r.borderWidths[side];
