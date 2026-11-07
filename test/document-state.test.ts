@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { documentOpsOf as documentOpsOfTyped, counterStateAt as counterStateAtTyped, pageNumberAt, withoutPageCounters, counterStatesAfter, counterValue as counterValueTyped, counterValues, parseStringSet as parseStringSetTyped, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from '../src/document-state.ts';
+import { type PageCounterOps, documentOpsOf as documentOpsOfTyped, counterStateAt as counterStateAtTyped, pageNumberAt, withoutPageCounters, counterStatesAfter, counterValue as counterValueTyped, counterValues, parseStringSet as parseStringSetTyped, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from '../src/document-state.ts';
 import { STRING_SET_PROP } from '../src/gcpm-encoding.ts';
 import { indexBlocks as indexBlocksTyped } from '../src/positions.ts';
 import { byShape } from './fakes.ts';
@@ -352,4 +352,36 @@ test('a blank page made to bring a resetting element to its side continues the c
   // A blank the engine makes after the element began, say a recto break inside the copy, is a page of the scope like any other.
   const inside = [{ start: 0, blank: false }, { start: 10, blank: false }, { start: 15, blank: true }, { start: 15, blank: false }];
   assert.deepEqual(inside.map((p, i) => pageNumberAt(ops, i, p.start, { pages: (j) => inside[j], blank: p.blank })), [1, 1, 2, 3]);
+});
+
+test('the page context\'s own counter rules number the pages as Chromium\'s print does: an increment and a set carry, a reset is the page box\'s alone, and an element\'s reset takes no implicit increment', () => {
+  const none: PageCounterOps = { reset: null, increment: null, set: null };
+  const numbers = (counters: Array<Partial<PageCounterOps>>, ops: ReturnType<typeof walk> = []) => {
+    const run = counters.map((c, i) => ({ start: i * 10, blank: false, counter: { ...none, ...c } }));
+    return run.map((p, i) => pageNumberAt(ops, i, p.start, { pages: (j) => run[j], counter: p.counter }));
+  };
+  // Measured 2026-11-07 on Chromium's print (`test/browser/page-context-counters.browser.ts`).
+  assert.deepEqual(numbers([{ increment: 2 }, { increment: 2 }, { increment: 2 }]), [2, 4, 6]);
+  assert.deepEqual(numbers([{ reset: 5, increment: 2 }, { increment: 2 }, { increment: 2 }]), [7, 2, 4], '@page { counter-increment: page 2 } @page :first { counter-reset: page 5 }');
+  assert.deepEqual(numbers([{ reset: 10 }, {}, {}]), [10, 1, 2]);
+  assert.deepEqual(numbers([{ set: 7 }, {}, {}]), [7, 8, 9]);
+  assert.deepEqual(numbers([{}, { reset: 2 }, { reset: 2 }, { reset: 2 }]), [1, 2, 2, 2]);
+  // An element's reset, Cicero's own reading (Codeberg issue 1), comes before the page's own rules: reset to 1, then the page's increment of 2, as a page box's reset and increment give 7 above.
+  const chapter = el({ counterReset: 'page 1' });
+  assert.deepEqual(numbers([{ increment: 2 }, { increment: 2 }, { increment: 2 }], walk([el({}), chapter], [0, 10], new Map([[chapter, 0]]))), [2, 3, 5]);
+});
+
+test('a pseudo-element\'s counters are its element\'s first and last child\'s: a page after the element counts both, and a reference to the element reads it after its ::before and before its ::after', () => {
+  // Two figures, a block each, two words each; the first numbered by its ::before, the second by its ::after.
+  const one = Object.assign(el(), { before: { counterIncrement: 'fig 1', content: '"FIG"' } });
+  const two = Object.assign(el(), { after: { counterIncrement: 'fig 1', content: '"FIG"' } });
+  const index = { bases: [0, 2, 4], wordsBefore: () => 0, wordCountIn: () => 2 };
+  const read = (marks: Set<object> | null) => documentOpsOf([one, two], index, { styleOf: (e: any) => e.style, pseudoStyleOf: (e: any, pseudo: string) => (pseudo === '::before' ? e.before : e.after), marks });
+  assert.deepEqual([2, 4].map((pos) => counterValue(counterStateAt(read(null), pos), 'fig')), [1, 1], 'the second figure\'s ::after stands at its end, on the page that ends it');
+  assert.equal(counterValue(counterStateAt(read(null), 5), 'fig'), 2);
+  const after = counterStatesAfter(read(new Set([one, two])));
+  assert.deepEqual([one, two].map((e) => counterValue(after.get(e), 'fig')), [1, 1]);
+  assert.equal(counterValue(counterStateAt(walk([one, two], [0, 2, 4], new Map()), 5), 'fig'), 0, 'without the pseudo reads, as before');
+  one.before.content = 'none';
+  assert.equal(counterValue(counterStateAt(read(null), 5), 'fig'), 1, 'a ::before with no content is no box and counts nothing');
 });

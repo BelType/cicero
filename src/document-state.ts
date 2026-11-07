@@ -13,7 +13,7 @@
  *
  * **A position is the flat word index** (`positions.js`), and an operation applies when its position is strictly before the one asked about — and not inside a remainder a carried flow has still to show, which stands before the page's first word in document order and is on that page or after it (beltype#43; `positions.js`' `remaindersOf`). That is §6.1's *"the deepest element in the normal flow that spans the page break"* said in this engine's own space: an element whose first word is the page's first word begins on the new page and does not span the break, so its own operation is not yet in force, while an element that spans the break started before that word and is included. The ancestors above the top-level blocks sit at position **−1** — they open before the document's first word and span every break there is — which is what makes the first page's answer fall out of the same comparison rather than needing a case of its own.
  *
- * **What is not read, each a real gap and each showing as a counter reading low.** A counter operation on a `::before` or `::after`; a list item's implicit increment; css-lists-3's `reversed()` counters; and a top-level `position: fixed` box, which is not among the flow blocks the position index is built over. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is.
+ * **What is not read, each a real gap and each showing as a counter reading low.** A list item's implicit increment, so an `<ol>` that runs onto a second page numbers its items from 1 there (measured 2026-11-07, `<ol reversed>` and a `counter-set` of `list-item` likewise); css-lists-3's `reversed()` counters; and a top-level `position: fixed` box, which is not among the flow blocks the position index is built over. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. A `::before`'s and an `::after`'s counters are read since 2026-11-07, where a sheet sets one (`pseudoStyleOf`). **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is.
  *
  * @packageDocumentation
  */
@@ -44,7 +44,7 @@ export type Op = {
 };
 
 /** `counter-reset: a 2 b` → `[['a', 2], ['b', 0]]`. The computed value normalizes name/value pairs, but an absent number still defaults per property, so the default is a parameter. `none` and the empty string yield nothing. */
-function pairsOf(value: unknown, fallback: number): [string,number][] {
+export function pairsOf(value: unknown, fallback: number): [string,number][] {
   const out: [string,number][] = [];
   const tokens = String(value ?? '').trim().split(/\s+/).filter(Boolean);
   if (!tokens.length || tokens[0] === 'none') return out;
@@ -191,17 +191,31 @@ function opAt(el: any, pos: number, depth: number, { styleOf, textOf, attrOf, ma
   return op || strings || mark ? { reset: [], increment: [], set: [], ...op, strings, pos, depth, ...(mark ? { mark } : {}) } : null;
 }
 
+/** A pseudo-element's counter operations, or `null` where it has none or is not generated: a `::before` or an `::after` whose `content` is `none` or `normal` is no box, and its computed `counter-increment` counts nothing (measured 2026-11-07: Chromium answers `fig 1` for it and the counter stays at 0). */
+function pseudoOpOf(el: any, pseudo: '::before'|'::after', styleOf: ((el: any, pseudo: '::before'|'::after') => any)|null|undefined) {
+  const style = styleOf?.(el, pseudo);
+  return style && !/^(?:none|normal)?$/.test(String(style.content ?? '').trim()) ? opOf(style) : null;
+}
+
 /** One top-level block's part of the log: its operations in document order, each with its position and depth relative to the block — the words of the block before the element, and its depth below the block (*a resumed run keeps its reads*, 2026-10-22). {@link documentOpsOf} lays the parts end to end, a part's positions offset by its block's base and its depths by the ancestors above the blocks. */
-export function blockOpsOf(block: any, index: { wordsBefore: (el: any) => number; }, reads: { styleOf: (el: any) => any; textOf: (el: any) => string; attrOf: (el: any,name: string) => string|null; marks: Set<object>|null; }) {
+export function blockOpsOf(block: any, index: { wordsBefore: (el: any) => number; wordCountIn?: (el: any) => number; }, reads: { styleOf: (el: any) => any; textOf: (el: any) => string; attrOf: (el: any,name: string) => string|null; marks: Set<object>|null; pseudoStyleOf?: ((el: any, pseudo: '::before'|'::after') => any)|null; }) {
   const ops: Op[] = [];
   const walk = ( el: any,  depth: number) => {
     const style = reads.styleOf(el) ?? {};
     if (style.display === 'none') return; // CSS 2.1 §12.4.3: an element with `display: none` does not increment or reset counters
     // A `position: fixed` box has zero footprint at any depth (*a fixed box at any depth*, 2026-09-15), so it has no position in the word space this log is ordered by — `indexBlocks` skips it and so does this. A counter operation or a `string-set` inside such a box is therefore unread, which is exactly what was already true of a top-level fixed box and is recorded on the checklist beside it.
     if (style.position === 'fixed' || String(customOf(style, RUNNING_PROP)).trim()) return;
-    const op = opAt(el, index.wordsBefore(el), depth, reads);
-    if (op) ops.push(op);
+    const pos = index.wordsBefore(el);
+    const op = opAt(el, pos, depth, reads);
+    // A `::before` is the element's first child and an `::after` its last (CSS 2.1 §12.1), so their counter operations are logged one level down, the one at the element's first word and the other at its end. The element's named strings and its mark are evaluated after its `::before`: the number a heading or a figure prints there is the one its `string-set` and a `target-counter()` to it read.
+    const before = pseudoOpOf(el, '::before', reads.pseudoStyleOf);
+    if (before) {
+      if (op && (op.reset.length || op.increment.length || op.set.length)) ops.push({ ...op, strings: null, mark: undefined });
+      ops.push({ ...before, strings: op?.strings ?? null, pos, depth: depth + 1, ...(op?.mark ? { mark: op.mark } : {}) });
+    } else if (op) ops.push(op);
     for (const child of el.children ?? []) walk(child, depth + 1);
+    const after = index.wordCountIn ? pseudoOpOf(el, '::after', reads.pseudoStyleOf) : null;
+    if (after) ops.push({ ...after, strings: null, pos: pos + (index.wordCountIn as (el: any) => number)(el), depth: depth + 1 });
   };
   walk(block, 0);
   return ops;
@@ -213,6 +227,7 @@ export function blockOpsOf(block: any, index: { wordsBefore: (el: any) => number
  * @param blocks - the top-level flow blocks, in order — `driver.js`'s `topLevelBlocks`.
  * @param index - the position index (`positions.js`), which holds every element inside every block.
  * @param opts.styleOf - the computed style of an element — injected, so a plain object tree exercises this without a browser.
+ * @param opts.pseudoStyleOf - the computed style of an element's `::before` or `::after`, whose counter operations are logged as the element's first and last child's; absent, a pseudo-element's counters are unread. The `::after` needs the index's `wordCountIn`.
  * @param opts.textOf - an element's text; absent, its `textContent`.
  * @param opts.attrOf - an element's attribute; absent, its `getAttribute`.
  * @param opts.ancestors - the elements above the blocks, outermost first (`html`, `body`). They open before the document's first word and are recorded at position −1.
@@ -220,8 +235,8 @@ export function blockOpsOf(block: any, index: { wordsBefore: (el: any) => number
  * @param opts.running - the document's running elements in document order (`driver.js`' `runningBoxes`), each with the flat position the flow stood at where it was written (`driver.js`' `runningPosition`): each is logged as an assignment of its name there, carrying its place in this list as `running.at` (*a running element is a named node*, 2026-10-21). A running element is out of the flow at any depth, so the walk does not enter one, and its own counters and strings are unread, as a fixed box's are.
  * @param opts.keep - the memo's door (`forcing-memo.js`): each block's {@link blockOpsOf} part is asked of it, and a part kept from an earlier run is laid in place of a walk (*a resumed run keeps its reads*, 2026-10-22). A part read under marks is kept apart from one read without, and answers only while the marks that fall in its block are the ones it was read under (the position index says which block a mark is in). Absent, every block is walked.
  */
-export function documentOpsOf(blocks: ArrayLike<Element>, index: { bases: number[]; wordsBefore: (el: any) => number; entryFor?: (el: any) => { block: number; }|null; }, { styleOf, textOf = (el) => el.textContent, attrOf = (el, name) => el.getAttribute(name), ancestors = [], marks = null, running = [], keep = null }: { styleOf: (el: any) => object; textOf?: (el: any) => string; attrOf?: (el: any,name: string) => string|null; ancestors?: Element[]; marks?: Set<object>|null; running?: ReadonlyArray<{ name: string; pos: number; }>; keep?: Keep|null; }) {
-  const reads = { styleOf, textOf, attrOf, marks };
+export function documentOpsOf(blocks: ArrayLike<Element>, index: { bases: number[]; wordsBefore: (el: any) => number; wordCountIn?: (el: any) => number; entryFor?: (el: any) => { block: number; }|null; }, { styleOf, pseudoStyleOf = null, textOf = (el) => el.textContent, attrOf = (el, name) => el.getAttribute(name), ancestors = [], marks = null, running = [], keep = null }: { styleOf: (el: any) => object; pseudoStyleOf?: ((el: any, pseudo: '::before'|'::after') => object)|null; textOf?: (el: any) => string; attrOf?: (el: any,name: string) => string|null; ancestors?: Element[]; marks?: Set<object>|null; running?: ReadonlyArray<{ name: string; pos: number; }>; keep?: Keep|null; }) {
+  const reads = { styleOf, textOf, attrOf, marks, pseudoStyleOf };
   const ops: Op[] = [];
   ancestors.forEach((el, i) => {
     const op = opAt(el, -1, i, reads);
@@ -244,7 +259,7 @@ export function documentOpsOf(blocks: ArrayLike<Element>, index: { bases: number
     const mine = marksIn?.get(b) ?? new Set<any>();
     const read = () => ({ ops: blockOpsOf(blocks[b], index, reads), marks: mine });
     const part = keep
-      ? keep(marks ? 'ops:marked' : 'ops', blocks[b], read, marks ? ( p: { marks: Set<object>; }) => p.marks.size === mine.size && [...mine].every((m) => p.marks.has(m)) : undefined)
+      ? keep(`${marks ? 'ops:marked' : 'ops'}${pseudoStyleOf ? ':pseudo' : ''}`, blocks[b], read, marks ? ( p: { marks: Set<object>; }) => p.marks.size === mine.size && [...mine].every((m) => p.marks.has(m)) : undefined)
       : read();
     for (const op of part.ops) ops.push({ ...op, pos: start + op.pos, depth: base + op.depth });
   }
@@ -276,8 +291,14 @@ export function counterStateAt(ops: ReturnType<typeof documentOpsOf>, pos: numbe
   return replay(ops, { until: pos, away });
 }
 
+/** What the page context's own rules do to the page counter on one page: the `page` value of the winning `counter-reset`, `counter-increment` and `counter-set` of the `@page` rules that apply to it, `null` where the winning declaration names no `page` (`capture.ts`'s `pageFor`). */
+export type PageCounterOps = { reset: number | null, increment: number | null, set: number | null };
+
+/** No page-context rule touches the page counter. */
+export const NO_PAGE_COUNTER_OPS: PageCounterOps = Object.freeze({ reset: null, increment: null, set: null });
+
 /**
- * The page number of page `pageIndex`, which begins at `pos`: the run's own count, or, where an element reset the page counter, that element's value counted on from the page it begins on.
+ * The page number of page `pageIndex`, which begins at `pos`: the run's own count, with an element's reset of the page counter counted on from the page it begins on, and the page context's own `counter-reset`, `counter-increment` and `counter-set` applied as Chromium's print applies them.
  *
  * @remarks
  * css-page-3 names a reset of the page counter only in the page context, but an author writes `counter-reset: page 1` on a chapter or on each letter of a print run to number its pages from one, and once the engine applies it the pages after must count on from there rather than stay at the value (Codeberg issue 1). The page counter is the page's own, reset on the host as `page N` (`chase.js`'s `setCounters`), so the reset is folded into N here and never delivered as an author counter: delivered, it reset the flow and the margin cells to the same value on every later page in the reset's scope. `target-counter()` to a page reads the same N (`reads.js`'s `pageValues`), so a reference answers the value the counter has at its target (Codeberg issue 2).
@@ -286,26 +307,46 @@ export function counterStateAt(ops: ReturnType<typeof documentOpsOf>, pos: numbe
  *
  * **A blank page the engine makes to bring the element to its side begins where the element does and stands before it** (Codeberg issue 13): the reset is not in force on it, so it continues the count it stands in, and it is not counted toward the pages after it, so the element's page bears the value. A blank page inside the scope, after the element began, counts as every page does.
  *
- * @param pages - each page before `pageIndex`, by index: its first word position and whether it is blank.
+ * **The page context's rules are the page box's, and each page box is its own scope.** Measured 2026-11-07 on Chromium's print (`test/browser/page-context-counters.browser.ts`): every page adds its `counter-increment` of `page`, or 1 where none is declared, to the count the pages carry; a `counter-set` sets that count, and the pages after count on from it (`@page :first { counter-set: page 7 }` prints 7, 8, 9); a `counter-reset` opens a counter of the page box's own, so the page prints the reset value plus that page's own declared increment and the pages after continue the count as though it had not been there (`@page :first { counter-reset: page 10 }` prints 10, 1, 2, and with `@page { counter-increment: page 2 }` beside it 12, 2, 4). An element's reset is applied to the count before the page's own rules, and the page it begins on takes no implicit increment. Until 2026-11-07 these declarations reached the page host as author style, where `counter-increment: page 2` added to the host's `page N` and the host's inline reset hid every `@page` reset: 3, 4, 5 for Chromium's 7, 2, 4.
+ *
+ * @param pages - each page before `pageIndex`, by index: its first word position, whether it is blank, and its page context's rules.
  * @param blank - whether page `pageIndex` is one the engine made blank.
+ * @param counter - page `pageIndex`'s page context's rules.
  * @param away - the remainders the page's opening cut carries in, as for {@link counterStateAt}.
  */
-export function pageNumberAt(ops: ReadonlyArray<Op>, pageIndex: number, pos: number, { pages, blank = false, away = [] }: { pages: (i: number) => { start: number; blank: boolean; }; blank?: boolean; away?: ReadonlyArray<{ from: number; to: number; }>; }): number {
+export function pageNumberAt(ops: ReadonlyArray<Op>, pageIndex: number, pos: number, { pages, blank = false, counter = NO_PAGE_COUNTER_OPS, away = [] }: { pages: (i: number) => { start: number; blank: boolean; counter?: PageCounterOps; }; blank?: boolean; counter?: PageCounterOps; away?: ReadonlyArray<{ from: number; to: number; }>; }): number {
   const inForce = (at: number, start: number, isBlank: boolean) => at < start || (at === start && !isBlank);
-  let reset: { pos: number; value: number; }|null = null;
+  const resets: { pos: number; value: number; }[] = [];
   for (const op of ops) {
     if (op.pos > pos) break;
-    if (!inForce(op.pos, pos, blank)) continue;
-    if (away.length && inRemainders(away, op.pos)) continue;
-    for (const [name, value] of [...op.reset, ...op.set]) if (name === 'page') reset = { pos: op.pos, value };
+    for (const [name, value] of [...op.reset, ...op.set]) if (name === 'page') resets.push({ pos: op.pos, value });
   }
-  if (!reset) return pageIndex + 1;
-  let since = 0;
-  for (let i = 0; i < pageIndex; i++) {
-    const page = pages(i);
-    if (inForce(reset.pos, page.start, page.blank)) since++;
+  /** The last element reset in force on a page; the current page alone knows the remainders it carries in. */
+  const resetOn = (start: number, isBlank: boolean, current: boolean) => {
+    let found: { pos: number; value: number; }|null = null;
+    for (const r of resets) if (inForce(r.pos, start, isBlank) && !(current && away.length && inRemainders(away, r.pos))) found = r;
+    return found;
+  };
+  let count = 0;
+  let shown = 0;
+  let before: { pos: number; value: number; }|null = null;
+  for (let i = 0; i <= pageIndex; i++) {
+    const page = i === pageIndex ? { start: pos, blank, counter } : pages(i);
+    const own = page.counter ?? NO_PAGE_COUNTER_OPS;
+    const reset = resets.length ? resetOn(page.start, page.blank, i === pageIndex) : null;
+    const elementReset = reset !== null && reset !== before;
+    before = reset;
+    if (elementReset) count = (reset as { value: number }).value;
+    if (own.reset !== null) {
+      // The page box's own counter: it shows here and the count goes on beneath it.
+      shown = own.set ?? own.reset + (own.increment ?? 0);
+      continue;
+    }
+    count += own.increment ?? (elementReset ? 0 : 1);
+    if (own.set !== null) count = own.set;
+    shown = count;
   }
-  return reset.value + since;
+  return shown;
 }
 
 /** The author's counters alone: the page's own two, `page` and `pages`, are the host's (`pageNumberAt`), and delivered as an author's they would reset the flow and the cells under the host's. */

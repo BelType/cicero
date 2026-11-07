@@ -20,11 +20,11 @@ import { holdsAnonymousBlocks, takeReport } from './gauge.ts';
 import { adjudicate, adjudicateFlow, firstBelowTheEdge, isAbsolutelyPositioned, isOutOfFlow, isMonolith, neverCutInside, reachesBelowTheEdge, processionBottoms, fitsPage } from './stonehand.ts';
 import { composeDocument, applyRecordsUnder } from './compose-dom.ts';
 import { CompositionCache } from './composition-key.ts';
-import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, registerGcpmProperties, sheetsUseHas, sheetReach } from './capture.ts';
+import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, registerGcpmProperties, sheetsUseHas, sheetReach, sheetsCountInPseudos } from './capture.ts';
 import { snapshotOfStyle } from './forcing-memo.ts';
 import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, truncateFrom } from './fragments.ts';
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
-import { documentOpsOf, counterStateAt, pageNumberAt, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
+import { documentOpsOf, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
 import { ARTIFACT, hasWord } from './data-beltype.ts';
 import { blockChildrenOf, footerBeforeRows, headerAfterRows, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
@@ -730,6 +730,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
    */
   const documentOps = documentOpsOf(blocks, index, {
     styleOf: (el) => win.getComputedStyle(el),
+    pseudoStyleOf: sheetsCountInPseudos(doc) ? (el, pseudo) => win.getComputedStyle(el, pseudo) : null,
     ancestors: [doc.documentElement, doc.body].filter(Boolean),
     running: running.map((r) => ({ name: r.name, pos: runningPosition(r, index) })),
     keep: memo?.keep
@@ -865,14 +866,23 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   // Entry N determines page N+1's conditions (*geometry changes only at page boundaries*, C8): name from the cursor's own address, parity from the page number, :first for page one. A width change re-creates the measure context and recomposes through the cache's width key — *cut-invariance* (C7) suspended locally, exactly as designed; the v3 constraint (widths change only at named-switch boundaries) keeps that suspension off mid-paragraph continuations.
   const conditionsFor = ( pageIndex: number,  { blank = false }: { blank?: boolean; } = {}) => conditionsAt(pageIndex, cursor.cut, cursor.pos, { blank, carried: cursor.carried });
 
+  /** A kept page's `@page` counter rules, by its conditions: one geometry read per kind of page, not one per page per page. */
+  const pageCounters = new Map<string, PageCounterOps>();
+  const pageCounterOf = (i: number, c: { name: string; parity: 'left'|'right'; blank: boolean; }) => {
+    const key = JSON.stringify([c.name, i === 0, c.parity, c.blank]);
+    let ops = pageCounters.get(key);
+    if (!ops) pageCounters.set(key, ops = table.pageFor({ name: c.name, first: i === 0, parity: c.parity, blank: c.blank }).pageCounter);
+    return ops;
+  };
+
   /** The conditions of page `pageIndex`, which begins at `cut` (projected to `pos`) — {@link conditionsFor} with the cursor made a parameter, so a resumed run can write the conditions of a page it keeps from the address that page began at (*the run resumes from an entry*, build two, 2026-10-08). */
   const conditionsAt = (pageIndex: number, cut: Address, pos: number, { blank = false, carried = null }: { blank?: boolean; carried?: Cursor['carried']; } = {}) => {
     const name = nameAt(cut);
     const away = remaindersOf(carried, index.endOf);
-    // The run's count, or an author's reset of the page counter counted on from the page it begins on (`document-state.js`'s `pageNumberAt`). Entry `i` closes page `i`, so page `i` begins where entry `i - 1` ended.
-    const pageNumber = pageNumberAt(documentOps, pageIndex, pos, { pages: (i) => ({ start: i === 0 ? 0 : account[i - 1].pos ?? 0, blank: account[i].blank === true }), blank, away });
     const parity = parityAt(pageIndex);
     const geo = table.pageFor({ name, first: pageIndex === 0, parity, blank });
+    // The run's count, an author's reset of the page counter counted on from the page it begins on, and each page's own `@page` counter rules (`document-state.js`'s `pageNumberAt`). Entry `i` closes page `i`, so page `i` begins where entry `i - 1` ended, under the conditions it closes.
+    const pageNumber = pageNumberAt(documentOps, pageIndex, pos, { pages: (i) => ({ start: i === 0 ? 0 : account[i - 1].pos ?? 0, blank: account[i].blank === true, counter: pageCounterOf(i, account[i].closes) }), blank, counter: geo.pageCounter, away });
     // The document's counters as they stand at this page's first word — strictly before it, which is §6.1's *spans the page break* in the flat position space (`document-state.js`) — less what the flows carried onto this page have still to show, which stands before that word and is on this page or after it (beltype#43). The page's own two are not among them: they are the host's, and `pageNumber` carries the reset.
     const counters = withoutPageCounters(counterStateAt(documentOps, pos, away));
     return Object.freeze({ ...geo, name, pageNumber, parity, blank, counters, dpr: win.devicePixelRatio });
