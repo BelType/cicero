@@ -6,6 +6,8 @@
  *
  * A `counter-reset` of `list-item` on an item changes no marker in Chromium's print (measured 2026-11-07: the item after it and every item after that print the list's own ordinal, with or without `reversed`), though a `counter(list-item)` the item's own content reads sees the reset; the four `counter-reset` cases hold the markers to that.
  *
+ * Every list case also runs under `run({ composed: true })`, the Compositor's own lines, and numbers as Chromium prints (2026-11-07): the copy's `start` is written by the fragment builders both modes share.
+ *
  * Run by `pnpm run test:browser` after `pnpm run build`, like `pseudo-counters.browser.ts`, whose server and oracle this repeats.
  */
 import { test, before, after } from 'node:test';
@@ -66,7 +68,7 @@ async function wordsOf(pdf: Uint8Array, pattern: RegExp) {
 }
 
 /** Chromium's print and Cicero's, of the same document. */
-async function both(key: string, css: string, body: string, pattern: RegExp) {
+async function both(key: string, css: string, body: string, pattern: RegExp, composed = false) {
   const plain = await browser.newPage();
   await plain.setContent(doc(css, body, ''));
   const chromiumPdf = await plain.pdf({ preferCSSPageSize: true });
@@ -76,7 +78,8 @@ async function both(key: string, css: string, body: string, pattern: RegExp) {
   page.on('pageerror', (e) => assert.fail(`page error: ${e.message}`));
   await page.goto(`${origin}/doc/${key}`);
   await page.waitForFunction(() => (window as any).__beltypeCicero?.run);
-  await page.evaluate(() => (window as any).__beltypeCicero.run());
+  const ran = await page.evaluate((composed) => (window as any).__beltypeCicero.run({ composed }), composed);
+  assert.equal(ran.composed, composed, 'the run was in the mode asked for');
   const ciceroPdf = await page.pdf({ preferCSSPageSize: true });
   await page.context().close();
   return { chromium: await wordsOf(chromiumPdf, pattern), cicero: await wordsOf(ciceroPdf, pattern) };
@@ -104,8 +107,9 @@ for (const [name, body] of [
   ['a reversed list with an item with counter-reset', `${lines(8)}<ol reversed>${items(2)}<li style="counter-reset: list-item 50">item r</li>${items(7)}</ol>`],
   ['an item with counter-reset and counter-set', `${lines(8)}<ol>${items(1)}<li style="counter-reset: list-item 50; counter-set: list-item 70">item r</li>${items(8)}</ol>`]
 ] as const) {
-  test(`${name} divided by a page cut numbers its items as Chromium prints them`, async () => {
-    const out = await both(name.replace(/\W+/g, '-'), CSS, body, MARKER);
+  // The same case under the Compositor's own lines (`run({ composed: true })`): the copy's `start` is written by the fragment builders both modes share.
+  for (const composed of [false, true]) test(`${name} divided by a page cut numbers its items as Chromium prints them${composed ? ', composed' : ''}`, async () => {
+    const out = await both(`${name.replace(/\W+/g, '-')}${composed ? '-composed' : ''}`, CSS, body, MARKER, composed);
     assert.ok(out.chromium.length > 1 && out.chromium[1].length > 0, `the oracle crosses a page: ${JSON.stringify(out.chromium)}`);
     assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
   });
