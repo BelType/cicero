@@ -318,9 +318,11 @@ export class BeltypePage extends HTMLElement {
       const keys = names.map((n, i) => `${this.#dressText} ${n} ${generated[i]} ${(this.#reads[n] ?? []).map((r) => `${r}=${this.#published.get(r) ?? ''}`).join(',')} ${cellKey(cells[i])}`);
       let pairs = keys.map((k) => INTRINSICS.get(k));
       if (pairs.some((p) => !p)) {
+        // A rect is drawn under every transform above the page, and a host that zooms with `transform: scale(s)` would hand §5.3.2 widths in its pixels, not the page's, and the cache would keep them for every scale after (assessment 2026-11-07). The band spans exactly `#bandWidth` of the page's own pixels, so its rect says the scale.
+        const scale = el.getBoundingClientRect().width / this.#bandWidth || 1;
         const read = ( track: string) => {
           el.style.gridTemplateColumns = `${track} ${track} ${track}`;
-          return cells.map((c) => c.getBoundingClientRect().width);
+          return cells.map((c) => c.getBoundingClientRect().width / scale);
         };
         const max = read('max-content');
         const min = read('min-content');

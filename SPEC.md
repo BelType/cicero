@@ -437,10 +437,10 @@ The handle carries further members that this article does not make API. They are
 
 | Source module | Names |
 |---|---|
-| `data-beltype` | `ADJOIN`, `ARTIFACT`, `AWAY`, `END`, `FRAGMENT`, `SHELL`, `SPLIT`, `START`, `addWord`, `hasWord`, `removeWord` |
-| `word-space` | `BREAKING_SPACE`, `copyOf`, `isFixedBox`, `isInlineBox`, `isLineBreak`, `noteSource` |
+| `data-beltype` | `ADJOIN`, `ARTIFACT`, `AWAY`, `END`, `FRAGMENT`, `SHELL`, `SPLIT`, `START`, `WRAPPED`, `addWord`, `hasWord`, `removeWord` |
+| `word-space` | `BREAKING_SPACE`, `clonesDecoration`, `copyOf`, `isFixedBox`, `isInlineBox`, `isLineBreak`, `noteSource` |
 | `positions` | `divides`, `elAt`, `extensionPx`, `indexBlocks`, `normalizePath`, `pageContaining`, `pageIntervals`, `pathOf`, `placeAt` |
-| `fragments` | `joinedWords`, `mutateToContinuation`, `mutateToFirstFragment`, `pinTrack` |
+| `fragments` | `joinedWords`, `mutateToContinuation`, `mutateToFirstFragment`, `pinTrack`, `truncateLeadingDecoration` |
 | `stonehand` | `adjudicate`, `fitsPage`, `isOutOfFlow`, `neverCutInside`, `processionBottoms`, `reachesBelowTheEdge` |
 | `gauge` | `takeReport` |
 | `measure` | `assertRenderConditions`, `awaitCloneImages`, `awaitFonts`, `createMeasureContext` |
@@ -454,6 +454,8 @@ The handle carries further members that this article does not make API. They are
 | `presenters` | `present`, `presentation` |
 
 Each name keeps the contract its module's article states. A change to one is a change to this face, and is versioned as one.
+
+The leading-decoration door is the continuation dressing of Article VI.1.4 as a view applies it to a box its slice resumes inside: `clonesDecoration(el)` answers whether the box's source (`noteSource`'s, or the element itself) declares `box-decoration-break: clone`, and `truncateLeadingDecoration(el)` marks the box divided at its start and, when it clones, `WRAPPED`, so the words sheet keeps its block-start border, padding and rounding (see *the-fragment-that-wraps-itself*).
 
 ### XIII.4 `./internal/*`
 
@@ -474,6 +476,7 @@ Each name keeps the contract its module's article states. A change to one is a c
 | 2026-11-07 | IV.11 | A divided table cell is judged and presented aligned within its first piece. | — (measured; assessment 2026-11-07) |
 | 2026-11-07 | VI.1.4 | A slice's cut edges lose their corner rounding. | *the-fragment-that-wraps-itself* |
 | 2026-11-07 | VI.1.11 | `text-wrap` shapes each piece alone, stated. | — (measured; assessment 2026-11-07) |
+| 2026-11-07 | XIII.3 | The leading-decoration door joins the face: `WRAPPED`, `clonesDecoration`, `truncateLeadingDecoration`. | *the-fragment-that-wraps-itself* |
 
 ## 18. Known open at ratification
 
