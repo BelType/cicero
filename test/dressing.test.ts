@@ -6,7 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ensureContinuationDressing, isWordsSheet } from '../src/dressing.ts';
+import { deliverValues, ensureContinuationDressing, ensureDressing, isWordsSheet, LAYERS_ID } from '../src/dressing.ts';
 import { CUT_OFF, RESUMED } from '../src/data-beltype.ts';
 import { byShape } from './fakes.ts';
 
@@ -66,4 +66,36 @@ test('the continuation dressing is the engine`s, and a host reading the document
   const isDressingSheet = byShape((await import('../src/root.ts')).isDressingSheet);
   assert.equal(isDressingSheet(doc, sheet), true, 'the root`s answer names it');
   assert.equal(isDressingSheet(doc, author), false);
+});
+
+/** A kept frame's document double, as `document.open()` leaves it: a head without the provision, an author sheet that names `--beltype-slice`, and the window's `CSS.registerProperty`. */
+function keptFrame() {
+  const author = Object.assign(authorSheet(), { cssRules: [{ cssText: '[data-beltype~="split"] { order: var(--beltype-slice); }' }] });
+  const head: any = { children: [] as any[], querySelector: () => null, prepend: (el: any) => head.children.unshift(el) };
+  const doc: any = {
+    defaultView: { CSSStyleSheet: Sheet, CSS: { registerProperty: () => {} } },
+    head,
+    styleSheets: [author],
+    adoptedStyleSheets: [],
+    createElement: () => ({}),
+    getElementById: (id: string) => head.children.find((el: any) => el.id === id) ?? null
+  };
+  return (doc as Document);
+}
+
+test('the words sheet and the values sheet are asked of the document, not remembered: a kept frame emptied between two prints wears both again', () => {
+  const doc = keptFrame();
+  const words = ['slice:1', 'slice:2'];
+  const print = () => { ensureDressing(doc); deliverValues(doc, words); };
+  print();
+  const { words: wordsSheet, values } = ensureDressing(doc);
+  assert.ok(wordsSheet && values, 'the first print seats both');
+  assert.deepEqual(doc.adoptedStyleSheets, [wordsSheet, values]);
+  // what the CLI's kept page does before the second print: the same Document, no adopted sheets, a head written anew
+  doc.adoptedStyleSheets = [];
+  (doc.head as any).children.length = 0;
+  print();
+  assert.deepEqual(doc.adoptedStyleSheets, [wordsSheet, values], 'the second print gets the words sheet and the delivered values again, though no word is new');
+  assert.ok(doc.getElementById(LAYERS_ID), 'and the layer is named first in the head again');
+  assert.match(((values as unknown) as Sheet).text, /--beltype-slice: 2/);
 });
