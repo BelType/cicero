@@ -16,7 +16,7 @@
  */
 
 import { BREAK, selectorOf } from './data-beltype.ts';
-import { blockChildrenOf, footerBeforeRows, headerAfterRows, isAtom, isEngineText, isInlineBox, isLineBreak, mayBeAutoHyphenated, rangeOf, READS_ITS_CHILDREN, rowsAmong, SIDE_BY_SIDE, wordRuns } from './word-space.ts';
+import { blockChildrenOf, inDisplayOrder, isAtom, isEngineText, isInlineBox, isLineBreak, mayBeAutoHyphenated, rangeOf, READS_ITS_CHILDREN, rowsAmong, SIDE_BY_SIDE, wordRuns } from './word-space.ts';
 
 /** The Compositor's own `<br>`, found by the browser and never by splitting the attribute here (the walkers below run per box). */
 const BREAK_SELECTOR = `br${selectorOf(BREAK)}`;
@@ -53,10 +53,6 @@ export type Box = {
   blockChildren: Box[];
   /** An anonymous block box (CSS 2.1 §9.2.1.1): no element of its own, no decoration, and every break property `auto`. */
   anonymous?: boolean;
-  /** A table's footer group written before its rows (`footerBeforeRows`), moved to the end of the table's procession, where §17.2 lays it out. */
-  laidOutLast?: boolean;
-  /** A table's header group written after its rows (`headerAfterRows`), moved to the front of the table's procession, where §17.2 lays it out. */
-  laidOutFirst?: boolean;
 };
 
 /** One line box, recovered arithmetically from the rects clustered onto it and the line-heights they are set on (`computeLines`). */
@@ -160,31 +156,15 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
   for (const box of boxes) if (!box.inline) box.blockChildren = (blockChildrenOf(box.el).map(( el: Element) => byEl.get(el)).filter(Boolean) as Box[]);
   const flowProcession = (blockChildrenOf(container).map(( el: Element) => byEl.get(el)).filter(Boolean) as Box[]);
 
-  /** The footer stands last (*the footer before the rows*, 2026-10-15). CSS 2.1 §17.2 lays a `table-footer-group` out *"after all other rows and row groups"*, wherever it is written, and HTML lets it be written before them. The procession and the box list are the order the Stonehand walks and stops at the edge in, and that order is the layout's: such a footer is moved behind the table's last row or row group in both, and marked `laidOutLast`. Walked in the document's order it stood first and far below the edge, so the walk stopped at it and the page held the header alone (measured, `packages/essay/cases/110-the-footer-before-the-rows`: a 40-row table on two pages holding the header and the last two rows). The address stays the document's: the footer's words come before the rows in the word space, which is why the Stonehand offers no place before the footer or inside it. */
+  /** A table's procession is in display order (*the-word-space-follows-the-table-display-order*, 2026-11-07; `word-space.js`' `inDisplayOrder`): CSS 2.1 §17.2 lays a header group out before every row and row group and a footer group after them, wherever each is written, and the procession and the box list are the order the Stonehand walks and stops at the edge in. The word space and the paths follow the same order, so a place among a table's groups is addressed as it is laid out. Walked as written, a footer written first stood first and far below the edge, and the walk stopped at it with the page holding the header alone (measured, `packages/essay/cases/110-the-footer-before-the-rows`). */
   let moved = false;
   for (const box of boxes) {
-    if (box.inline || box.blockChildren.length < 2 || !/^(inline-)?table$/.test(win.getComputedStyle(box.el).display)) continue;
+    if (box.inline || box.blockChildren.length < 2) continue;
     for (const list of [box.blockChildren, box.children]) {
-      const f = list.findIndex((c) => footerBeforeRows(c.el));
-      if (f < 0) continue;
-      let last = -1;
-      list.forEach((c, i) => {
-        if (/^table-row(-group)?$/.test(win.getComputedStyle(c.el).display)) last = i;
-      });
-      if (last < f) continue;
-      const [footer] = list.splice(f, 1);
-      list.splice(last, 0, footer); // `last` moved down by one with the removal, so this is the place after it
-      footer.laidOutLast = moved = true;
-    }
-    // The header stands first, the mirror (*thead-after-rows-and-tall-footer-lose-rows*, 2026-11-07): §17.2 lays a `table-header-group` out *"before all other rows and row groups"*, so one written after them is moved before the first. Its words stay after the rows in the word space, which is why the Stonehand offers no place inside it or right after it, and why the driver refuses one that does not repeat: only a copy can show it on a page before its words.
-    for (const list of [box.blockChildren, box.children]) {
-      const h = list.findIndex((c) => headerAfterRows(c.el));
-      if (h < 0) continue;
-      const first = list.findIndex((c) => /^table-row(-group)?$/.test(win.getComputedStyle(c.el).display));
-      if (first < 0 || first > h) continue;
-      const [header] = list.splice(h, 1);
-      list.splice(first, 0, header);
-      header.laidOutFirst = moved = true;
+      const ordered = inDisplayOrder(box.el, list, (c) => c.el);
+      if (ordered === list) continue;
+      list.splice(0, list.length, ...ordered);
+      moved = true;
     }
   }
 
@@ -256,7 +236,7 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
     box.blockChildren = procession;
   }
   if (runSlot.size || moved) {
-    // Into the box list at their places in document order, the order the Stonehand walks and stops at the edge in: before the block child each precedes, and a trailing one after its container's whole subtree. A footer laid out last is visited where its table's children now put it.
+    // Into the box list at their places in document order, the order the Stonehand walks and stops at the edge in: before the block child each precedes, and a trailing one after its container's whole subtree. A table's groups are visited in display order, where its children now put them.
     const ordered: Box[] = [];
     const visit = ( box: Box) => {
       ordered.push(box);

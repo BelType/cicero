@@ -70,10 +70,11 @@ Modules: `src/positions.js`, `src/word-space.js`, `src/ledger.js`, `src/resume.j
 5. An author's `<br>` ends a word; the engine's own break mark does not (see *a-line-inside-a-word-is-a-break-point*).
 6. The four tokenizers (the position index, the fragments' `joinedWords`, the Gauge's word reading and the character walk) agree by sharing these predicates, never by parallel maintenance (see *a-word-stops-at-a-block-boundary*).
 7. A detached clone is never asked for its style. Its elements are registered against their sources when the clone is made, and an unregistered element reads as inline (see *a-word-stops-at-a-block-boundary*).
+8. Words are counted in source order, except inside a table, where they are counted in CSS 2.1 §17.2's display order: the table's first header group (`table-header-group`), then its rows and row groups in source order, then its first footer group (`table-footer-group`), wherever each is written; a later header or footer group is a row group, as §17.2 renders it. The order is computed once, by `inDisplayOrder` in `src/word-space.ts`, and every reader of the word space takes it from there: the position index, the paths, the Gauge's procession, the fragments' cuts and the character walk, so the cutter, the addresses, the reads and every consumer see one order (see *the-word-space-follows-the-table-display-order*).
 
 ### I.2 The address
 
-1. A cut's address is `{ path, word, px }`: the child-index path to the box the page resumes at, a leaf-relative word inside a line stack and only there, and a pixel extent for a box divided geometrically. Paths order boxes; words order lines (see *the-cut-is-a-place-in-the-tree*).
+1. A cut's address is `{ path, word, px }`: the child-index path to the box the page resumes at, its indices counting a table's children in display order (I.1.8), a leaf-relative word inside a line stack and only there, and a pixel extent for a box divided geometrically. Paths order boxes; words order lines (see *the-cut-is-a-place-in-the-tree*).
 2. Inside a word, a `char` in UTF-16 code units refines the address where a line begins inside that word. The flat projection does not carry it (see *a-line-inside-a-word-is-a-break-point*).
 3. A word divided at a soft hyphen is addressed at the character after the hyphen. A word the browser hyphenated under `hyphens: auto` is never divided (see *the-hyphen-is-written-at-the-cut*).
 4. A cut names a place in the tree, and the boxes it divides are the proper ancestors of that place and nothing else. The cut's class says only whether the place exists (see *the-cut-divides-its-ancestors*).
@@ -205,7 +206,7 @@ Modules: `src/fragments.js`, `src/data-beltype.js`, `src/dressing.js`, `src/has-
 6. Outside its interval a box is kept and not displayed, so structural selectors match on every page as in the source (see *every-branch-gets-a-place*).
 7. A fragment is written its page's tracks as literals, never across pages (see *the-fragment-lays-out-under-the-feeds-conditions*).
 8. The first fragment ends with the hyphenation character the source asks for, written where the cut falls (see *the-hyphen-is-written-at-the-cut*).
-9. A divided table repeats its header group on every continuation and its footer group on every fragment but the last, unless the group is taller than a quarter of the page area (see *the-header-repeats*).
+9. A divided table repeats its header group on every continuation and its footer group on every fragment but the last, unless the group is taller than a quarter of the page area (see *the-header-repeats*). A group that does not repeat is shown once, where its words fall in display order (I.1.8): a header on the table's first fragment and a footer on its last, wherever each is written, as Chromium prints them. A footer group written before its rows and taller than the page area is refused by name, as a box taller than its page is (see *the-word-space-follows-the-table-display-order*; measured against Chromium's print 2026-11-07, `test/browser/table-groups.browser.ts`).
 10. A repeated header joins the continuation's rows as the whole table does (see *a-repeated-header-joins-the-rows-as-chromium-prints-them*).
 11. A piece is laid out by the browser as a box of its own, so `text-wrap` shapes each piece's lines alone: under `balance` a continuation balances its own lines, where Chromium's print does not balance a divided paragraph (measured 2026-11-07: a continuation of fourteen words printed eight and six, and shows seven and seven). The words on each page agree; under `pretty` the lines agreed as well.
 12. An `<ol>` a cut divides is numbered from the first item its piece keeps: the piece's copy carries a `start` of that item's ordinal, as HTML numbers it with `start`, `value`, `reversed` and a `counter-set` or `counter-increment` of `list-item`, so the browser's own marker counts on (measured against Chromium's print 2026-11-07).
@@ -477,6 +478,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | VI.1.4 | A slice's cut edges lose their corner rounding. | *the-fragment-that-wraps-itself* |
 | 2026-11-07 | VI.1.11 | `text-wrap` shapes each piece alone, stated. | — (measured; assessment 2026-11-07) |
 | 2026-11-07 | XIII.3 | The leading-decoration door joins the face: `WRAPPED`, `clonesDecoration`, `truncateLeadingDecoration`. | *the-fragment-that-wraps-itself* |
+| 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
 
 ## 18. Known open at ratification
 

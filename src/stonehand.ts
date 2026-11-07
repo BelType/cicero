@@ -255,7 +255,6 @@ function walkOf(report: MeasureReport, sourceOf: (cloneEl: Element) => Element|n
   };
   const monolithic = ( box: Box) => {
     if (box.anonymous) return false; // a run of lines, never one unit
-    if (box.laidOutLast || box.laidOutFirst) return true; // a footer written before its rows: its words stand before the rows in the word space, so no place inside it could be addressed (*the footer before the rows*)
     const live = sourceOf(box.el) ?? box.el;
     const held = isMonolith(box.el, styleOfBox(box), live);
     // Named once per box, on the console, so a page that looks wrong for this reason says so.
@@ -300,7 +299,7 @@ function walkOf(report: MeasureReport, sourceOf: (cloneEl: Element) => Element|n
   /**
    * The walk stops at the edge (*the page asks the index*, 2026-09-25): a box the walk reads, in the procession, whose top lies below the limit. Nothing it or anything after it could offer can fit, so the walk takes the Class A boundary before it and stops.
    *
-   * A float, an absolutely positioned box and a row are not where it stops: a float's top is where the float was pushed, not the procession's, and a row's first item is not the row's top. The premise is stated rather than proved — that in-flow tops do not go backward in document order — and a negative margin taller than the box above it, or a relative offset, would break it. A table's footer written before its rows broke it too, and is walked where it is laid out instead (`gauge.js`'s `laidOutLast`, case 110).
+   * A float, an absolutely positioned box and a row are not where it stops: a float's top is where the float was pushed, not the procession's, and a row's first item is not the row's top. The premise is stated rather than proved — that in-flow tops do not go backward in document order — and a negative margin taller than the box above it, or a relative offset, would break it. A table's footer written before its rows broke it too, and is walked where it is laid out instead (`gauge.js`, in display order, case 110).
    */
   const standsBelow = (box: Box, limit: Px, eps: Px) => !rowOf(box) && !parallelBox(box) && box.rect.top > limit + eps;
   return { report, sourceOf, boxes, win, root, styleCache, forcing, styleOfBox, monolithic, insideMonolith, parallelBox, insideParallel, rowOf, insideRowItem, copy, walks, standsBelow };
@@ -439,9 +438,7 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
     // The root of a flow's own walk stands in no procession of its own: its row-mates are outside it, and a boundary before it is the outer walk's (*a parallel flow is a fragmentainer*, 2026-10-08).
     const siblings = box === root ? [] : report.processionOf(box).filter((b) => !isAbsolutelyPositioned(styleOfBox(b)));
     const si = siblings.indexOf(box);
-    // A footer written before its rows offers no boundary before it (*the footer before the rows*, 2026-10-15): the place is after the last row in the layout and before the first in the document, and an address can only say the second.
-    // Nor does the box after a header written after its rows (the mirror): the place is after the header in the layout and before every row in the document, so the page would hold the header's copy alone.
-    if (si > 0 && !box.laidOutLast && !siblings[si - 1].laidOutFirst) {
+    if (si > 0) {
       // Two siblings answer here, and they are not always the same one. **The keeps** are the immediately-adjacent box's, because §4.1 names *"a float and an immediately-adjacent in-flow or floated box"* as a Class A pair in as many words — a float's own `break-after` binds the boundary after it, which is §3.1's *should* on floats that this engine honours and Chromium declines. **The position** is the previous in-flow sibling's bottom border edge, because a parallel flow's extent is not a place in the procession the cuts divide (§2.1): the float is laid out beside the content, so the page closes where the previous in-flow box ended and the float's own bottom says nothing about it. Pricing this at the float's bottom is how a 96mm rail put every slab standing beside it off the page — measured, `cases/21-parallel-flows`, where the boundary before the first slab was priced at y 400 in a 264px page area.
       const pair = siblings[si - 1];
       const anchor = last(siblings.slice(0, si).filter((b) => !parallelBox(b))) ?? null;
