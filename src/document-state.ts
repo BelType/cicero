@@ -282,21 +282,29 @@ export function counterStateAt(ops: ReturnType<typeof documentOpsOf>, pos: numbe
  * @remarks
  * css-page-3 names a reset of the page counter only in the page context, but an author writes `counter-reset: page 1` on a chapter or on each letter of a print run to number its pages from one, and once the engine applies it the pages after must count on from there rather than stay at the value (Codeberg issue 1). The page counter is the page's own, reset on the host as `page N` (`chase.js`'s `setCounters`), so the reset is folded into N here and never delivered as an author counter: delivered, it reset the flow and the margin cells to the same value on every later page in the reset's scope. `target-counter()` to a page reads the same N (`reads.js`'s `pageValues`), so a reference answers the value the counter has at its target (Codeberg issue 2).
  *
- * The last `counter-reset` or `counter-set` of `page` at or before `pos` is the one in force: **at**, not strictly before, because the element that begins on the page is the one that numbers it, where an author counter's reset waits for the next page (css-page-3 §6.1 is about author counters). Scope is not replayed, since the page counter has one instance: a reset stands until the next one, whatever the depth of either. A reset on an element that begins mid-page numbers the next page. A blank page the engine inserts before such an element begins where the element does and bears the value too, a stated limit.
+ * The last `counter-reset` or `counter-set` of `page` at or before `pos` is the one in force: **at**, not strictly before, because the element that begins on the page is the one that numbers it, where an author counter's reset waits for the next page (css-page-3 §6.1 is about author counters). Scope is not replayed, since the page counter has one instance: a reset stands until the next one, whatever the depth of either. A reset on an element that begins mid-page numbers the next page.
  *
- * @param starts - the first word position of each page before `pageIndex`, by index.
+ * **A blank page the engine makes to bring the element to its side begins where the element does and stands before it** (Codeberg issue 13): the reset is not in force on it, so it continues the count it stands in, and it is not counted toward the pages after it, so the element's page bears the value. A blank page inside the scope, after the element began, counts as every page does.
+ *
+ * @param pages - each page before `pageIndex`, by index: its first word position and whether it is blank.
+ * @param blank - whether page `pageIndex` is one the engine made blank.
  * @param away - the remainders the page's opening cut carries in, as for {@link counterStateAt}.
  */
-export function pageNumberAt(ops: ReadonlyArray<Op>, pageIndex: number, pos: number, { starts, away = [] }: { starts: (i: number) => number; away?: ReadonlyArray<{ from: number; to: number; }>; }): number {
+export function pageNumberAt(ops: ReadonlyArray<Op>, pageIndex: number, pos: number, { pages, blank = false, away = [] }: { pages: (i: number) => { start: number; blank: boolean; }; blank?: boolean; away?: ReadonlyArray<{ from: number; to: number; }>; }): number {
+  const inForce = (at: number, start: number, isBlank: boolean) => at < start || (at === start && !isBlank);
   let reset: { pos: number; value: number; }|null = null;
   for (const op of ops) {
     if (op.pos > pos) break;
+    if (!inForce(op.pos, pos, blank)) continue;
     if (away.length && inRemainders(away, op.pos)) continue;
     for (const [name, value] of [...op.reset, ...op.set]) if (name === 'page') reset = { pos: op.pos, value };
   }
   if (!reset) return pageIndex + 1;
   let since = 0;
-  for (let i = 0; i < pageIndex; i++) if (starts(i) >= reset.pos) since++;
+  for (let i = 0; i < pageIndex; i++) {
+    const page = pages(i);
+    if (inForce(reset.pos, page.start, page.blank)) since++;
+  }
   return reset.value + since;
 }
 
