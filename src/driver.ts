@@ -27,7 +27,7 @@ import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inR
 import { documentOpsOf, counterStateAt, pageNumberAt, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
 import { ARTIFACT, hasWord } from './data-beltype.ts';
-import { blockChildrenOf, footerBeforeRows, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
+import { blockChildrenOf, footerBeforeRows, headerAfterRows, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
 import { changedPairs, settleReads } from './reads.ts';
 import { converge, holderPage, namesNoPlace, priorKeys, restartPage } from './resume.ts';
 import { answerHas, boxesWhoseWordsMoved } from './has-words.ts';
@@ -110,9 +110,31 @@ function toPx(len: string) {
   return parseFloat(m[1]) * PX_PER[m[2]];
 }
 
+/**
+ * The message a table shape refuses with (*thead-after-rows-and-tall-footer-lose-rows*, 2026-11-07): the table, by its id or class or its first words, and the shape. Both shapes lost rows with no message, and a refusal by name is the detector until the address can say where §17.2 lays the group out.
+ *
+ * @remarks The two shapes, both groups whose words and box disagree in order. A header group written after the rows is laid out above them (CSS 2.1 §17.2) while its words stand after them in the word space: one that repeats is walked first and shown by its copy on every page before its words, and one too tall to repeat, in a divided table, is refused, because which page shows it is the open ruling on §17.2's display order in the word space. A footer group written before the rows is walked where it is laid out, last and whole, and one taller than the page area could be placed nowhere, so the table ended on its first page.
+ *
+ * @param group - the source `thead` or `tfoot`.
+ * @param shape - the shape, in words.
+ * @param remedy - what the author can write instead.
+ */
+function refusedTable(group: Element, shape: string, remedy = 'write the groups in HTML\'s order: thead, tbody, tfoot') {
+  const table = group.closest('table');
+  const words = (table?.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40);
+  const name = table?.id ? `<table id="${table.id}">` : table?.className ? `<table class="${table.className}">` : `the table beginning "${words}"`;
+  return `cicero: ${name} has ${shape}, which this engine cannot divide across pages yet; it refuses rather than lose rows. To print it, ${remedy}.`;
+}
+
 /** The nearest copy the engine repeats (`artifact`) standing ahead of this element among its siblings — the table's header, in front of its rows — or null. */
 const artifactBefore = ( el: Element|null|undefined) => {
   for (let s = el?.previousElementSibling; s; s = s.previousElementSibling) if (typeof s.getAttribute === 'function' && hasWord(s, ARTIFACT)) return s;
+  return null;
+};
+
+/** The header group written after this element among its siblings, which §17.2 lays out ahead of it all the same (`headerAfterRows`), or null. It is a copy on the pages before its words and the original in a feed, which pours it whole, and it stands ahead of the rows either way. */
+const headerCopyAfter = ( el: Element|null|undefined) => {
+  for (let s = el?.nextElementSibling; s; s = s.nextElementSibling) if (headerAfterRows(s)) return s;
   return null;
 };
 
@@ -133,9 +155,10 @@ export function gapAbove(box: Box, report: ReturnType<typeof takeReport>, win: W
   for (let child = box, a = box.parent; a; child = a, a = a.parent) {
     const cs = win.getComputedStyle(a.el);
     // A copy the engine repeats ahead of the child (the table's header) is furniture with a footprint, not a spent lead (*the header repeats*): the level owes only what stands above the copy, which under separated borders is the table's `border-spacing` above its first row, and Chromium draws none above a repeated header (*a repeated header joins the rows as Chromium prints them*, 2026-10-22). Under collapsed borders the copy's top is the table's own and nothing is owed.
-    if (standsAfterArtifact(child.el)) {
-      // The header's copy, never a footer's: a footer written before its rows stands among the siblings too, and is laid out at the foot (*the footer before the rows*).
-      let copy = cs.borderCollapse === 'separate' ? artifactBefore(child.el) : null;
+    const late = headerCopyAfter(child.el);
+    if (late || standsAfterArtifact(child.el)) {
+      // The header's copy, never a footer's: a footer written before its rows stands among the siblings too, and is laid out at the foot (*the footer before the rows*). A header written after its rows is laid out ahead of them, and its copy is the one.
+      let copy = cs.borderCollapse === 'separate' ? late ?? artifactBefore(child.el) : null;
       while (copy && !/^THEAD$/i.test(copy.tagName)) copy = artifactBefore(copy);
       const box = copy ? report.boxOf(copy) : null;
       if (box) gap += box.rect.top - (a.rect.top + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0));
@@ -1084,6 +1107,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
       if (!src || decided.has(src)) continue;
       if (!mayRepeat(src)) continue;
       decided.add(src);
+      if (footerBeforeRows(src) && g.getBoundingClientRect().height > conditions.contentH) throw new Error(refusedTable(src, 'a footer group taller than the page area, written before its rows', 'write the footer after the rows, where it is divided like them, or keep it within the page area'));
       const repeat = g.getBoundingClientRect().height <= conditions.contentH / 4;
       const b = blocks.findIndex((block) => block === src || block.contains(src));
       madeHere.push({ path: pathOf(src, blocks[b], b), repeat });
@@ -1462,6 +1486,12 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     if (!fits && hasGroups) {
       const ct = container.getBoundingClientRect().top;
       const edge = pageStart + conditions.contentH;
+      // A header written after its rows that does not repeat, in a table the page's edge divides, is refused (*thead-after-rows-and-tall-footer-lose-rows*, 2026-11-07): its words are on the table's last fragment and its box above the first, and which page shows it is the open ruling on §17.2's display order in the word space. Undivided, the one fragment holds both.
+      for (const h of container.querySelectorAll('thead')) {
+        const src = sourceOf(h);
+        const r = h.closest('table')?.getBoundingClientRect();
+        if (src && r && declined.has(src) && headerAfterRows(src) && r.top - ct < edge && r.bottom - ct > edge) throw new Error(refusedTable(src, 'a header group written after its rows, too tall to repeat'));
+      }
       for (const f of container.querySelectorAll('tfoot')) {
         const src = sourceOf(f);
         // A footer written before its rows that does not repeat is still reserved where it is shown: its words stand before the rows, so it is on the table's first fragment and nowhere after (*the footer before the rows*, 2026-10-15; Chromium shows it on the last, which the address cannot say).
