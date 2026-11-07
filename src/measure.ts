@@ -21,16 +21,22 @@ const NEUTRALIZE_ID = '__beltype-neutralize';
 /**
  * The intake under *render-identical conditions* (I5): refuse to adjudicate under conditions print will not reproduce. `relaxDpr` is the preview's escape hatch only — decisions are then valid for the screen being looked at, not for print; no gate ever sets it.
  *
- * @throws Error — bare and deliberate (`src/` may not import BelType's error types): a device pixel ratio other than 1 without `relaxDpr`, or a document root whose line-height is not explicit (*render-identical conditions*, I5).
+ * A vertical or sideways root is refused by name too (Codeberg issue 12): every read in this engine is horizontal, the lines by vertical overlap, the cut by a y, the page area by its height, so under `writing-mode: sideways-lr` on the root the text of a positioned paragraph fell below the clip and was never resumed, and the printer's tiling invariant refused what the engine should have. Vertical writing is outside the beta, and a refusal that says so at intake is cheaper than one three tools later.
+ *
+ * @throws Error — bare and deliberate (`src/` may not import BelType's error types): a device pixel ratio other than 1 without `relaxDpr`, a document root whose line-height is not explicit (*render-identical conditions*, I5), or a document root whose writing mode is not `horizontal-tb`.
  */
 export function assertRenderConditions(doc: Document, { relaxDpr = false }: { relaxDpr?: boolean; } = {}) {
   const win = (doc.defaultView as Window & typeof globalThis);
   if (!relaxDpr && win.devicePixelRatio !== 1) {
     throw new Error(`I5: unit device pixel ratio required for adjudication, got ${win.devicePixelRatio}`);
   }
-  const lh = win.getComputedStyle(doc.documentElement).lineHeight;
+  const root = win.getComputedStyle(doc.documentElement);
+  const lh = root.lineHeight;
   if (!/^-?[\d.]+px$/.test(lh)) {
     throw new Error(`I5 (DPR ruling): explicit line-height required, document root computes '${lh}'`);
+  }
+  if (root.writingMode && root.writingMode !== 'horizontal-tb') {
+    throw new Error(`a vertical or sideways root is outside this engine's beta: the document root computes writing-mode '${root.writingMode}', and every read here is horizontal (the line by vertical overlap, the cut by a y). Write the document horizontal-tb, or print it with another engine.`);
   }
 }
 
