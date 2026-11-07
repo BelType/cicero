@@ -24,7 +24,7 @@ import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, regis
 import { snapshotOfStyle } from './forcing-memo.ts';
 import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, truncateFrom } from './fragments.ts';
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
-import { documentOpsOf, counterStateAt, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
+import { documentOpsOf, counterStateAt, pageNumberAt, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
 import { ARTIFACT, hasWord } from './data-beltype.ts';
 import { blockChildrenOf, footerBeforeRows, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
@@ -819,11 +819,13 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   /** The conditions of page `pageIndex`, which begins at `cut` (projected to `pos`) — {@link conditionsFor} with the cursor made a parameter, so a resumed run can write the conditions of a page it keeps from the address that page began at (*the run resumes from an entry*, build two, 2026-10-08). */
   const conditionsAt = (pageIndex: number, cut: Address, pos: number, { blank = false, carried = null }: { blank?: boolean; carried?: Cursor['carried']; } = {}) => {
     const name = nameAt(cut);
-    const pageNumber = pageIndex + 1;
+    const away = remaindersOf(carried, index.endOf);
+    // The run's count, or an author's reset of the page counter counted on from the page it begins on (`document-state.js`'s `pageNumberAt`). Entry `i` closes page `i`, so page `i` begins where entry `i - 1` ended.
+    const pageNumber = pageNumberAt(documentOps, pageIndex, pos, { starts: (i) => (i === 0 ? 0 : account[i - 1].pos ?? 0), away });
     const parity = parityAt(pageIndex);
     const geo = table.pageFor({ name, first: pageIndex === 0, parity, blank });
-    // The document's counters as they stand at this page's first word — strictly before it, which is §6.1's *spans the page break* in the flat position space (`document-state.js`) — less what the flows carried onto this page have still to show, which stands before that word and is on this page or after it (beltype#43).
-    const counters = counterStateAt(documentOps, pos, remaindersOf(carried, index.endOf));
+    // The document's counters as they stand at this page's first word — strictly before it, which is §6.1's *spans the page break* in the flat position space (`document-state.js`) — less what the flows carried onto this page have still to show, which stands before that word and is on this page or after it (beltype#43). The page's own two are not among them: they are the host's, and `pageNumber` carries the reset.
+    const counters = withoutPageCounters(counterStateAt(documentOps, pos, away));
     return Object.freeze({ ...geo, name, pageNumber, parity, blank, counters, dpr: win.devicePixelRatio });
   };
 

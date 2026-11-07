@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { documentOpsOf as documentOpsOfTyped, counterStateAt as counterStateAtTyped, counterStatesAfter, counterValue as counterValueTyped, counterValues, parseStringSet as parseStringSetTyped, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from '../src/document-state.ts';
+import { documentOpsOf as documentOpsOfTyped, counterStateAt as counterStateAtTyped, pageNumberAt, withoutPageCounters, counterStatesAfter, counterValue as counterValueTyped, counterValues, parseStringSet as parseStringSetTyped, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from '../src/document-state.ts';
 import { STRING_SET_PROP } from '../src/gcpm-encoding.ts';
 import { indexBlocks as indexBlocksTyped } from '../src/positions.ts';
 import { byShape } from './fakes.ts';
@@ -307,4 +307,35 @@ test('the whole state over supplied readers: a plain tree, indexed by indexBlock
   assert.deepEqual(namedStringsForPage(strings, 7, null).head, { first: 'The Carpet-Bag', start: 'The Carpet-Bag', last: 'The Carpet-Bag', 'first-except': '' });
   assert.deepEqual(runningAssignmentsOf(ops), [{ name: 'mark', value: 0, pos: 1 }]);
   assert.deepEqual(counterStatesAfter(ops).get(fig), { chapter: [2], figure: [1] }, 'a target-counter() of the figure, after its own increment');
+});
+
+test("an element's reset of the page counter numbers the page it begins on and the pages after count on from it; a second reset starts again", () => {
+  // Two sections, each `counter-reset: page 1; break-before: page`, two pages each: the case of Codeberg issue 1.
+  const one = el({ counterReset: 'page 1' });
+  const two = el({ counterReset: 'page 1' });
+  const before = new Map([[one, 0], [two, 0]]);
+  const ops = walk([one, two], [0, 10, 20], before);
+  const starts = (i: number) => [0, 5, 10, 15][i];
+  assert.deepEqual([0, 5, 10, 15].map((pos, i) => pageNumberAt(ops, i, pos, { starts })), [1, 2, 1, 2]);
+  assert.deepEqual([0, 5, 10, 15].map((pos, i) => pageNumberAt(ops, i, pos, { starts, away: i === 2 ? [{ from: 10, to: 12 }] : [] })), [1, 2, 3, 2], 'a reset inside a remainder the page carries in is not yet in force on that page');
+});
+
+test('with no reset of the page counter the page number is the run\'s count, a reset on the root numbers from its value, and a reset mid-page numbers the next page', () => {
+  const plain = el({});
+  assert.equal(pageNumberAt(walk([plain], [0, 10], new Map([[plain, 0]])), 3, 30, { starts: (i: number) => i * 10 }), 4);
+  const body = el({ counterReset: 'page 5' });
+  const block = el({});
+  const ops = walk([block], [0, 10], new Map([[block, 0]]), [body]);
+  assert.deepEqual([0, 10].map((pos, i) => pageNumberAt(ops, i, pos, { starts: (i: number) => i * 10 })), [5, 6], 'the root sits at −1, before the first word');
+  const late = el({ counterSet: 'page 1' });
+  const ops2 = walk([el({}, [late])], [0, 10], new Map([[late, 7]]));
+  assert.deepEqual([0, 5, 10].map((pos, i) => pageNumberAt(ops2, i, pos, { starts: (i: number) => [0, 5, 10][i] })), [1, 2, 1], 'a `counter-set` of `page` at word 7 is in force from the page that begins at 10');
+});
+
+test('the page\'s own two counters are kept out of the delivered state, and a state without them is returned as it is', () => {
+  const state = { page: [1], pages: [4], chapter: [2] };
+  assert.deepEqual(withoutPageCounters(state), { chapter: [2] });
+  assert.deepEqual(state.page, [1], 'not written');
+  const authors = { chapter: [2] };
+  assert.equal(withoutPageCounters(authors), authors);
 });

@@ -276,6 +276,39 @@ export function counterStateAt(ops: ReturnType<typeof documentOpsOf>, pos: numbe
   return replay(ops, { until: pos, away });
 }
 
+/**
+ * The page number of page `pageIndex`, which begins at `pos`: the run's own count, or, where an element reset the page counter, that element's value counted on from the page it begins on.
+ *
+ * @remarks
+ * css-page-3 names a reset of the page counter only in the page context, but an author writes `counter-reset: page 1` on a chapter or on each letter of a print run to number its pages from one, and once the engine applies it the pages after must count on from there rather than stay at the value (Codeberg issue 1). The page counter is the page's own, reset on the host as `page N` (`chase.js`'s `setCounters`), so the reset is folded into N here and never delivered as an author counter: delivered, it reset the flow and the margin cells to the same value on every later page in the reset's scope. `target-counter()` to a page reads the same N (`reads.js`'s `pageValues`), so a reference answers the value the counter has at its target (Codeberg issue 2).
+ *
+ * The last `counter-reset` or `counter-set` of `page` at or before `pos` is the one in force: **at**, not strictly before, because the element that begins on the page is the one that numbers it, where an author counter's reset waits for the next page (css-page-3 §6.1 is about author counters). Scope is not replayed, since the page counter has one instance: a reset stands until the next one, whatever the depth of either. A reset on an element that begins mid-page numbers the next page. A blank page the engine inserts before such an element begins where the element does and bears the value too, a stated limit.
+ *
+ * @param starts - the first word position of each page before `pageIndex`, by index.
+ * @param away - the remainders the page's opening cut carries in, as for {@link counterStateAt}.
+ */
+export function pageNumberAt(ops: ReadonlyArray<Op>, pageIndex: number, pos: number, { starts, away = [] }: { starts: (i: number) => number; away?: ReadonlyArray<{ from: number; to: number; }>; }): number {
+  let reset: { pos: number; value: number; }|null = null;
+  for (const op of ops) {
+    if (op.pos > pos) break;
+    if (away.length && inRemainders(away, op.pos)) continue;
+    for (const [name, value] of [...op.reset, ...op.set]) if (name === 'page') reset = { pos: op.pos, value };
+  }
+  if (!reset) return pageIndex + 1;
+  let since = 0;
+  for (let i = 0; i < pageIndex; i++) if (starts(i) >= reset.pos) since++;
+  return reset.value + since;
+}
+
+/** The author's counters alone: the page's own two, `page` and `pages`, are the host's (`pageNumberAt`), and delivered as an author's they would reset the flow and the cells under the host's. */
+export function withoutPageCounters(state: Record<string,number[]>): Record<string,number[]> {
+  if (!('page' in state) && !('pages' in state)) return state;
+  const out = { ...state };
+  delete out.page;
+  delete out.pages;
+  return out;
+}
+
 /** One replay, two readers. `counterStateAt` stops at a position and returns the state there; `stringAssignmentsOf` runs the log out and is handed the state at each element that assigns a named string. Written once because the scope arithmetic is the delicate part and two copies of it would agree only until one of them was fixed. */
 function replay(ops: ReadonlyArray<Op>, { until = Infinity, onOp = null, away = ([] as ReadonlyArray<{ from: number, to: number }>) }: { until?: number; onOp?: ((op: Op,counters: Record<string,number[]>) => void)|null; away?: ReadonlyArray<{ from: number; to: number; }>; } = {}): Record<string,number[]> {
   /**
