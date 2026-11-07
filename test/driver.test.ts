@@ -53,11 +53,13 @@ function indexOver(...blocks: any[]) {
     return '';
   };
   // A box's word position is the words of every box before it in walk order, each box carrying its own in `words` (the Cast-off's tests; the grab's trees carry none and read zero throughout).
+  // A box's `trail` is a run of that many words standing after it in its parent, an anonymous block box with no element (*the anonymous box is in the procession*).
   let acc = 0;
   const pos = new Map<any, any>();
-  const number = (el: any) => { pos.set(el, acc); acc += el.style.words ?? 0; for (const c of el.children) number(c); };
+  const extent = new Map<any, any>();
+  const number = (el: any) => { const start = acc; pos.set(el, acc); acc += el.style.words ?? 0; for (const c of el.children) { number(c); acc += c.style.trail ?? 0; } extent.set(el, { before: start, count: acc - start }); };
   for (const b of blocks) number(b);
-  return forcingIndexOf(blocks, { styleOf, pageNameOf, cutOf: (el: any, b: any) => ({ path: normalizePath(pathOf(el, blocks[b], b)), word: null, px: null }), posOf: (el: any) => pos.get(el), blockChildren: (el: any) => el.children });
+  return forcingIndexOf(blocks, { styleOf, pageNameOf, cutOf: (el: any, b: any, word: any = null) => ({ path: word == null ? normalizePath(pathOf(el, blocks[b], b)) : pathOf(el, blocks[b], b), word, px: null }), posOf: (el: any) => pos.get(el), blockChildren: (el: any) => el.children, extentOf: (el: any) => extent.get(el) });
 }
 const at = (path: any, word: any = null) => ({ path, word, px: null });
 const answer = (found: any) => (found ? [found.el.id, found.cut.path, found.parity] : null);
@@ -75,6 +77,16 @@ test('the index spends a first child\'s break-after once, where it falls (§4.3)
   assert.deepEqual(answer(index.find(at([0, 1]), '')), ['D', [1], null]);
   assert.deepEqual(answer(index.find(at([0, 2], 4), '')), ['D', [1], null]);
   assert.equal(index.find(at([1]), ''), null);
+});
+
+test('the index carries a break-after into the run of lines after the box, at the run\'s first word', () => {
+  // B closes in front of a three-word run that A holds before C; the run is the box that resumes, so the event is A's path and word 2, B's two words being before it. The run forces nothing of its own, so after it nothing is pending into C.
+  const index = indexOver(box('A', {}, box('B', { breakAfter: 'page', words: 2, trail: 3 }), box('C', { words: 1 })));
+  const found = index.find(at([0]), '');
+  assert.deepEqual([found.el.id, found.cut.path, found.cut.word, found.runAfter.id], ['A', [0], 2, 'B']);
+  assert.equal(index.find(at([0], 2), ''), null);
+  // The Cast-off never names the run: its place is the next box.
+  assert.deepEqual(place(index.boundAt(at([0]), 1)), ['C', [0, 1]]);
 });
 
 test('the index keeps the walk\'s refusals and its names-only question', () => {

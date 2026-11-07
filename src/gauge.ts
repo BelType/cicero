@@ -117,7 +117,7 @@ const sharesLine = (aTop: Px, aBottom: Px, bTop: Px, bBottom: Px) => Math.min(aB
 /** A character a word is made of: anything `BREAKING_SPACE` does not divide at. */
 const WORD_CHAR = /[\S  ﻿]/;
 /** A `display` whose inline content CSS 2.1 §9.2.1.1 wraps in anonymous block boxes — a block container's. A flex or grid container makes a run an anonymous item and a table an anonymous cell, which are other boxes and other questions. */
-const holdsAnonymousBlocks = ( display: string) => !/flex|grid|-webkit-box/.test(display) && (!/table/.test(display) || /^table-(cell|caption)$/.test(display));
+export const holdsAnonymousBlocks = ( display: string) => !/flex|grid|-webkit-box/.test(display) && (!/table/.test(display) || /^table-(cell|caption)$/.test(display));
 const GAP_MIN = 0.75; // px — a third rect-reading rule, learned from the differential: half-leading float arithmetic leaves sub-pixel residue between a text box's last line and its border, and reporting that residue as a gap fabricates Class C cuts that bypass keeps. Real gaps (padding, margins, constrained heights) are ≥ 1px; noise stays under half a pixel.
 
 /**
