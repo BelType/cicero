@@ -622,6 +622,13 @@ function ownedByCicero(prop: string) {
   return OWNED_EXACTLY.has(prop) || OWNED_PREFIXES.some((p) => prop.startsWith(p));
 }
 
+/**
+ * What the Chase owns on a margin cell, which is less than on the page host: a cell's `margin-*`, `border-*` and `padding-*` are the box's own (css-page-3 §5.3.2 distributes the boxes' outer widths, padding and border included, and `chase.js`'s `layoutBands` measures them on the cell), where the page box's are the geometry the capture models and the content area wears. Until 2026-11-07 the host's filter was applied to the boxes too, and `@top-left { padding-bottom: 5mm }` reached no cell (Codeberg issue 3). The `width` family stays withheld: §5.3.2's answer for a box that declares one is not built, and the cell's grid seat is the Chase's.
+ */
+function ownedOnCell(prop: string) {
+  return OWNED_EXACTLY.has(prop) || prop.startsWith('grid-template');
+}
+
 /** One declaration block's `border-*` and `padding-*` triples, in the block's own order — the page box's border and padding, which the Chase writes on the content area. Order and `!important` carried for the same reason `declarationsOf` carries them: they are the cascade. */
 function areaDeclarationsOf(style: DeclarationBlock) {
   const out: Decl[] = [];
@@ -632,11 +639,11 @@ function areaDeclarationsOf(style: DeclarationBlock) {
   return out;
 }
 
-/** One declaration block as `[property, value, priority]` triples, in the block's own order, minus what Cicero owns. Order and `!important` are carried because they are the cascade: the triples are re-emitted into one rule, where later wins and important beats normal exactly as the author wrote them. */
-function declarationsOf(style: DeclarationBlock) {
+/** One declaration block as `[property, value, priority]` triples, in the block's own order, minus what Cicero owns — on the page host by default, on a margin cell where `owned` is {@link ownedOnCell}. Order and `!important` are carried because they are the cascade: the triples are re-emitted into one rule, where later wins and important beats normal exactly as the author wrote them. */
+function declarationsOf(style: DeclarationBlock, owned: (prop: string) => boolean = ownedByCicero) {
   const out: Decl[] = [];
   for (const prop of style ?? []) {
-    if (ownedByCicero(prop)) continue;
+    if (owned(prop)) continue;
     out.push([prop, style.getPropertyValue(prop), style.getPropertyPriority(prop)]);
   }
   return out;
@@ -674,7 +681,7 @@ function marginBoxStylesOf(rule: CSSPageRule) {
   for (const child of ((rule.cssRules ?? []) as Iterable<MarginRuleLike>)) {
     const name = (child.name ?? child.selectorText ?? '').replace(/^@/, '');
     if (!MARGIN_BOXES.includes(name)) continue;
-    const decls = declarationsOf(child.style).filter(([prop]) => prop !== 'content');
+    const decls = declarationsOf(child.style, ownedOnCell).filter(([prop]) => prop !== 'content');
     if (decls.length) out[name] = decls;
   }
   return out;
