@@ -73,3 +73,29 @@ test('a section\'s counter-reset: page 1 numbers its pages 1, 2 and the next sec
   assert.deepEqual(out.refs.map((c: string) => c.match(/\/(\d+)"$/)?.[1]), out.refs.map(() => '2'), `target-counter() of each section's last element: ${out.refs.join(' | ')}`);
   await page.context().close();
 });
+
+/** Codeberg issue 13: copy one is one page, copy two asks for a recto, so a blank verso is made before it. */
+const BLANK = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>case</title>${ciceroEngine.headHtml('/')}<style>
+html { font: 11pt/1.4 serif; } @page { size: A5; margin: 15mm; @bottom-center { content: "Pagina " counter(page); } }
+.fill { height: 175mm; } section { counter-reset: page 1; break-before: recto; } a::after { content: " " counter(page) "/" target-counter(attr(href url), page); }
+</style></head><body>
+<section><p><a href="#fine-1">Uno:</a></p><p id="fine-1">Fine di uno.</p></section>
+<section><p><a href="#fine-2">Due:</a></p><div class="fill"></div><p id="fine-2">Fine di due.</p></section>
+</body></html>`;
+
+test('a blank page made before a resetting element continues the count before it: 1, blank 2, then 1, 2, and target-counter() reads 2', async () => {
+  docs.set('blank', BLANK);
+  const page = await (await browser.newContext()).newPage();
+  page.on('pageerror', (e) => assert.fail(`page error: ${e.message}`));
+  await page.goto(`${origin}/doc/blank`);
+  await page.waitForFunction(() => (window as any).__beltypeCicero?.run);
+  const out = await page.evaluate(async () => {
+    const result = await (window as any).__beltypeCicero.run();
+    const pages = [...(document.querySelector('beltype-root')!.shadowRoot!.querySelectorAll('beltype-page'))] as HTMLElement[];
+    return { pages: result.pages, hosts: pages.map((p) => p.style.counterReset), refs: [...document.querySelectorAll('beltype-root a')].map((a) => getComputedStyle(a, '::after').content) };
+  });
+  assert.equal(out.pages, 4, `pages: ${out.hosts.join(' | ')}`);
+  assert.deepEqual(out.hosts.map((h: string) => h.match(/\bpage (\d+)/)?.[1]), ['1', '2', '1', '2'], `the host's page counter: ${out.hosts.join(' | ')}`);
+  assert.deepEqual(out.refs.map((c: string) => c.match(/\/(\d+)"$/)?.[1]), out.refs.map((_: string, i: number) => (i === 0 ? '1' : '2')), `target-counter(): ${out.refs.join(' | ')}`);
+  await page.context().close();
+});

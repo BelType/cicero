@@ -315,21 +315,22 @@ test("an element's reset of the page counter numbers the page it begins on and t
   const two = el({ counterReset: 'page 1' });
   const before = new Map([[one, 0], [two, 0]]);
   const ops = walk([one, two], [0, 10, 20], before);
-  const starts = (i: number) => [0, 5, 10, 15][i];
-  assert.deepEqual([0, 5, 10, 15].map((pos, i) => pageNumberAt(ops, i, pos, { starts })), [1, 2, 1, 2]);
-  assert.deepEqual([0, 5, 10, 15].map((pos, i) => pageNumberAt(ops, i, pos, { starts, away: i === 2 ? [{ from: 10, to: 12 }] : [] })), [1, 2, 3, 2], 'a reset inside a remainder the page carries in is not yet in force on that page');
+  const pages = (i: number) => ({ start: [0, 5, 10, 15][i], blank: false });
+  assert.deepEqual([0, 5, 10, 15].map((pos, i) => pageNumberAt(ops, i, pos, { pages })), [1, 2, 1, 2]);
+  assert.deepEqual([0, 5, 10, 15].map((pos, i) => pageNumberAt(ops, i, pos, { pages, away: i === 2 ? [{ from: 10, to: 12 }] : [] })), [1, 2, 3, 2], 'a reset inside a remainder the page carries in is not yet in force on that page');
 });
 
 test('with no reset of the page counter the page number is the run\'s count, a reset on the root numbers from its value, and a reset mid-page numbers the next page', () => {
   const plain = el({});
-  assert.equal(pageNumberAt(walk([plain], [0, 10], new Map([[plain, 0]])), 3, 30, { starts: (i: number) => i * 10 }), 4);
+  const tens = (i: number) => ({ start: i * 10, blank: false });
+  assert.equal(pageNumberAt(walk([plain], [0, 10], new Map([[plain, 0]])), 3, 30, { pages: tens }), 4);
   const body = el({ counterReset: 'page 5' });
   const block = el({});
   const ops = walk([block], [0, 10], new Map([[block, 0]]), [body]);
-  assert.deepEqual([0, 10].map((pos, i) => pageNumberAt(ops, i, pos, { starts: (i: number) => i * 10 })), [5, 6], 'the root sits at −1, before the first word');
+  assert.deepEqual([0, 10].map((pos, i) => pageNumberAt(ops, i, pos, { pages: tens })), [5, 6], 'the root sits at −1, before the first word');
   const late = el({ counterSet: 'page 1' });
   const ops2 = walk([el({}, [late])], [0, 10], new Map([[late, 7]]));
-  assert.deepEqual([0, 5, 10].map((pos, i) => pageNumberAt(ops2, i, pos, { starts: (i: number) => [0, 5, 10][i] })), [1, 2, 1], 'a `counter-set` of `page` at word 7 is in force from the page that begins at 10');
+  assert.deepEqual([0, 5, 10].map((pos, i) => pageNumberAt(ops2, i, pos, { pages: (i: number) => ({ start: [0, 5, 10][i], blank: false }) })), [1, 2, 1], 'a `counter-set` of `page` at word 7 is in force from the page that begins at 10');
 });
 
 test('the page\'s own two counters are kept out of the delivered state, and a state without them is returned as it is', () => {
@@ -338,4 +339,17 @@ test('the page\'s own two counters are kept out of the delivered state, and a st
   assert.deepEqual(state.page, [1], 'not written');
   const authors = { chapter: [2] };
   assert.equal(withoutPageCounters(authors), authors);
+});
+
+test('a blank page made to bring a resetting element to its side continues the count before it and is not counted after; a blank inside the scope counts', () => {
+  // Codeberg issue 13: copy one is one page, copy two needs a recto, so page 2 is blank and copy two begins on page 3.
+  const one = el({ counterReset: 'page 1' });
+  const two = el({ counterReset: 'page 1' });
+  const ops = walk([one, two], [0, 10, 20], new Map([[one, 0], [two, 0]]));
+  const run = [{ start: 0, blank: false }, { start: 10, blank: true }, { start: 10, blank: false }, { start: 15, blank: false }];
+  const numbers = run.map((p, i) => pageNumberAt(ops, i, p.start, { pages: (j) => run[j], blank: p.blank }));
+  assert.deepEqual(numbers, [1, 2, 1, 2], 'the blank reads 2 in copy one\'s count, and copy two begins at 1');
+  // A blank the engine makes after the element began, say a recto break inside the copy, is a page of the scope like any other.
+  const inside = [{ start: 0, blank: false }, { start: 10, blank: false }, { start: 15, blank: true }, { start: 15, blank: false }];
+  assert.deepEqual(inside.map((p, i) => pageNumberAt(ops, i, p.start, { pages: (j) => inside[j], blank: p.blank })), [1, 1, 2, 3]);
 });

@@ -821,7 +821,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     const name = nameAt(cut);
     const away = remaindersOf(carried, index.endOf);
     // The run's count, or an author's reset of the page counter counted on from the page it begins on (`document-state.js`'s `pageNumberAt`). Entry `i` closes page `i`, so page `i` begins where entry `i - 1` ended.
-    const pageNumber = pageNumberAt(documentOps, pageIndex, pos, { starts: (i) => (i === 0 ? 0 : account[i - 1].pos ?? 0), away });
+    const pageNumber = pageNumberAt(documentOps, pageIndex, pos, { pages: (i) => ({ start: i === 0 ? 0 : account[i - 1].pos ?? 0, blank: account[i].blank === true }), blank, away });
     const parity = parityAt(pageIndex);
     const geo = table.pageFor({ name, first: pageIndex === 0, parity, blank });
     // The document's counters as they stand at this page's first word — strictly before it, which is §6.1's *spans the page break* in the flat position space (`document-state.js`) — less what the flows carried onto this page have still to show, which stands before that word and is on this page or after it (beltype#43). The page's own two are not among them: they are the host's, and `pageNumber` carries the reset.
