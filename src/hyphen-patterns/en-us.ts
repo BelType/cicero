@@ -10,6 +10,8 @@ export default ({
   id: ['en-us', 'en'],
   leftmin: 2,
   rightmin: 3,
+  // The word is its ASCII letters: hyphen.tex's patterns know no other, so an accented word yields nothing, as before. What stands around it, punctuation, quotation marks, brackets and a possessive's `'s`, moves no offset (Codeberg issue 6): until 2026-11-07 `computer,` had no candidates and `computer` had them. An apostrophe inside a word is not a letter here, where Italian reads an elision, since the patterns were built for TeX, which reads `don't` as two words.
+  word: /^(\P{L}*)([a-zA-Z]+)((?:['’]s)?\P{L}*)$/u,
   // hyphen.tex's own exception list: words the patterns get wrong, hyphenations given literally.
   exceptions: ['as-so-ciate', 'as-so-ciates', 'dec-li-na-tion', 'oblig-a-tory', 'phil-an-thropic', 'present', 'presents', 'project', 'projects', 'reci-procity', 're-cog-ni-zance', 'ref-or-ma-tion', 'ret-ri-bu-tion', 'ta-ble'],
   patterns: [
