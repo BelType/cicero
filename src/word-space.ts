@@ -491,28 +491,52 @@ export function blockChildrenOf(el: Element, isInline: (el: Element) => boolean 
 }
 
 /**
- * Is this a table's footer group written before a row or row group of its table — HTML 4's order, still legal — which CSS 2.1 §17.2 lays out after them all the same (*"always displayed after all other rows and row groups"*)?
+ * A table's children in CSS 2.1 §17.2's display order: its header group before every other row and row group, its footer group after them, and everything else as written. Any other element's children are returned as they are, the same array.
  *
- * @remarks The one place the order and the layout disagree inside a table's procession (*the footer before the rows*, 2026-10-15): the Gauge walks such a footer last, the Stonehand offers no place before it or inside it, and the footer's reservation is made where it stands. Read by computed display, so a clone answers for its source.
+ * @remarks THE WORD SPACE follows this order inside a table (*the-word-space-follows-the-table-display-order*, 2026-11-07), and so does every reader of it: the position index numbers a table's words in it, a path's indices count a table's children in it, the Gauge walks a table's procession in it, and a fragment's two cuts put away the children standing before or after them in it. §17.2 lays a `table-header-group` out *"before all other rows and row groups"* and a `table-footer-group` *"after all other rows and row groups"*, wherever each is written, and Chromium paints them so; numbered in the order written, a header after its rows had its words last and its box first, which lost rows with no message (*thead-after-rows-and-tall-footer-lose-rows*). Only the first group of each kind moves, because §17.2 renders any later one as a row group. A move only ever goes toward the rows, so a table written in HTML's order is returned unchanged. Read by computed display, so a clone answers for its source, and a tree that cannot be asked (the DOM-free suites) keeps the order written.
+ *
+ * @param parent - the element whose children these are.
+ * @param items - its children, or what stands for them (the Gauge's boxes), in the order written.
+ * @param elOf - the element an item stands for; `null` for a text node, which stays where it is.
+ */
+export function inDisplayOrder<T>(parent: Element, items: T[], elOf: (item: T) => Element|null = (item) => item as unknown as Element): T[] {
+  if (items.length < 2 || !/^(inline-)?table$/.test(sourceStyle(parent)?.display ?? '')) return items;
+  const displays = items.map((item) => {
+    const el = elOf(item);
+    return el?.nodeType === 1 ? sourceStyle(el)?.display ?? '' : '';
+  });
+  const h = displays.indexOf('table-header-group');
+  const f = displays.indexOf('table-footer-group');
+  const body = (i: number) => i !== h && i !== f && /^table-(row|row-group|header-group|footer-group)$/.test(displays[i]);
+  let first = -1;
+  let last = -1;
+  displays.forEach((_, i) => {
+    if (!body(i)) return;
+    if (first < 0) first = i;
+    last = i;
+  });
+  const early = h >= 0 && first >= 0 && h > first;
+  const late = f >= 0 && last >= 0 && f < last;
+  if (!early && !late) return items;
+  const out: T[] = [];
+  items.forEach((item, i) => {
+    if (early && i === first) out.push(items[h]);
+    if (!((early && i === h) || (late && i === f))) out.push(item);
+    if (late && i === last) out.push(items[f]);
+  });
+  return out;
+}
+
+/**
+ * Is this a table's footer group written before a row or row group of its table — HTML 4's order, still legal — which CSS 2.1 §17.2 lays out after them all the same?
+ *
+ * @remarks Asked by the driver alone, for the one shape that stays refused: such a footer taller than the page area (*the footer before the rows*, 2026-10-15). Its words follow the rows in the word space ({@link inDisplayOrder}), so everywhere else it is a footer like any other. Read by computed display, so a clone answers for its source.
  *
  * @param el - a clone or a source element.
  */
 export function footerBeforeRows(el: Element) {
   if (sourceStyle(el)?.display !== 'table-footer-group') return false;
   for (let s = el.nextElementSibling; s; s = s.nextElementSibling) if (/^table-row(-group)?$/.test(sourceStyle(s)?.display ?? '')) return true;
-  return false;
-}
-
-/**
- * Is this a table's header group written after a row or row group of its table, which CSS 2.1 §17.2 lays out before them all the same (*"always displayed before all other rows and row groups"*)?
- *
- * @remarks The mirror of {@link footerBeforeRows} (*thead-after-rows-and-tall-footer-lose-rows*, 2026-11-07): the Gauge walks such a header first, the Stonehand offers no place inside it or right after it, and its words stand after the rows in the word space, so a page before its words shows it by its repeated copy alone. One that does not repeat, in a divided table, is refused by the driver. Read by computed display, so a clone answers for its source.
- *
- * @param el - a clone or a source element.
- */
-export function headerAfterRows(el: Element) {
-  if (sourceStyle(el)?.display !== 'table-header-group') return false;
-  for (let s = el.previousElementSibling; s; s = s.previousElementSibling) if (/^table-row(-group)?$/.test(sourceStyle(s)?.display ?? '')) return true;
   return false;
 }
 

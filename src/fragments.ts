@@ -22,7 +22,7 @@ import { applyRecordsUnder, hyphenCharOf } from './compose-dom.ts';
 import { addWord, ADJOIN, ARTIFACT, AWAY, END, ENGINE_MARKS, hasAnyWord, hasWord, removeWord, SHELL, SPLIT, START, WRAPPED } from './data-beltype.ts';
 import { pairsOf } from './document-state.ts';
 import { divides, elAtIn, flowsOf } from './positions.ts';
-import { BREAKING_SPACE, clonesDecoration, cutRanges, emptyText, leaveOut, replaceChars, isEngineText, mayBeAutoHyphenated, isFixedBox, isInlineBox, isLineBreak, copyOf, shellOf, noteText, READS_ITS_CHILDREN, sourceOf, sourceStyle } from './word-space.ts';
+import { BREAKING_SPACE, clonesDecoration, cutRanges, emptyText, inDisplayOrder, leaveOut, replaceChars, isEngineText, mayBeAutoHyphenated, isFixedBox, isInlineBox, isLineBreak, copyOf, shellOf, noteText, READS_ITS_CHILDREN, sourceOf, sourceStyle } from './word-space.ts';
 import type { CompositionRecord } from './compose-dom.ts';
 import type { ResumePath } from './ledger.ts';
 import type { Address, ResumeNode } from './positions.ts';
@@ -70,8 +70,8 @@ export function joinedWords(root: Element, isInline: (el: Element) => boolean = 
     if (s.length && BREAKING_SPACE.test(s[s.length - 1])) current = null;
   };
   const walk = ( el: Element) => {
-    for (const node of el.childNodes) {
-      if (node.nodeType === 3) scan((node as Text));
+    for (const node of inDisplayOrder(el, [...el.childNodes] as Element[])) {
+      if (node.nodeType === 3) scan((node as unknown as Text));
       else if (node.nodeType === 1) {
         if (isArtifact(node)) continue; // a copy the engine repeats is furniture, in no word of the box (the header the table repeats)
         // A run does not cross a non-inline boundary (word-space.js) — the same two resets `indexBlocks` writes, over the same tree shape, because the two tokenizations must answer the same number for the same document.
@@ -330,11 +330,9 @@ export function truncateFrom(clone: Element, el: ChildNode, { keep = false, holl
   if (el === clone) return clone;
   const chain: Element[] = [];
   for (let e = (el as Element | null); e && e !== clone; e = e.parentElement) {
-    for (let sib = e.nextSibling; sib; ) {
-      const next = sib.nextSibling;
-      putAway(sib, hollow);
-      sib = next;
-    }
+    // What follows in display order, which inside a table puts a footer written first after the rows and a header written last before them (*the-word-space-follows-the-table-display-order*).
+    const siblings = inDisplayOrder(e.parentElement as Element, [...(e.parentElement as Element).childNodes] as Element[]);
+    for (const sib of siblings.slice(siblings.indexOf(e) + 1)) putAway(sib, hollow);
     if (e !== el || keep) chain.push(e);
   }
   chain.push(clone);
@@ -736,7 +734,7 @@ export function mutateToContinuation(clone: Element, { cut = null, remainderPx =
       // Everything standing before the target leaves, at every level. Walked by sibling and never by index: the Compositor inserts `<br>`s and filler spans into a composed leaf, so a hint standing before the resume point is consumed with the rest rather than counted as a box.
       let el = clone;
       for (const step of chain) {
-        for (const sib of [...el.childNodes]) {
+        for (const sib of inDisplayOrder(el, [...el.childNodes] as Element[])) {
           if (sib === step) break;
           if (keep.has(sib)) continue;
           putAway(sib, hollow);
@@ -837,7 +835,7 @@ function shellAt(clone: Element, target: Element, px: NonNullable<Address['px']>
     else markShelled(el);
     for (let i = 0; i < chain.length; i++) {
       const step = chain[i];
-      for (const sib of [...el.childNodes]) {
+      for (const sib of inDisplayOrder(el, [...el.childNodes] as Element[])) {
         if (sib === step) break;
         if (keep.has(sib)) continue;
         putAway(sib, hollow);
@@ -917,9 +915,16 @@ export function cloneInterval(source: Element, { start = null, end = null, items
     const c = register(s);
     const startStep = stepOf(s, onStart, startBox);
     const endStep = stepOf(s, onEnd, endBox);
+    // Before, in or after the interval is asked in display order (*the-word-space-follows-the-table-display-order*), and the copy keeps the order written.
+    const phases = new Map<Node, string>();
     let phase = startStep ? 'before' : 'in';
-    for (const node of s.childNodes) {
+    for (const node of inDisplayOrder(s, [...s.childNodes] as Element[])) {
       if (node === startStep) phase = 'in';
+      phases.set(node, phase);
+      if (node === endStep) phase = 'after';
+    }
+    for (const node of s.childNodes) {
+      const phase = phases.get(node);
       let out;
       if (node.nodeType !== 1) {
         out = node.cloneNode(false);
@@ -929,7 +934,6 @@ export function cloneInterval(source: Element, { start = null, end = null, items
       else if (phase !== 'in' && !guarded.has(node) && !repeatedGroup((node as Element))) out = hollowOf((node as Element));
       else out = deep((node as Element));
       c.appendChild(out);
-      if (node === endStep) phase = 'after';
     }
     return c;
   };

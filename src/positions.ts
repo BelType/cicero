@@ -64,7 +64,7 @@ export type ResumeNode = {
   flows: ResumeNode[];
 };
 
-import { BREAKING_SPACE, isFixedBox, isInlineBox, isLineBreak } from './word-space.ts';
+import { BREAKING_SPACE, inDisplayOrder, isFixedBox, isInlineBox, isLineBreak } from './word-space.ts';
 import type { CutClass } from './ledger.ts';
 
 /** One end of a page's interval, as {@link pageIntervals} writes it: the account's own address and the `{ b, w }` it decomposes to. */
@@ -133,11 +133,11 @@ export function flattenResume(tree: ResumeNode|null|undefined): ResumePath[] {
 /** The address, resolved and compared. Six small functions, all of them pure and all of them touching nothing but `.children`, `.parentElement` and plain arrays — so the DOM-free suites feed them object trees, and so a realm that holds only an account can still say which cut comes first. */
 
 /**
- * A box's in-flow element children — what a path's indices count.
+ * A box's in-flow element children — what a path's indices count — in display order, which differs from the order written inside a table alone (`word-space.js`' `inDisplayOrder`; *the-word-space-follows-the-table-display-order*, 2026-11-07): a header group written after its rows is a table's child 0, so paths order a table's boxes as its words are ordered.
  *
  * **A `position: fixed` box is not among them, and that is the only exclusion.** Its footprint is zero at any depth (CSS 2.1 §9.6.1, *a fixed box at any depth*), so it is in no flow, no word space, no feed and no presentation — and the address is the flow's own coordinate, so it is in no path either. That is also the only reading that resolves in every tree a path is resolved in, which is a stronger argument than the principle and was measured rather than assumed: the feed's clones have had fixed boxes stripped, the presentation's clones likewise, and the source is not one tree — `root.append(...blocks, ...fixed)` at intake reparents a nested fixed box out of the block it was declared in, so the tree the driver builds a path against and the tree the presentation resolves it against differ by exactly those boxes. Filtering makes the index the same number in all three; counting them raw made it right in one and wrong in the others, which is what put a shell on the box next door (`packages/essay/cases/55-the-shell-behind-the-fixed-box`).
  */
-const inFlowChildren = ( el: Element,  isFixed: (el: Element) => boolean) => [...(el.children ?? [])].filter((c) => !isFixed(c));
+const inFlowChildren = ( el: Element,  isFixed: (el: Element) => boolean) => inDisplayOrder(el, [...(el.children ?? [])].filter((c) => !isFixed(c)));
 
 /** The box a path names, descending from the top-level block it starts at. `null` where the tree no longer answers the path, which is an edited document rather than a defect. */
 export function elAtIn(blockEl: Element|null|undefined, path: number[], isFixed: (el: Element) => boolean = isFixedBox): Element|null {
@@ -288,7 +288,7 @@ export function indexBlock(block: { childNodes: Iterable<any>; }, b: number, isI
     const inside = inWord;
     const start = count;
     const before = inside ? count - 1 : count;
-    for (const node of el.childNodes) {
+    for (const node of inDisplayOrder(el as Element, [...el.childNodes])) {
       if (node.nodeType === 3) {
         const s = node.data;
         for (let i = 0; i < s.length; i++) {
@@ -351,20 +351,29 @@ export function indexBlocks(blocks: ArrayLike<{ childNodes: Iterable<any>; }>, i
  */
 export function wordsBeforeChar(el: { childNodes: Iterable<any>; }, charOffset: number, isInline = isInlineBox) {
   if (!(charOffset >= 0)) return null;
+  // The offset counts characters in the order written, and the words are counted in display order (*the-word-space-follows-the-table-display-order*): each text node's first character is found in the first order, and the walk below runs in the second.
+  const startOf = new Map<any, number>();
   let chars = 0;
+  (function count(node: { childNodes: Iterable<any>; }) {
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3) { startOf.set(child, chars); chars += child.data.length; }
+      else if (child.nodeType === 1) count(child);
+    }
+  })(el);
+  if (charOffset > chars) return null;
   let words = 0;
   let inWord = false;
   let done = false;
   let inside = false;
   const walk = ( node: { childNodes: Iterable<any>; }) => {
-    for (const child of node.childNodes) {
+    for (const child of inDisplayOrder(node as Element, [...node.childNodes])) {
       if (done) return;
       if (child.nodeType === 3) {
         const s = child.data;
+        const start = startOf.get(child) as number;
         for (let i = 0; i < s.length; i++) {
           // The character at the offset continues a word that began before it exactly when the walk is inside a word and this character is not a breaking space: `inWord` is the tokenization's own state, reset at every non-inline boundary, so a word does not straddle across one.
-          if (chars === charOffset) { inside = inWord && !BREAKING_SPACE.test(s[i]); done = true; return; }
-          chars++;
+          if (start + i === charOffset) { inside = inWord && !BREAKING_SPACE.test(s[i]); done = true; return; }
           if (BREAKING_SPACE.test(s[i])) inWord = false;
           else if (!inWord) { words++; inWord = true; }
         }
@@ -377,7 +386,6 @@ export function wordsBeforeChar(el: { childNodes: Iterable<any>; }, charOffset: 
     }
   };
   walk(el);
-  if (!done && chars !== charOffset) return null;
   return inside ? words - 1 : words;
 }
 

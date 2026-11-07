@@ -1,7 +1,9 @@
 /**
  * Two table shapes that lost rows with no message (assessment 2026-11-07, *thead-after-rows-and-tall-footer-lose-rows*): a header group written after the rows, and a footer group taller than the page area. Each either keeps every row on some page or is refused by name.
  *
- * Run by `pnpm run test:browser` after `pnpm run build`; the server repeats `page-lengths.browser.ts`'s.
+ * @remarks The word space follows CSS 2.1 §17.2's display order inside a table (*the-word-space-follows-the-table-display-order*, 2026-11-07), and three placements are held to Chromium's own print of the same document: a header written after its rows and too tall to repeat, a footer written before its rows and taller than the page area (still refused by name), and a footer too tall to repeat.
+ *
+ * Run by `pnpm run test:browser` after `pnpm run build`; the server repeats `page-lengths.browser.ts`'s, and the oracle `list-continuation.browser.ts`'s.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser } from 'playwright-core';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { ciceroEngine } from '../../seam/index.ts';
 
 const dist = fileURLToPath(new URL('../../dist/', import.meta.url));
@@ -107,13 +110,68 @@ for (const [name, style] of [['separated borders', ''], ["collapsed borders, the
   });
 }
 
-test('a header group written after its rows and too tall to repeat is refused by name: where it shows waits on a ruling', async () => {
-  const out = await bodyRows('late-tall', doc(`<table id="tall-late"><tbody>${rows(25)}</tbody><thead>${rows(3, 'h')}</thead></table>`));
-  assert.match(out.error ?? '', /<table id="tall-late"> has a header group written after its rows, too tall to repeat/);
-});
-
 test('a header group written after its rows and too tall to repeat, in a table one page holds, is printed whole', async () => {
   const out = await bodyRows('late-tall-short', doc(`<table><tbody>${rows(3)}</tbody><thead>${rows(4, 'h')}</thead></table>`));
   assert.equal(out.error, undefined, out.error);
   assert.deepEqual(out.per, [['h0', 'h1', 'h2', 'h3', 'r0', 'r1', 'r2']]);
 });
+
+/** The cells of every page of a PDF, by their text (`r3`, `h0`, `f2`), in the order printed. */
+async function cellsOf(pdf: Uint8Array) {
+  const file = await getDocument({ data: new Uint8Array(pdf) }).promise;
+  const out: string[][] = [];
+  for (let i = 1; i <= file.numPages; i++) {
+    const text = ((await (await file.getPage(i)).getTextContent()).items as Array<{ str?: string }>).map((t) => t.str ?? '').join('');
+    out.push(text.match(/[rhf]\d+/g) ?? []);
+  }
+  return out;
+}
+
+/** Chromium's own print of the document and Cicero's, cell by cell and page by page, or Cicero's refusal. */
+async function printed(name: string, table: string) {
+  const plain = await browser.newPage();
+  await plain.setContent(doc(table).replace(ciceroEngine.headHtml('/'), ''));
+  const chromium = await cellsOf(await plain.pdf({ preferCSSPageSize: true }));
+  await plain.close();
+  docs.set(name, doc(table));
+  const page = await (await browser.newContext()).newPage();
+  await page.goto(`${origin}/doc/${name}`);
+  await page.waitForFunction(() => (window as any).__beltypeCicero?.run);
+  const error = await page.evaluate(async () => {
+    try {
+      await (window as any).__beltypeCicero.run();
+      return null;
+    } catch (e: any) {
+      return String(e.message);
+    }
+  });
+  const cicero = error == null ? await cellsOf(await page.pdf({ preferCSSPageSize: true })) : null;
+  await page.context().close();
+  return { chromium, cicero, error };
+}
+
+test('a header group written after its rows and too tall to repeat is printed first, once, as Chromium prints it: its words come first', async () => {
+  const out = await printed('late-tall', `<table id="tall-late"><tbody>${rows(25)}</tbody><thead>${rows(3, 'h')}</thead></table>`);
+  assert.equal(out.error, null, out.error ?? '');
+  assert.deepEqual(out.chromium[0].slice(0, 3), ['h0', 'h1', 'h2'], `the oracle prints the header first: ${JSON.stringify(out.chromium)}`);
+  assert.equal(out.chromium.flat().filter((c) => c === 'h0').length, 1, 'the oracle does not repeat it');
+  assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
+});
+
+test('a footer group written before its rows and taller than the page area stays refused by name, as a box taller than its page is', async () => {
+  const out = await printed('tall-tfoot-first', `<table id="tall"><tfoot>${rows(14, 'f')}</tfoot><tbody>${rows(25)}</tbody></table>`);
+  assert.match(out.error ?? '', /<table id="tall"> has a footer group taller than the page area, written before its rows/);
+  assert.ok(out.chromium.length > 1, `the oracle divides it: ${JSON.stringify(out.chromium)}`);
+});
+
+for (const [name, table] of [
+  ['written before its rows', `<table><tfoot>${rows(4, 'f')}</tfoot><tbody>${rows(25)}</tbody></table>`],
+  ['written after its rows', `<table><tbody>${rows(25)}</tbody><tfoot>${rows(4, 'f')}</tfoot></table>`]
+] as const) {
+  test(`a footer group too tall to repeat, ${name}, is printed once where Chromium prints it`, async () => {
+    const out = await printed(`tall-foot-${name.length}`, table);
+    assert.equal(out.error, null, out.error ?? '');
+    assert.equal(out.chromium.flat().filter((c) => c === 'f0').length, 1, `the oracle prints it once: ${JSON.stringify(out.chromium)}`);
+    assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
+  });
+}

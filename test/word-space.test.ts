@@ -251,3 +251,35 @@ test('a split hands the tail its share, and a replacement of another length leav
   assert.deepEqual(textPointShowing(soft2, 2), { offset: 2, strict: false }, 'the end of what precedes the engine\'s text is only an edge');
   assert.deepEqual(textPointShowing(soft2, 3), { offset: 4, strict: true });
 });
+
+// THE WORD SPACE FOLLOWS THE TABLE DISPLAY ORDER (*the-word-space-follows-the-table-display-order*, 2026-11-07): CSS 2.1 §17.2 shows a table's header group before its rows and its footer group after them, wherever each is written, and the index, the paths, the clone-side words and the character walk all count in that order.
+test('inDisplayOrder: a table numbers its header group first and its footer group last, wherever each is written, and the index, the paths and the character walk agree', async () => {
+  const { inDisplayOrder } = await import('../src/word-space.ts');
+  const { elAtIn, pathOf, wordsBeforeChar } = await import('../src/positions.ts');
+  const win = { getComputedStyle: (e: any) => ({ display: e.display, position: 'static', getPropertyValue: () => '' }) };
+  const ownerDocument = { defaultView: win };
+  const el = (display: string, kids: any[]): any => {
+    const e: any = { nodeType: 1, display, isConnected: true, ownerDocument, childNodes: kids, parentElement: null, getAttribute: () => null };
+    e.children = kids.filter((k) => k.nodeType === 1);
+    for (const k of kids) k.parentElement = e;
+    return e;
+  };
+  const text = (data: string) => ({ nodeType: 3, data });
+  const row = (word: string) => el('table-row', [el('table-cell', [text(word)])]);
+  const foot = el('table-footer-group', [row('f')]);
+  const body = el('table-row-group', [row('r0'), row('r1')]);
+  const head = el('table-header-group', [row('h')]);
+  const table = el('table', [foot, text(' '), body, head]);
+  assert.deepEqual(inDisplayOrder(table, [...table.children]), [head, body, foot]);
+  const index = indexBlocks([table]);
+  assert.deepEqual([head, body, foot].map((g) => index.wordsBefore(g)), [0, 1, 3], 'the header`s word first, then the rows`, then the footer`s');
+  assert.equal(elAtIn(table, [0, 0]), head, 'a path counts the table`s children in display order');
+  assert.deepEqual(pathOf(foot, table, 0), [0, 2]);
+  assert.equal(wordsBeforeChar(table, 0), 3, 'the first character written is the footer`s, its word is the fourth');
+  assert.equal(wordsBeforeChar(table, 'f r0r1'.length), 0, 'the header`s character, written last, is the first word');
+  const div = el('block', [foot, body]);
+  const list = [...div.children];
+  assert.equal(inDisplayOrder(div, list), list, 'outside a table the order written stands');
+  const html = el('table', [head, body, foot]);
+  assert.deepEqual(inDisplayOrder(html, [...html.children]), [head, body, foot], 'a table written in HTML`s order is unchanged');
+});
