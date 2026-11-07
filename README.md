@@ -15,8 +15,9 @@ Cicero is a paged-media engine for the live browser. It cuts a document into pag
 | `@beltype/cicero/client` | The page side: loading it sets `window.__beltypeCicero`, typed in `seam/handle.d.ts`. |
 | `@beltype/cicero/facsimile` | The embedded PDF page (`<object type="application/pdf">`). |
 | `@beltype/cicero/fragmentation` | The members a view adapter builds on, re-exported unchanged, listed in `SPEC.md` XIII.3: among them the leading-decoration door (`WRAPPED`, `clonesDecoration`, `truncateLeadingDecoration`) and `firstBelowTheEdge`. |
+| `@beltype/cicero/rim` | The rim, `seam/rim.js` itself (`SPEC.md` XIII.4): `watchLateTruth`, `bringsNewFace`, `knowLoadedFaces`, for a view that hears late truth on pages it holds, sharing the client's record of the faces already announced. |
 | `@beltype/cicero/page` | The `<beltype-page>` element: loading it defines the element once. Needs a DOM, so it is not in `./fragmentation`, which loads in node. |
-| `@beltype/cicero/internal/*` | Every module of `src/`, for BelType's essay venue. **Unstable**: no promise across versions. |
+| `@beltype/cicero/internal/*` | Every module of `src/` (not `seam/`), for BelType's essay venue. **Unstable**: no promise across versions. |
 
 Published to npm, with provenance:
 

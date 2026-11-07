@@ -385,3 +385,25 @@ test('a pseudo-element\'s counters are its element\'s first and last child\'s: a
   one.before.content = 'none';
   assert.equal(counterValue(counterStateAt(read(null), 5), 'fig'), 1, 'a ::before with no content is no box and counts nothing');
 });
+
+test('a list and its items carry their implicit list-item operations, css-lists-3 §4.3 and HTML\'s numbering', () => {
+  const tagged = (tagName: string, attrs: Record<string, string>, style: any, children: any[] = []): any => ({ tagName, style, children, getAttribute: (n: string) => attrs[n] ?? null });
+  const li = (style: any = {}, attrs: Record<string, string> = {}) => tagged('LI', attrs, { display: 'list-item', ...style });
+  const count = (list: any, after: any) => {
+    const block = el({}, [list, after]);
+    const before = new Map<any, number>([[block, 0], [after, 10]]);
+    const ops = walk([block], [0, 11], before);
+    return counterValue(counterStateAt(ops, 11), 'list-item');
+  };
+  // The element after the list does something, so the replay enters it and leaves the scopes the list opened deeper: the log has no entry for an element that does nothing, and a scope closes only when an operation at or above its depth arrives.
+  const p = () => el({ counterIncrement: 'unrelated 1' });
+  assert.equal(count(tagged('OL', {}, {}, [li(), li(), li()]), p()), 3, 'each item adds one, and the list\'s scope carries to what follows it');
+  assert.equal(count(tagged('OL', { start: '5' }, {}, [li(), li()]), p()), 6);
+  assert.equal(count(tagged('OL', { reversed: '' }, {}, [li(), li(), li()]), p()), 1, 'reversed counts down from the number of items');
+  assert.equal(count(tagged('OL', { reversed: '', start: '30' }, {}, [li(), li()]), p()), 29);
+  assert.equal(count(tagged('OL', {}, {}, [li(), li({}, { value: '20' }), li()]), p()), 21, 'an item\'s value sets the counter');
+  assert.equal(count(tagged('OL', {}, {}, [li(), li({ counterIncrement: 'list-item 5' })]), p()), 6, 'an author\'s increment of list-item replaces the implicit one');
+  assert.equal(count(tagged('OL', {}, {}, [li(), tagged('LI', {}, { display: 'list-item' }, [tagged('OL', {}, {}, [li(), li(), li()])])]), p()), 2, 'an inner list counts in its own scope');
+  assert.equal(count(tagged('UL', { value: '9' }, {}, [li({}, { value: '9' }), li()]), p()), 2, 'a ul\'s items take no value');
+  assert.equal(count(tagged('OL', {}, {}, [li(), li({ display: 'none' })]), p()), 1, 'an item not displayed counts nothing');
+});

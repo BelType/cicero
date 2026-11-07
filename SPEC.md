@@ -415,7 +415,7 @@ The handle carries further members that this article does not make API. They are
 
 ## 16. Article XIII — The package faces
 
-**The package publishes four faces, and nothing outside them is reachable by a stable name.**
+**The package publishes five faces, and nothing outside them is reachable by a stable name.**
 
 ### XIII.1 `.`
 
@@ -457,9 +457,14 @@ Each name keeps the contract its module's article states. A change to one is a c
 
 The leading-decoration door is the continuation dressing of Article VI.1.4 as a view applies it to a box its slice resumes inside: `clonesDecoration(el)` answers whether the box's source (`noteSource`'s, or the element itself) declares `box-decoration-break: clone`, and `truncateLeadingDecoration(el)` marks the box divided at its start and, when it clones, `WRAPPED`, so the words sheet keeps its block-start border, padding and rounding (see *the-fragment-that-wraps-itself*).
 
-### XIII.4 `./internal/*`
+### XIII.4 `./rim`
 
-1. Every module under `src/` and `seam/` is reachable as `./internal/<path>`. It is unstable: no name there is promised from one version to the next, and a consumer that imports one has accepted that.
+1. The rim face is `seam/rim.js` itself, the module the client imports, so a host that hears late truth on pages it holds shares the engine's set of announced faces: `watchLateTruth`, `bringsNewFace`, `knowLoadedFaces`, `isKnownFace`, `frame` and `TOLERANCE`, with the contracts of Article XI.3 (see *late-truth-is-an-edit*, *a-box-announces-its-own-size*, *a-fragment-announces-its-own-size*).
+2. It needs a DOM only when `watchLateTruth` or `frame` is called; the module loads in node.
+
+### XIII.5 `./internal/*`
+
+1. Every module under `src/` is reachable as `./internal/<path>`; `seam/` is not. It is unstable: no name there is promised from one version to the next, and a consumer that imports one has accepted that.
 2. A name a consumer needs from `./internal/*` is a request to widen `./fragmentation` by amendment, never a reason to rely on the internal path.
 
 ---
@@ -477,6 +482,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | VI.1.4 | A slice's cut edges lose their corner rounding. | *the-fragment-that-wraps-itself* |
 | 2026-11-07 | VI.1.11 | `text-wrap` shapes each piece alone, stated. | — (measured; assessment 2026-11-07) |
 | 2026-11-07 | XIII.3 | The leading-decoration door joins the face: `WRAPPED`, `clonesDecoration`, `truncateLeadingDecoration`. | *the-fragment-that-wraps-itself* |
+| 2026-11-07 | XIII.4, XIII.5 | The rim joins the faces as `./rim`; `./internal/*` is stated as `src/` only, which it always was. | *late-truth-is-an-edit* |
 
 ## 18. Known open at ratification
 

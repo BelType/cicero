@@ -13,7 +13,7 @@
  *
  * **A position is the flat word index** (`positions.js`), and an operation applies when its position is strictly before the one asked about — and not inside a remainder a carried flow has still to show, which stands before the page's first word in document order and is on that page or after it (beltype#43; `positions.js`' `remaindersOf`). That is §6.1's *"the deepest element in the normal flow that spans the page break"* said in this engine's own space: an element whose first word is the page's first word begins on the new page and does not span the break, so its own operation is not yet in force, while an element that spans the break started before that word and is included. The ancestors above the top-level blocks sit at position **−1** — they open before the document's first word and span every break there is — which is what makes the first page's answer fall out of the same comparison rather than needing a case of its own.
  *
- * **What is not read, each a real gap and each showing as a counter reading low.** A list item's implicit increment, so a `counter(list-item)` an author's own content reads, a margin box's among them, reads low on a page a list continues onto; the list's markers are right since 2026-11-07, because each divided `<ol>`'s copy carries a `start` of HTML's own numbering (`fragments.js`'s `numberDividedLists`); css-lists-3's `reversed()` counters; and a top-level `position: fixed` box, which is not among the flow blocks the position index is built over. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. A `::before`'s and an `::after`'s counters are read since 2026-11-07, where a sheet sets one (`pseudoStyleOf`). **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a native pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is. Where a printer's preparation made a `::before` or an `::after` real, as Caster's does before the cut, the elements it made carry `data-beltype-generated` (`GENERATED_ATTRIBUTE`): `content()` leaves them out and `content(before)` and `content(after)` read them (ruled 2026-11-07).
+ * **What is not read, each a real gap and each showing as a counter reading low.** css-lists-3's `reversed()` counters (an author's `counter-reset: reversed(name)`), a top-level `position: fixed` box, which is not among the flow blocks the position index is built over; and a scope that ended before the position asked about with no operation logged between its end and the position, since the replay closes a scope only when an operation at or above its depth arrives: a `counter(list-item)` read on a page past a list whose last item holds a list reads the inner list's count (3 where Chromium prints 2, measured 2026-11-07), and an author's nested reset is read the same way. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. A list's and a list item's implicit `list-item` operations are read since 2026-11-07 (`implicitListOps`), so a `counter(list-item)` read on a page a list continued onto or past it counts the items before it. A `::before`'s and an `::after`'s counters are read since 2026-11-07, where a sheet sets one (`pseudoStyleOf`). **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is.
  *
  * @packageDocumentation
  */
@@ -222,25 +222,76 @@ function pseudoOpOf(el: any, pseudo: '::before'|'::after', styleOf: ((el: any, p
 /** One top-level block's part of the log: its operations in document order, each with its position and depth relative to the block — the words of the block before the element, and its depth below the block (*a resumed run keeps its reads*, 2026-10-22). {@link documentOpsOf} lays the parts end to end, a part's positions offset by its block's base and its depths by the ancestors above the blocks. */
 export function blockOpsOf(block: any, index: { wordsBefore: (el: any) => number; wordCountIn?: (el: any) => number; }, reads: { styleOf: (el: any) => any; textOf: (el: any) => string; attrOf: (el: any,name: string) => string|null; marks: Set<object>|null; pseudoStyleOf?: ((el: any, pseudo: '::before'|'::after') => any)|null; }) {
   const ops: Op[] = [];
-  const walk = ( el: any,  depth: number) => {
+  const walk = ( el: any,  depth: number, list: ListContext) => {
     const style = reads.styleOf(el) ?? {};
     if (style.display === 'none') return; // CSS 2.1 §12.4.3: an element with `display: none` does not increment or reset counters
     // A `position: fixed` box has zero footprint at any depth (*a fixed box at any depth*, 2026-09-15), so it has no position in the word space this log is ordered by — `indexBlocks` skips it and so does this. A counter operation or a `string-set` inside such a box is therefore unread, which is exactly what was already true of a top-level fixed box and is recorded on the checklist beside it.
     if (style.position === 'fixed' || String(customOf(style, RUNNING_PROP)).trim()) return;
     const pos = index.wordsBefore(el);
-    const op = opAt(el, pos, depth, reads);
+    const implicit = implicitListOps(el, style, list, reads);
+    let op = opAt(el, pos, depth, reads);
+    if (implicit.reset || implicit.increment || implicit.set) {
+      op ??= { reset: [], increment: [], set: [], strings: null, pos, depth };
+      const names = (pairs: [string, number][]) => pairs.some(([name]) => name === 'list-item');
+      if (implicit.reset && !names(op.reset)) op.reset = [...op.reset, implicit.reset];
+      if (implicit.increment && !names(op.increment)) op.increment = [...op.increment, implicit.increment];
+      if (implicit.set && !names(op.set)) op.set = [...op.set, implicit.set];
+    }
     // A `::before` is the element's first child and an `::after` its last (CSS 2.1 §12.1), so their counter operations are logged one level down, the one at the element's first word and the other at its end. The element's named strings and its mark are evaluated after its `::before`: the number a heading or a figure prints there is the one its `string-set` and a `target-counter()` to it read.
     const before = pseudoOpOf(el, '::before', reads.pseudoStyleOf);
     if (before) {
       if (op && (op.reset.length || op.increment.length || op.set.length)) ops.push({ ...op, strings: null, mark: undefined });
       ops.push({ ...before, strings: op?.strings ?? null, pos, depth: depth + 1, ...(op?.mark ? { mark: op.mark } : {}) });
     } else if (op) ops.push(op);
-    for (const child of el.children ?? []) walk(child, depth + 1);
+    for (const child of el.children ?? []) walk(child, depth + 1, implicit.inner);
     const after = index.wordCountIn ? pseudoOpOf(el, '::after', reads.pseudoStyleOf) : null;
     if (after) ops.push({ ...after, strings: null, pos: pos + (index.wordCountIn as (el: any) => number)(el), depth: depth + 1 });
   };
-  walk(block, 0);
+  walk(block, 0, OUTSIDE_LISTS);
   return ops;
+}
+
+/** What the list an element stands in does to its list items: the step each adds to `list-item`, and whether the list is an `<ol>`, whose items' `value` sets the counter. */
+type ListContext = { step: number, ol: boolean };
+const OUTSIDE_LISTS: ListContext = { step: 1, ol: false };
+
+/** The list items a list owns, as HTML's list owner has them: the elements displayed as `list-item` below it, nested lists' own left out. */
+function ownedItemCount(list: any, styleOf: (el: any) => any): number {
+  let n = 0;
+  for (const c of list.children ?? []) {
+    if (/^(?:OL|UL|MENU)$/i.test(c.tagName ?? '')) continue;
+    const display = String(styleOf(c)?.display ?? '');
+    if (display === 'none') continue;
+    if (display.includes('list-item')) n++;
+    n += ownedItemCount(c, styleOf);
+  }
+  return n;
+}
+
+/**
+ * The `list-item` operations an element has with no declaration of them: css-lists-3 §4.3 and HTML's list rendering.
+ *
+ * @remarks
+ * A list (`ol`, `ul`, `menu`) resets `list-item`: an `<ol>` to one step before its `start`, which under `reversed` defaults to the number of items it owns, and a list of another kind to 0. Each element displayed as `list-item` adds its list's step, 1 or −1 under `reversed`, and an `<li>` an `<ol>` owns is set to its `value`. Each is the element's only where its own `counter-reset`, `counter-increment` or `counter-set` does not name `list-item`, which the caller tests. The walk read none of it before 2026-11-07, so a `counter(list-item)` read on a page past a list, in a margin box or in the list's scope after it, read 0.
+ *
+ * Measured 2026-11-07, Chromium's own `counter(list-item)` differs from this in two places, both left as the spec has them because the marker Cicero numbers by (`fragments.js`' `listOrdinals`) is HTML's and agrees with it: under `reversed` without a `start` Chromium counts down from 0 (0, −1, −2 for HTML's 3, 2, 1), and it ignores `value` (an item after `value="20"` reads 3 where its marker prints 21).
+ */
+function implicitListOps(el: any, style: any, list: ListContext, reads: { styleOf: (el: any) => any; attrOf: (el: any,name: string) => string|null; }): { reset: [string, number]|null, increment: [string, number]|null, set: [string, number]|null, inner: ListContext } {
+  const tag = String(el.tagName ?? '').toUpperCase();
+  const item = String(style.display ?? '').includes('list-item');
+  const value = item && list.ol && tag === 'LI' ? parseInt(reads.attrOf(el, 'value') ?? '', 10) : NaN;
+  const out = { reset: null as [string, number]|null, increment: item ? (['list-item', list.step] as [string, number]) : null, set: Number.isFinite(value) ? (['list-item', value] as [string, number]) : null, inner: list };
+  if (tag === 'OL') {
+    const reversed = reads.attrOf(el, 'reversed') != null;
+    const start = parseInt(reads.attrOf(el, 'start') ?? '', 10);
+    const step = reversed ? -1 : 1;
+    out.reset = ['list-item', (Number.isFinite(start) ? start : reversed ? ownedItemCount(el, reads.styleOf) : 1) - step];
+    out.inner = { step, ol: true };
+  } else if (tag === 'UL' || tag === 'MENU') {
+    out.reset = ['list-item', 0];
+    out.inner = OUTSIDE_LISTS;
+  }
+  return out;
 }
 
 /**

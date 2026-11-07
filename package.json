@@ -40,6 +40,10 @@
       "types": "./dist/seam/client.d.ts",
       "import": "./dist/seam/client.js"
     },
+    "./rim": {
+      "types": "./dist/seam/rim.d.ts",
+      "import": "./dist/seam/rim.js"
+    },
     "./fragmentation": {
       "types": "./dist/src/fragmentation.d.ts",
       "import": "./dist/src/fragmentation.js"
