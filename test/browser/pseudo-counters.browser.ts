@@ -111,3 +111,15 @@ test('a running head reads a numbered heading\'s text without its ::before, and 
   const out = await both('heads', css, body, /HEAD\[[^\]]*\]/g);
   assert.deepEqual(out.cicero.map((words) => words.join('').replace(/\s+/g, ' ')), ['HEAD[Intro|1 Intro]', 'HEAD[Methods|2 Methods]', 'HEAD[Results|3 Results]', 'HEAD[Results|3 Results]']);
 });
+
+/**
+ * The same head from a heading whose `::before` a printer's preparation has already made real: Caster turns it into a `<span data-beltype-generated="before">` before the cut, and `content()` leaves out what carries that attribute (the ruling of 2026-11-07, `GENERATED_ATTRIBUTE` in `@beltype/common/data-beltype`), so the head reads the heading without its number; `content(before)` reads exactly that span.
+ */
+test('a running head leaves out a ::before a printer made real, which content(before) reads', async () => {
+  const css = `@page { @top-center { content: "HEAD[" string(plain) "|" string(number) "]"; } }
+    h2 { margin: 0; font-size: 12px; string-set: plain content(), number content(before); }`;
+  const heading = (n: number, title: string) => `<h2><span class="caster-generated" data-beltype-generated="before">${n}. </span>${title}</h2>`;
+  const body = `${heading(1, 'Intro')}${lines(14)}${heading(2, 'Methods')}${lines(14)}${heading(3, 'Results')}${lines(10)}`;
+  const out = await both('heads-prepared', css, body, /HEAD\[[^\]]*\]/g);
+  assert.deepEqual(out.cicero.map((words) => words.join('').replace(/\s+/g, ' ')), ['HEAD[Intro|1.]', 'HEAD[Methods|2.]', 'HEAD[Results|3.]', 'HEAD[Results|3.]']);
+});

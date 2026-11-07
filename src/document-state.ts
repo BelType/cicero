@@ -13,7 +13,7 @@
  *
  * **A position is the flat word index** (`positions.js`), and an operation applies when its position is strictly before the one asked about — and not inside a remainder a carried flow has still to show, which stands before the page's first word in document order and is on that page or after it (beltype#43; `positions.js`' `remaindersOf`). That is §6.1's *"the deepest element in the normal flow that spans the page break"* said in this engine's own space: an element whose first word is the page's first word begins on the new page and does not span the break, so its own operation is not yet in force, while an element that spans the break started before that word and is included. The ancestors above the top-level blocks sit at position **−1** — they open before the document's first word and span every break there is — which is what makes the first page's answer fall out of the same comparison rather than needing a case of its own.
  *
- * **What is not read, each a real gap and each showing as a counter reading low.** A list item's implicit increment, so a `counter(list-item)` an author's own content reads, a margin box's among them, reads low on a page a list continues onto; the list's markers are right since 2026-11-07, because each divided `<ol>`'s copy carries a `start` of HTML's own numbering (`fragments.js`'s `numberDividedLists`); css-lists-3's `reversed()` counters; and a top-level `position: fixed` box, which is not among the flow blocks the position index is built over. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. A `::before`'s and an `::after`'s counters are read since 2026-11-07, where a sheet sets one (`pseudoStyleOf`). **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is.
+ * **What is not read, each a real gap and each showing as a counter reading low.** A list item's implicit increment, so a `counter(list-item)` an author's own content reads, a margin box's among them, reads low on a page a list continues onto; the list's markers are right since 2026-11-07, because each divided `<ol>`'s copy carries a `start` of HTML's own numbering (`fragments.js`'s `numberDividedLists`); css-lists-3's `reversed()` counters; and a top-level `position: fixed` box, which is not among the flow blocks the position index is built over. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. A `::before`'s and an `::after`'s counters are read since 2026-11-07, where a sheet sets one (`pseudoStyleOf`). **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a native pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is. Where a printer's preparation made a `::before` or an `::after` real, as Caster's does before the cut, the elements it made carry `data-beltype-generated` (`GENERATED_ATTRIBUTE`): `content()` leaves them out and `content(before)` and `content(after)` read them (ruled 2026-11-07).
  *
  * @packageDocumentation
  */
@@ -21,6 +21,7 @@
 import { STRING_SET_PROP, RUNNING_PROP } from './gcpm-encoding.ts';
 import { format as formatCounter } from './counter-styles.ts';
 import { inRemainders } from './positions.ts';
+import { GENERATED_ATTRIBUTE } from './data-beltype.ts';
 import type { Keep } from './forcing-memo.ts';
 
 /** One term of a `<content-list>`, as {@link parseStringSet} reads it. */
@@ -32,7 +33,7 @@ export type Op = {
   increment: [string, number][];
   set: [string, number][];
   /** The rewritten `string-set`'s pairs, with the text and attributes their terms name. */
-  strings: { name: string, terms: Term[], text: string, attrs: Record<string, string> }[] | null;
+  strings: { name: string, terms: Term[], text: string, before?: string, after?: string, attrs: Record<string, string> }[] | null;
   /** The flat word position the operation sits at. */
   pos: number;
   /** The element's depth in the tree; `Infinity` for a running element. */
@@ -173,6 +174,23 @@ const unquote = ( s: string) => (/^(["']).*\1$/.test(s) ? s.slice(1, -1) : s);
 /** The whitespace collapsing GCPM asks for: `content()` is *"the string value of the element, determined as if `white-space: normal` had been set"*. */
 export const collapse = ( text: unknown) => String(text ?? '').replace(/\s+/g, ' ').trim();
 
+/** An element's text without the elements a printer made from its generated content ({@link GENERATED_ATTRIBUTE}): css-gcpm-3's `content()`, the element's text and not its pseudo-elements'. An element holding none answers its `textContent`, as before. */
+export function contentTextOf(el: any): string {
+  if (!el?.querySelector?.(`[${GENERATED_ATTRIBUTE}]`)) return el?.textContent ?? '';
+  let out = '';
+  for (const node of el.childNodes) {
+    if (node.nodeType === 3 || node.nodeType === 4) out += node.data;
+    else if (node.nodeType === 1 && !node.hasAttribute(GENERATED_ATTRIBUTE)) out += contentTextOf(node);
+  }
+  return out;
+}
+
+/** The text of an element's own `::before` or `::after` where a printer made it real: its children carrying {@link GENERATED_ATTRIBUTE} with that value, or `null` where it has none. */
+function generatedTextOf(el: any, which: 'before'|'after'): string|null {
+  const made = [...(el?.children ?? [])].filter((child: any) => child.getAttribute?.(GENERATED_ATTRIBUTE) === which);
+  return made.length ? made.map((child: any) => child.textContent).join('') : null;
+}
+
 /** One element's entry in the log, or `null` where it does nothing and is not marked: its three counter declarations, its rewritten `string-set` with the text and attributes its terms name, and the mark, read off the one `styleOf` answer. */
 function opAt(el: any, pos: number, depth: number, { styleOf, textOf, attrOf, marks }: { styleOf: (el: any) => any; textOf: (el: any) => string; attrOf: (el: any,name: string) => string|null; marks: Set<object>|null; }) {
   const style = styleOf(el) ?? {};
@@ -184,6 +202,10 @@ function opAt(el: any, pos: number, depth: number, { styleOf, textOf, attrOf, ma
       name,
       terms,
       text: collapse(textOf(el)),
+      ...Object.fromEntries((['before', 'after'] as const).flatMap((which) => {
+        const made = terms.some((t) => t.kind === 'content' && t.which === which) ? generatedTextOf(el, which) : null;
+        return made === null ? [] : [[which, collapse(made)]];
+      })),
       attrs: Object.fromEntries(terms.filter((t) => t.kind === 'attr').map((t) => [t.name, attrOf(el, t.name) ?? '']))
     }))
     : null;
@@ -228,14 +250,14 @@ export function blockOpsOf(block: any, index: { wordsBefore: (el: any) => number
  * @param index - the position index (`positions.js`), which holds every element inside every block.
  * @param opts.styleOf - the computed style of an element — injected, so a plain object tree exercises this without a browser.
  * @param opts.pseudoStyleOf - the computed style of an element's `::before` or `::after`, whose counter operations are logged as the element's first and last child's; absent, a pseudo-element's counters are unread. The `::after` needs the index's `wordCountIn`.
- * @param opts.textOf - an element's text; absent, its `textContent`.
+ * @param opts.textOf - an element's text; absent, {@link contentTextOf}, its `textContent` without what a printer made from its generated content.
  * @param opts.attrOf - an element's attribute; absent, its `getAttribute`.
  * @param opts.ancestors - the elements above the blocks, outermost first (`html`, `body`). They open before the document's first word and are recorded at position −1.
  * @param opts.marks - elements whose counters are asked about after their own operations (`counterStatesAfter`): each is logged even where it does nothing, carrying itself as `mark`, so the replay reaches it in document order (*a pointer is a read*, 2026-10-03).
  * @param opts.running - the document's running elements in document order (`driver.js`' `runningBoxes`), each with the flat position the flow stood at where it was written (`driver.js`' `runningPosition`): each is logged as an assignment of its name there, carrying its place in this list as `running.at` (*a running element is a named node*, 2026-10-21). A running element is out of the flow at any depth, so the walk does not enter one, and its own counters and strings are unread, as a fixed box's are.
  * @param opts.keep - the memo's door (`forcing-memo.js`): each block's {@link blockOpsOf} part is asked of it, and a part kept from an earlier run is laid in place of a walk (*a resumed run keeps its reads*, 2026-10-22). A part read under marks is kept apart from one read without, and answers only while the marks that fall in its block are the ones it was read under (the position index says which block a mark is in). Absent, every block is walked.
  */
-export function documentOpsOf(blocks: ArrayLike<Element>, index: { bases: number[]; wordsBefore: (el: any) => number; wordCountIn?: (el: any) => number; entryFor?: (el: any) => { block: number; }|null; }, { styleOf, pseudoStyleOf = null, textOf = (el) => el.textContent, attrOf = (el, name) => el.getAttribute(name), ancestors = [], marks = null, running = [], keep = null }: { styleOf: (el: any) => object; pseudoStyleOf?: ((el: any, pseudo: '::before'|'::after') => object)|null; textOf?: (el: any) => string; attrOf?: (el: any,name: string) => string|null; ancestors?: Element[]; marks?: Set<object>|null; running?: ReadonlyArray<{ name: string; pos: number; }>; keep?: Keep|null; }) {
+export function documentOpsOf(blocks: ArrayLike<Element>, index: { bases: number[]; wordsBefore: (el: any) => number; wordCountIn?: (el: any) => number; entryFor?: (el: any) => { block: number; }|null; }, { styleOf, pseudoStyleOf = null, textOf = contentTextOf, attrOf = (el, name) => el.getAttribute(name), ancestors = [], marks = null, running = [], keep = null }: { styleOf: (el: any) => object; pseudoStyleOf?: ((el: any, pseudo: '::before'|'::after') => object)|null; textOf?: (el: any) => string; attrOf?: (el: any,name: string) => string|null; ancestors?: Element[]; marks?: Set<object>|null; running?: ReadonlyArray<{ name: string; pos: number; }>; keep?: Keep|null; }) {
   const reads = { styleOf, textOf, attrOf, marks, pseudoStyleOf };
   const ops: Op[] = [];
   ancestors.forEach((el, i) => {
@@ -397,11 +419,11 @@ function replay(ops: ReadonlyArray<Op>, { until = Infinity, onOp = null, away = 
 }
 
 /** One `<content-list>` term against the element's own facts and the counter state in force at it. */
-function evaluateTerm(term: Term, { text, attrs, counters }: { text: string; attrs: Record<string,string>|null|undefined; counters: Record<string,number[]>; }): string {
+function evaluateTerm(term: Term, { text, before, after, attrs, counters }: { text: string; before?: string; after?: string; attrs: Record<string,string>|null|undefined; counters: Record<string,number[]>; }): string {
   switch (term.kind) {
     case 'string': return term.value;
-    // `before`, `after` and `first-letter` are read as `text`: a pseudo-element's own string is generated content this walk does not see, and the module header states the limit rather than pretending to four readings.
-    case 'content': return text;
+    // `before` and `after` read the pseudo a printer made real, where it did; otherwise they and `first-letter` are read as `text`: a native pseudo-element's own string is generated content this walk does not see, and the module header states the limit rather than pretending to four readings.
+    case 'content': return (term.which === 'before' ? before : term.which === 'after' ? after : undefined) ?? text;
     case 'attr': return attrs?.[term.name] ?? '';
     case 'counter': return formatCounter(counterValue(counters, term.name), term.style);
     case 'counters': return counterValues(counters, term.name).map((v) => formatCounter(v, term.style)).join(term.separator);
@@ -418,7 +440,7 @@ export function stringAssignmentsOf(ops: ReturnType<typeof documentOpsOf>): { na
   const out: { name: string; value: string; pos: number; }[] = [];
   replay(ops, {
     onOp: (op, counters) => {
-      for (const s of op.strings ?? []) out.push({ name: s.name, pos: op.pos, value: s.terms.map((t) => evaluateTerm(t, { text: s.text, attrs: s.attrs, counters })).join('') });
+      for (const s of op.strings ?? []) out.push({ name: s.name, pos: op.pos, value: s.terms.map((t) => evaluateTerm(t, { text: s.text, before: s.before, after: s.after, attrs: s.attrs, counters })).join('') });
     }
   });
   return out;

@@ -15,7 +15,7 @@
 import { READ_PREFIX, STRING_KEYWORDS, STRING_PROP_PREFIX, decodeRead, encodeStringProp, splitTopLevel } from './gcpm-encoding.ts';
 import { sheetsCountInPseudos, styleSheetsOf } from './capture.ts';
 import { format as formatCounter } from './counter-styles.ts';
-import { collapse, counterStatesAfter, counterValue, counterValues, documentOpsOf } from './document-state.ts';
+import { collapse, contentTextOf, counterStatesAfter, counterValue, counterValues, documentOpsOf } from './document-state.ts';
 import { indexBlocks, pageContaining, pageIntervals, pathOf } from './positions.ts';
 import { isInlineBox } from './word-space.ts';
 import { composeResumed } from './resume.ts';
@@ -436,8 +436,8 @@ export function staticValues(sites: Site[], { doc, blocks, index = null, keep = 
   for (const s of sites) {
     if (!s.target || isPageRead(s.read)) continue;
     if (s.read.fn === 'text') {
-      // css-content-3 §2.6.3's `content` keyword is the element's string value, `content()`'s own reading (document-state's `collapse`); `before`, `after` and `first-letter` are read as `content`, the same stated limit `string-set` has.
-      put(values, s.key, s.prop, cssString(collapse(s.target.textContent)));
+      // css-content-3 §2.6.3's `content` keyword is the element's string value, `content()`'s own reading (document-state's `contentTextOf` and `collapse`, which leave out what a printer made from generated content); `before`, `after` and `first-letter` are read as `content`, the same stated limit `string-set` has.
+      put(values, s.key, s.prop, cssString(collapse(contentTextOf(s.target))));
       continue;
     }
     const state = states.get(s.target);
