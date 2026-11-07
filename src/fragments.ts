@@ -780,7 +780,7 @@ function ownedItems(ol: Element): Element[] {
 /**
  * The ordinal value of each item an `<ol>` owns, as HTML numbers them (§4.4.8) and css-lists-3 states it as the `list-item` counter: the list resets the counter one step before its `start`, which under `reversed` defaults to the number of items; each item adds its step, 1 or −1 under `reversed` unless a `counter-increment` names `list-item`, and a `counter-set` of `list-item`, or else a `value` attribute, sets it.
  *
- * @remarks A `counter-reset` of `list-item` on an item, which opens a list of its own inside the list, is not modelled.
+ * @remarks A `counter-reset` of `list-item` on an item is left out on purpose: Chromium's print numbers the markers on through it, its ordinals HTML's and not the reset counter's (measured 2026-11-07, `test/browser/list-continuation.browser.ts`), so the `start` this ordinal becomes is the browser's own number for the item.
  */
 export function listOrdinals(ol: Element): Map<Element,number> {
   const items = ownedItems(ol);

@@ -4,6 +4,8 @@
  * @remarks
  * Measured 2026-11-07, under Cicero alone an `<ol>` numbered its items from 1 again on every page it continued onto, and `reversed`, `start`, an item's `value` and a `counter-set` of `list-item` went wrong the same way; printed through the BelType CLI it matched, because Caster's preparation makes each marker real text before the cut. The continued copy of the list now carries a `start` attribute from HTML's own numbering, so the browser's marker counts on from the item the page resumes at.
  *
+ * A `counter-reset` of `list-item` on an item changes no marker in Chromium's print (measured 2026-11-07: the item after it and every item after that print the list's own ordinal, with or without `reversed`), though a `counter(list-item)` the item's own content reads sees the reset; the four `counter-reset` cases hold the markers to that.
+ *
  * Run by `pnpm run test:browser` after `pnpm run build`, like `pseudo-counters.browser.ts`, whose server and oracle this repeats.
  */
 import { test, before, after } from 'node:test';
@@ -96,7 +98,11 @@ for (const [name, body] of [
   ['an inner list crossing the cut', `${lines(6)}<ol><li>item outer<ol>${items(10)}</ol></li><li>item next</li></ol>`],
   ['an item the cut divides', `${lines(9)}<ol start="7">${items(1)}<li>item ${'word '.repeat(12)}</li>${items(6)}</ol>`],
   ['a reversed list whose item the cut divides', `${lines(9)}<ol reversed>${items(1)}<li>item ${'word '.repeat(12)}</li>${items(6)}</ol>`],
-  ['a list divided twice', `${lines(4)}<ol start="3">${items(26)}</ol>`]
+  ['a list divided twice', `${lines(4)}<ol start="3">${items(26)}</ol>`],
+  ['an item with counter-reset', `${lines(8)}<ol>${items(2)}<li style="counter-reset: list-item 50">item r</li>${items(7)}</ol>`],
+  ['an item past the cut with counter-reset', `${lines(8)}<ol>${items(6)}<li style="counter-reset: list-item 50">item r</li>${items(3)}</ol>`],
+  ['a reversed list with an item with counter-reset', `${lines(8)}<ol reversed>${items(2)}<li style="counter-reset: list-item 50">item r</li>${items(7)}</ol>`],
+  ['an item with counter-reset and counter-set', `${lines(8)}<ol>${items(1)}<li style="counter-reset: list-item 50; counter-set: list-item 70">item r</li>${items(8)}</ol>`]
 ] as const) {
   test(`${name} divided by a page cut numbers its items as Chromium prints them`, async () => {
     const out = await both(name.replace(/\W+/g, '-'), CSS, body, MARKER);

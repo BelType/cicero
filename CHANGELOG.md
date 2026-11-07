@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **The rim is a face: `@beltype/cicero/rim`.** `watchLateTruth`, `bringsNewFace` and `knowLoadedFaces` lived in `dist/seam/rim.js`, which the engine's own client imports, but no export reached them, since `./internal/*` maps `dist/src` only; a view that holds its own pages (prosemirror-beltype's) had to hand-roll its listeners for images, undefined elements, fonts and sizes. The new export is that same file, so a host's `knowLoadedFaces` and the client's share one record of the faces already announced. `test/faces.test.ts` holds that the face is the client's module and that a face told to it is one the engine knows (SPEC XIII.4; XIII.5 now says `./internal/*` is `src/` only, as it always was).
+- **A `counter-reset: list-item` on an item of a divided list numbers as Chromium prints it, and four cases say so.** 0.1.9 named it unmodelled. Measured on Chromium's print, the reset changes no marker: the item that carries it and every item after print the list's own ordinal, under `reversed` too, and only a `counter(list-item)` the item's own content reads sees the reset. So `listOrdinals` was already right to leave it out, and its remark now says why. `test/browser/list-continuation.browser.ts` holds a reset before the cut, past the cut, in a `reversed` list, and beside a `counter-set`, each against Chromium's print; no code changed.
 
 ## 0.1.9 — 2026-11-07
 
