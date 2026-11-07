@@ -29,11 +29,13 @@ import type { Engine } from './engine.ts';
  *
  * The value is the addendum's own 1.65 rather than an invention, so on the one surface where it can actually cascade — the HTML lane, which ships no addendum — the engine's provision and BelType's default agree. Below `body` it is inert: the addendum's own `body` rule wins by proximity.
  *
+ * It is a floor, not an override, so it is written at zero specificity: `:where(:root)` still beats the browser's `normal`, which no stylesheet sets, and loses to any author rule on the root, a plain `html { font: 10pt/13.4pt serif }` among them. As `:root` (0,1,0) it beat that rule's (0,0,1) silently, and five of the six specimens printed at 1.65 instead of their declared leading (trattato: 220 pages for 189; Codeberg issue 4, 2026-11-07).
+ *
  * It is a literal here, and not a line in the linked sheet beside it, because a conformance provision that can 404 is not a provision. A missing sheet — a table entry lost in a refactor, a server restarted mid-edit — would arrive as `I5 (DPR ruling): explicit line-height required`, a law refusing on a typographic claim when the real fault is a missing file, sending the reader to their own stylesheet. Cicero's refusals are load-bearing because they are true; one that names the wrong thing spends that.
  *
  * Recorded as a beta limitation, because the check the law performs is at the root and this satisfies it there: a document whose deeper typography still relies on `normal` is outside what *render-identical conditions* (I5) can see.
  */
-const I5_PROVISION = ':root { line-height: 1.65; }';
+const I5_PROVISION = ':where(:root) { line-height: 1.65; }';
 
 /**
  * What the document says about a PDF `<object>` before the engine has met it (*the embedded PDF*, 2026-10-14; `seam/facsimile.js`).
