@@ -339,7 +339,7 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
    * One rect per word, largest top (the soft-wrap rule); duplicates from nested inlines collapse by construction — and one piece per line for a word the browser set on several lines at silent breaks or at a soft hyphen (*a line inside a word is a break point*, 2026-09-23; *the hyphen is written at the cut*, 2026-10-06).
    *
    * @remarks
-   * A word is a run of non-whitespace and a line box is not: CJK text, `word-break: break-all` and `overflow-wrap`'s emergency break set one word on many lines, and a word homed on its last line left every line above it out of the stack — no Class B point between them, and a page edge that divided a line through its glyphs (`packages/essay/cases/63-the-line-inside-a-word`). So where a word's inked rects (width over half a pixel: the soft-wrap rule's zero-width leading rect is not ink) cluster onto more than one line, the character each later line begins at is found by a binary search over single-character ranges, and each silent break opens a piece. A break after a soft hyphen opens a piece at the character after it, and the fragment writes the hyphen the browser drew there (*the hyphen is written at the cut*, 2026-10-06); a break the browser may have hyphenated between two letters under `hyphens: auto` (`word-space.js`' `mayBeAutoHyphenated`) opens none: that line joins the next, exactly as the largest-top rule always homed it. **A box carrying the Compositor's own breaks is split at them and nowhere else**: its lines are set by hints, so a word's later lines begin at the source characters its `<br>`s stand before, counted without the hyphen the Compositor wrote.
+   * A word is a run of non-whitespace and a line box is not: CJK text, `word-break: break-all` and `overflow-wrap`'s emergency break set one word on many lines, and a word homed on its last line left every line above it out of the stack — no Class B point between them, and a page edge that divided a line through its glyphs (`packages/essay/cases/63-the-line-inside-a-word`). So where a word's inked rects (width over half a pixel: the soft-wrap rule's zero-width leading rect is not ink) cluster onto more than one line, the character each later line begins at is found by a binary search over single-character ranges, and each silent break opens a piece. A break after a soft hyphen opens a piece at the character after it, and the fragment writes the hyphen the browser drew there (*the hyphen is written at the cut*, 2026-10-06); a break between two letters under `hyphens: auto` (`word-space.js`' `mayBeAutoHyphenated`) opens a piece where the browser drew a hyphen there, read in the range rects (`drewHyphen`), and the fragment writes it; one that drew none opens none, and that line joins the next, exactly as the largest-top rule always homed it. **A box carrying the Compositor's own breaks is split at them and nowhere else**: its lines are set by hints, so a word's later lines begin at the source characters its `<br>`s stand before, counted without the hyphen the Compositor wrote.
    */
   function measureWords(box: Box): MeasuredWord[] {
     if (wordCache.has(box)) return (wordCache.get(box) as MeasuredWord[]);
@@ -358,6 +358,12 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
       let ink: DOMRect|null = null;
       for (const r of range.getClientRects()) if (r.width > 0.5 && (!ink || r.top > ink.top)) ink = r;
       return ink;
+    };
+    /** Did the browser draw a hyphen at the line break before character `i`? Chromium leaves the glyph it drew in that character's range: an inked rect on the line the break ends, beside the character's own on the next (measured 2026-11-07 on Chromium 153, as *the hyphen is written at the cut* measured 2026-10-06; an `overflow-wrap` emergency break leaves none). */
+    const drewHyphen = ( i: number, line: { top: Px; bottom: Px; }) => {
+      range.setStart(...pointFor(nodes, i));
+      range.setEnd(...pointFor(nodes, i + 1, true));
+      return [...range.getClientRects()].some((r) => r.width > 0.5 && sharesLine(r.top, r.bottom, line.top, line.bottom));
     };
     /** The pieces of the word at `[at, at + w.length)` whose inked rects are `rects`, or null for a word on one line. */
     const piecesOf = (at: number, w: string, rects: DOMRect[]) => {
@@ -390,7 +396,7 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
         if (lo >= w.length) break;
         const last = pieces[pieces.length - 1];
         const line = { top: tops[j].top, height: tops[j].bottom - tops[j].top };
-        if (mayBeAutoHyphenated(w[lo - 1], w[lo], hyphens)) Object.assign(last, line);
+        if (mayBeAutoHyphenated(w[lo - 1], w[lo], hyphens) && !drewHyphen(at + lo, tops[j - 1])) Object.assign(last, line);
         else pieces.push({ char: lo, ...line });
         from = lo + 1;
       }

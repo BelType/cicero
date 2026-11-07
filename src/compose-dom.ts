@@ -10,7 +10,7 @@
  * @packageDocumentation
  */
 
-import { compose } from './compositor.ts';
+import { compose, HYPHENATE_LIMIT_LINES } from './compositor.ts';
 import { addWord, AWAY, BREAK, FILL, hasWord } from './data-beltype.ts';
 import { createMeasureContext } from './measure.ts';
 import { indexBlocks, pageIntervals, presentationWidths } from './positions.ts';
@@ -472,7 +472,8 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
             available: job.avail,
             indent: r === 0 ? job.indent : 0,
             align: job.align,
-            breakAnywhere: job.breakAnywhere
+            breakAnywhere: job.breakAnywhere,
+            limitLines: HYPHENATE_LIMIT_LINES
           });
           record.runs.push({ start: runs[r].start, ...result });
           record.lineCount += result.lineCount;

@@ -75,7 +75,7 @@ Modules: `src/positions.js`, `src/word-space.js`, `src/ledger.js`, `src/resume.j
 
 1. A cut's address is `{ path, word, px }`: the child-index path to the box the page resumes at, a leaf-relative word inside a line stack and only there, and a pixel extent for a box divided geometrically. Paths order boxes; words order lines (see *the-cut-is-a-place-in-the-tree*).
 2. Inside a word, a `char` in UTF-16 code units refines the address where a line begins inside that word. The flat projection does not carry it (see *a-line-inside-a-word-is-a-break-point*).
-3. A word divided at a soft hyphen is addressed at the character after the hyphen. A word the browser hyphenated under `hyphens: auto` is never divided (see *the-hyphen-is-written-at-the-cut*).
+3. A word divided at a soft hyphen is addressed at the character after the hyphen. A word the browser hyphenated under `hyphens: auto` is divided where the Gauge measured the hyphen the browser drew, addressed at the character after the break, and the first fragment ends with the hyphenation character; a break between letters under `auto` that drew none is not divided (see *the-hyphen-is-written-at-the-cut*).
 4. A cut names a place in the tree, and the boxes it divides are the proper ancestors of that place and nothing else. The cut's class says only whether the place exists (see *the-cut-divides-its-ancestors*).
 5. A cut that falls before a box carries that box as a literal path, and the page resumes at the box. A trailing zero collapses wherever no gap stands between a parent's content edge and its first child; a start-edge Class C keeps it (see *the-cut-resumes-at-the-box*).
 6. A run of lines beside block children is addressed by its container plus a word in the container's word space (see *the-anonymous-box-is-in-the-procession*).
@@ -241,7 +241,7 @@ Modules: `src/compositor.js`, `src/compose-dom.js`, `src/composition-key.js`, `s
 7. A paragraph whose lines carry generated text keeps the browser's lines (see *the-composition-refuses-generated-text*). So does a block laid out beside a float (see *a-parallel-flow-contributes-geometry-and-nothing-else*).
 8. A source in no flat tree is refused by name (see *the-composition-refuses-an-unrendered-source*).
 9. The hyphenation character, the indent and the alignment are read from the source's style, and the chosen lines land as forced hints (see *the-properties-the-line-already-had*).
-10. Hyphenation is Liang's, decision-side, with its exception list; a chosen candidate becomes a literal character and a break, never a soft hyphen (tablet, The Line).
+10. Hyphenation is Liang's, decision-side, with its exception list; a chosen candidate becomes a literal character and a break, never a soft hyphen (tablet, The Line). No more than three lines in a row end on a hyphen, where any composition fits without an overfull line (Codeberg issue 5; `hyphenate-limit-lines` is not read, since Chromium does not support it).
 11. The composition cache is keyed by the paragraph's path, its markup, its width and its style inputs, never by the element object (see *the-run-resumes-from-an-entry*).
 12. A change of the run's conditions clears the cache whole, and the conditions are the document's own sheets (see *the-conditions-are-the-sheets-of-the-document*).
 13. The presentation composes the pages the account has, not the page names the stylesheet has (see *the-presentation-composes-the-pages-it-has*).

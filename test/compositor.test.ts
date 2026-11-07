@@ -334,3 +334,34 @@ test('a negative indent gives the first line more room than any other, and the s
   assert.equal(r.lines[0].width, 120);
   assert.deepEqual(r, bruteForceCompose({ ...args, measure: monoProvider(words) }));
 });
+
+/** css-text-4 §6.3.5's `hyphenate-limit-lines` (Codeberg issue 5): with a candidate at every letter, total fit prefers tight hyphenated lines and stacks them; a limit makes the run a constraint. */
+const runsOf = (r: any) => {
+  let best = 0;
+  let cur = 0;
+  for (const b of r.breaks) {
+    cur = b.char > 0 ? cur + 1 : 0;
+    best = Math.max(best, cur);
+  }
+  return best;
+};
+const every = (words: string[]) => (i: number) => Array.from({ length: words[i].length - 1 }, (_, c) => c + 1);
+
+test('a limit on consecutive hyphenated lines holds where total fit alone stacks them', () => {
+  const words = ['abcdefghijklm', 'abcdefghijklm', 'abcdefghijklm', 'abcdefghijklm', 'abcdefghijklm', 'abcdefghijklm', 'abc'];
+  const free = compose({ words, hyphenOffsets: every(words), measure: monoProvider(words), available: 100, align: 'justify' });
+  assert.ok(runsOf(free) > 2, `the case stacks hyphens without a limit: ${JSON.stringify(free.breaks)}`);
+  assert.deepEqual(compose({ words, hyphenOffsets: every(words), measure: monoProvider(words), available: 100, align: 'justify', limitLines: null }).breaks, free.breaks, 'no limit is the composition it always was');
+  for (const limit of [1, 2]) {
+    const r = compose({ words, hyphenOffsets: every(words), measure: monoProvider(words), available: 100, align: 'justify', limitLines: limit });
+    assert.ok(runsOf(r) <= limit, `limit ${limit}: ${JSON.stringify(r.breaks)}`);
+    assert.ok(!r.lines.some((l: any) => l.overfull));
+  }
+});
+
+test('a limit that leaves a paragraph no way through is not a reason for it not to compose', () => {
+  const words = ['x'.repeat(30)];
+  const r = compose({ words, hyphenOffsets: every(words), measure: monoProvider(words), available: 100, align: 'left', limitLines: 1 });
+  assert.equal(runsOf(r), 3, 'one word across four lines ends three on a hyphen, the limit set aside');
+  assert.ok(!r.lines.some((l: any) => l.overfull));
+});

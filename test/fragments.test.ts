@@ -397,6 +397,35 @@ test('a cut at the Compositor\'s own break keeps the hyphen it wrote on the firs
   assert.equal(second.textContent.trim(), '­ijklmnop p0w024', 'the hyphen is on the page before: the continuation opens on the soft hyphen, which is invisible there');
 });
 
+/** A cut the Gauge minted at a break the browser hyphenated under `hyphens: auto`: no character of the source holds the hyphen, so the first fragment adds it after the last kept letter, and a Compositor's break, whose hyphen is already written, gets no second one. */
+const autoStyled = (el: any, style: any = { hyphens: 'auto', hyphenateCharacter: 'auto' }) => Object.assign(el, { isConnected: true, ownerDocument: { defaultView: { getComputedStyle: () => ({ getPropertyValue: () => '', ...style }) } } });
+
+test('a cut at a break the browser hyphenated under hyphens: auto ends the first fragment with the hyphenation character', () => {
+  const p = autoStyled(new El('p', [new Txt('a an incomprehensibility more')]));
+  const root = new El('section', [p]);
+  mutateToFirstFragment(root, asBoth(root, { cut: cut([0, 0], { word: 2, char: 13 }) }));
+  assert.equal(root.textContent.trimEnd(), 'a an incomprehensi‐', 'U+2010 is added after the last kept letter, where Chromium draws it');
+  const q = autoStyled(new El('p', [new Txt('a an incomprehensibility more')]), { hyphens: 'auto', hyphenateCharacter: '"="' });
+  const other = new El('section', [q]);
+  mutateToFirstFragment(other, asBoth(other, { cut: cut([0, 0], { word: 2, char: 13 }) }));
+  assert.equal(other.textContent.trimEnd(), 'a an incomprehensi=', 'the author\'s hyphenate-character');
+  const r = autoStyled(new El('p', [new Txt('a an incomprehensibility more')]), { hyphens: 'manual', hyphenateCharacter: 'auto' });
+  const silent = new El('section', [r]);
+  mutateToFirstFragment(silent, asBoth(silent, { cut: cut([0, 0], { word: 2, char: 13 }) }));
+  assert.equal(silent.textContent.trimEnd(), 'a an incomprehensi', 'under manual the break is silent and writes none');
+});
+
+test('a cut at the Compositor\'s own break under hyphens: auto writes no second hyphen', () => {
+  const hyphen = new Txt('‐');
+  noteEngineText(hyphen);
+  const br = new El('br');
+  br.setAttribute('data-beltype', 'break');
+  br.tagName = 'BR';
+  const root = new El('section', [autoStyled(new El('p', [new Txt('p0w022 abcdefgh'), hyphen, br, new Txt('ijklmnop p0w024')]))]);
+  mutateToFirstFragment(root, asBoth(root, { cut: cut([0, 0], { word: 1, char: 8 }) }));
+  assert.equal(root.textContent.trimEnd(), 'p0w022 abcdefgh‐');
+});
+
 test('a row of cells takes its widths from the measured columns, a spanning cell the sum of the columns it spans, and a row that does not cover them takes none', () => {
   assert.deepEqual(spanWidths([63.2, 58.4, 60, 178.4], [1, 1, 1, 1]), [63.2, 58.4, 60, 178.4]);
   assert.deepEqual(spanWidths([100, 50, 50], [1, 2]), [100, 100], 'a cell spanning two columns is both of them wide');

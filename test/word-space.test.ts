@@ -127,7 +127,7 @@ test('an inline atom contributes no block child, a block-level atom is one, and 
   assert.deepEqual(blockChildrenOf(box('p', HTML, false, inlineDrawing), isInline), [], 'a paragraph holding only an inline drawing keeps its line stack');
 });
 
-/** WHETHER A LINE INSIDE A WORD MAY BE A CUT (*a line inside a word is a break point*, 2026-09-23; *the hyphen is written at the cut*, 2026-10-06): a silent break yes, and a break after a soft hyphen yes — the fragment writes the hyphen the source holds — but a break the browser may have hyphenated between two letters under `hyphens: auto` no, where no character of the source says where, and the answer is the refusal. */
+/** WHETHER A LINE INSIDE A WORD MAY BE A CUT (*a line inside a word is a break point*, 2026-09-23; *the hyphen is written at the cut*, 2026-10-06): a silent break yes, and a break after a soft hyphen yes — the fragment writes the hyphen the source holds — but a break between two letters under `hyphens: auto` only where the Gauge measured the hyphen the browser drew, which this predicate alone cannot say. */
 test('a break is refused only where the browser may have drawn a hyphen the source does not hold: between two hyphenable letters under hyphens: auto', async () => {
   const mayBeAutoHyphenated = byShape((await import('../src/word-space.ts')).mayBeAutoHyphenated);
   assert.equal(mayBeAutoHyphenated('­', 'b', 'manual'), false, 'a soft hyphen is the source\'s own, and the fragment writes the hyphen the browser drew there');
