@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { borderIsDrawn, pageArea, assertPageArea, transliterateContent as transliterateContentTyped, sizeToPx, MIN_PAGE_AREA_PX } from '../src/capture.ts';
+import { borderIsDrawn, pageArea, assertPageArea, transliterateContent as transliterateContentTyped, sizeToPx, isOrientationOnly, MIN_PAGE_AREA_PX } from '../src/capture.ts';
 import { encodeElement, encodeString } from '../src/gcpm-encoding.ts';
 import { byShape } from './fakes.ts';
 
@@ -137,4 +137,15 @@ test('A6 is not a named size: it reaches the length probe in both orientations, 
   sizeToPx(['A6', 'portrait'], probe);
   sizeToPx(['A6', 'landscape'], probe);
   assert.deepEqual(asked, ['a6', 'a6'], 'both orientations hand the name to the probe');
+});
+
+test('an orientation keyword turns a pair of lengths as it turns a named size, a keyword alone refuses by name, and isOrientationOnly tells the cascade which it is', () => {
+  const px = (raw: any) => parseFloat(raw);
+  assert.deepEqual(sizeToPx(['480px', '288px', 'portrait'], px), [288, 480], 'the WPT default of 5in by 3in, :first { size: portrait }');
+  assert.deepEqual(sizeToPx(['288px', '480px', 'landscape'], px), [480, 288]);
+  assert.deepEqual(sizeToPx(['480px', '288px'], px), [480, 288], 'as given without one');
+  assert.throws(() => sizeToPx(['landscape'], px), /orientation keyword alone/);
+  assert.equal(isOrientationOnly(['landscape']), true);
+  assert.equal(isOrientationOnly(['a4', 'landscape']), false);
+  assert.equal(isOrientationOnly(['20em']), false);
 });
