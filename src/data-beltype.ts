@@ -19,6 +19,9 @@
 /** The attribute's name. A single place for the literal; the grammar below is the only code that spells the value. */
 export const ATTRIBUTE = 'data-beltype';
 
+/** The attribute a printer's preparation sets on every element it makes from generated content, valued by the pseudo it was made from (`before`, `after`, `marker`): its own attribute and not a word, because it is set by the host on the source, before the engine sees it. `content()` and `string-set` leave out what carries it, as css-gcpm-3's `content()` is the element's text without its pseudo-elements, and `content(before)` and `content(after)` read exactly that (ruled 2026-11-07). The name and its values are `GENERATED_ATTRIBUTE` and `GeneratedPseudo` in `@beltype/common/data-beltype`; `src/` imports nothing, so the literal is spelled here once, and is replaced by the import if the engine's layering ever admits common. */
+export const GENERATED_ATTRIBUTE = 'data-beltype-generated';
+
 /** One fact the registry declares. */
 export type Entry = {
   /** The flag, or the key of a value word (`has` for `has:<hash>`). */
