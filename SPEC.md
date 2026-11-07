@@ -200,13 +200,14 @@ Modules: `src/fragments.js`, `src/data-beltype.js`, `src/dressing.js`, `src/has-
 1. One implementation builds every piece, for the measure feed and the presentation alike, so what was measured is what is shown (see *the-cut-is-a-place-in-the-tree*).
 2. Both ends of a fragment are cut by the address: a bare path, a path plus a word, or a path plus a pixel extent (see *the-cut-is-a-place-in-the-tree*).
 3. A box wears its start decoration on a page whose opening cut does not divide it, and its end decoration where the closing cut does not (see *the-cut-divides-its-ancestors*).
-4. `box-decoration-break` is read from the source; under `slice` a continuation keeps no block-start border or padding, and a margin is always truncated (see *the-fragment-that-wraps-itself*).
+4. `box-decoration-break` is read from the source; under `slice` a continuation keeps no block-start border, padding or corner rounding, a piece the cut closes keeps none of the three at its block end, and a margin is always truncated (see *the-fragment-that-wraps-itself*; the rounding measured against Chromium's print 2026-11-07).
 5. After a forced break, the box the page resumes at keeps its block-start margin; the divided ancestors do not (see *the-margin-after-a-forced-break-is-preserved*).
 6. Outside its interval a box is kept and not displayed, so structural selectors match on every page as in the source (see *every-branch-gets-a-place*).
 7. A fragment is written its page's tracks as literals, never across pages (see *the-fragment-lays-out-under-the-feeds-conditions*).
 8. The first fragment ends with the hyphenation character the source asks for, written where the cut falls (see *the-hyphen-is-written-at-the-cut*).
 9. A divided table repeats its header group on every continuation and its footer group on every fragment but the last, unless the group is taller than a quarter of the page area (see *the-header-repeats*).
 10. A repeated header joins the continuation's rows as the whole table does (see *a-repeated-header-joins-the-rows-as-chromium-prints-them*).
+11. A piece is laid out by the browser as a box of its own, so `text-wrap` shapes each piece's lines alone: under `balance` a continuation balances its own lines, where Chromium's print does not balance a divided paragraph (measured 2026-11-07: a continuation of fourteen words printed eight and six, and shows seven and seven). The words on each page agree; under `pretty` the lines agreed as well.
 
 ### VI.2 The `data-beltype` registry
 
@@ -470,6 +471,8 @@ Each name keeps the contract its module's article states. A change to one is a c
 |---|---|---|---|
 | 2026-10-29 | all | Ratified at the move into its own repository. | — |
 | 2026-11-07 | IV.11 | A divided table cell is judged and presented aligned within its first piece. | — (measured; assessment 2026-11-07) |
+| 2026-11-07 | VI.1.4 | A slice's cut edges lose their corner rounding. | *the-fragment-that-wraps-itself* |
+| 2026-11-07 | VI.1.11 | `text-wrap` shapes each piece alone, stated. | — (measured; assessment 2026-11-07) |
 
 ## 18. Known open at ratification
 
