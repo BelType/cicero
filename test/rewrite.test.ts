@@ -264,7 +264,7 @@ test("the engine's own sheets are not rewritten: the interface sheet, its provis
   const fetched: any[] = [];
   const iface = fakeNode('LINK', { rel: 'stylesheet', 'data-beltype': 'cicero-interface', href: '/_beltype/cicero-interface.css' });
   const press = fakeNode('STYLE', { id: '__beltype-press' }, '@media print { body { margin: 0 !important; } }');
-  const provision = fakeNode('STYLE', { 'data-beltype': 'cicero-provision' }, ':root { line-height: 1.65; }');
+  const provision = fakeNode('STYLE', { 'data-beltype': 'cicero-provision' }, ':where(:root) { line-height: 1.65; }');
   const author = fakeNode('STYLE', {}, '@media print { p { width: 3em } } @media screen { p { width: 9em } }');
   const linked = fakeNode('LINK', { rel: 'stylesheet', href: '/styles/a.css' });
   const doc = {
@@ -283,7 +283,7 @@ test("the engine's own sheets are not rewritten: the interface sheet, its provis
   assert.deepEqual(fetched, ['http://localhost/styles/a.css'], 'the interface sheet is not even fetched');
   assert.equal(iface.replacedBy, null);
   assert.equal(press.textContent, '@media print { body { margin: 0 !important; } }');
-  assert.equal(provision.textContent, ':root { line-height: 1.65; }');
+  assert.equal(provision.textContent, ':where(:root) { line-height: 1.65; }');
   assert.equal(author.textContent!.includes('@media'), false, "the document's own style element is folded");
   assert.match(author.textContent, /p \{ width: 3em \}/);
   assert.doesNotMatch(author.textContent, /9em/);
@@ -589,7 +589,7 @@ test('a sublayer name is written as given, and a name that is not one is refused
 
 test('with a layer, a document\'s style is wrapped, every link becomes a style of its wrapped text at its seat (the address is not kept: an imported sheet is parsed again in every frame), and the provision\'s root line-height moves into the engine\'s layer', async (t) => {
   t.mock.method(console, 'info', () => {});
-  const provisionText = `${WORDS_RULES}:root { line-height: 1.65; }`;
+  const provisionText = `${WORDS_RULES}:where(:root) { line-height: 1.65; }`;
   const provision = fakeNode('STYLE', { 'data-beltype': 'cicero-provision' }, provisionText);
   const style = fakeNode('STYLE', {}, 'p { color: red }');
   const plain = fakeNode('LINK', { rel: 'stylesheet', href: '/plain.css' });
@@ -609,7 +609,7 @@ test('with a layer, a document\'s style is wrapped, every link becomes a style o
   assert.equal(plain.replacedBy!.textContent, '@layer author { q { color: blue } }', 'a link with nothing else to rewrite is wrapped as text too');
   assert.equal(paged.replacedBy!.textContent, '@page { size: A5 }\n@layer author { h1 { color: red } }');
   assert.match(gcpm.replacedBy!.textContent, /^@layer author \{ h2 \{ --beltype-string-set: t content\(\) \} \}$/);
-  assert.equal(provision.textContent, `${WORDS_RULES}@layer ${ENGINE_LAYER} { :root { line-height: 1.65; } }`);
+  assert.equal(provision.textContent, `${WORDS_RULES}@layer ${ENGINE_LAYER} { :where(:root) { line-height: 1.65; } }`);
   assert.deepEqual([out.changed, out.counts.layered], [4, 4], 'four sheets in the layer');
   assert.equal(doc.head.first.length, 1, 'the order of the two layers is stated first in the head');
   assert.equal(doc.head.first[0].id, LAYERS_ID);
@@ -658,4 +658,11 @@ test('string() in an element\'s content becomes a read of the property the page 
   assert.match(margin.text, /"__beltype-fn:string\(heading,last\)"/, 'the page side keeps its literal encoding');
   assert.equal(margin.counts.strings, 0);
   assert.equal(rewriteSheet(flow, { pages: false }).text, flow, 'a site reads a page, and a host with no pages leaves it whole, as it leaves a page read');
+});
+
+test("the root line-height provision is a floor: zero specificity, so an author's plain html rule wins and a document with none still gets it", () => {
+  const head = ciceroEngine.headHtml('/');
+  const rule = head.match(/(:where\(:root\)|:root)\s*\{\s*line-height: 1\.65;?\s*\}/);
+  assert.ok(rule, 'the provision is in the head fragment');
+  assert.equal(rule![1], ':where(:root)', 'at (0,1,0) `:root` beat an author\'s `html` rule at (0,0,1); `:where()` is specificity 0 and loses to any author rule while still beating the browser\'s `normal`, which no sheet sets');
 });
