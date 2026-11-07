@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The leading-decoration door is on the fragmentation face.** `@beltype/cicero/fragmentation` now exports `WRAPPED`, `clonesDecoration` and `truncateLeadingDecoration`, the word, the predicate and the dressing the engine gives a box its page's opening cut divides, so a view that fragments without `<beltype-root>` (prosemirror-beltype's page) dresses a resumed box as the root does, instead of spelling the word and reading `box-decoration-break` itself. They are the engine's own members, re-exported; `test/faces.test.ts` holds that they are the internal path's and that they answer as it does (SPEC XIII.3).
 - **A page drawn under a scale lays its margin bands out as the unscaled page does.** `layoutBands` read each margin cell's intrinsic widths off `getBoundingClientRect`, which is drawn under every transform above the page, so a host that zooms with `transform: scale(s)` handed css-page-3 §5.3.2 widths in its own pixels and the module's cache kept them for every scale after: a band whose boxes wrap at one scale and fit at another was divided differently (a page drawn at 0.5 gave 234.789 px and 85.211 px where the unscaled page gives 233.863 px and 86.137 px, and kept them at 1.5). The widths are now divided by the scale the band's own rect shows against its width in the page's pixels. `test/browser/band-scale.browser.ts` is the case: a page under 0.5, then 1.5, then 1, against the same page unscaled (assessment 2026-11-07, `critic1-page-zoom`).
 
 ## 0.1.8 — 2026-11-07
