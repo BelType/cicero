@@ -52,23 +52,28 @@ function providesRules(doc: Document) {
   return !!provision && (provision.textContent ?? '').includes(WORDS_RULES);
 }
 
-/** Make sure the document has the words sheet's rules, once; later calls answer the same record. A document the provision reached already has them and nothing is seated; any other gets the layer named first in the head and the rules adopted after whatever it wears. */
+/**
+ * Make sure the document has the words sheet's rules, and answer its record. A document the provision reached already has them and nothing is seated; any other gets the layer named first in the head and the rules adopted after whatever it wears.
+ *
+ * **The document is asked, not remembered** ([*the engine asks the document for its sheets*](../../../.claude/decisions/cicero/the-engine-asks-the-document-for-its-sheets.md)), as `ensureContinuationDressing` does: a host that re-seats a kept `Document` empties its adopted sheets, so a later call adopts the words sheet again, and names the layer again, where the document no longer carries them.
+ */
 export function ensureDressing(doc: Document): Dressing {
-  const known = DRESSINGS.get(doc);
-  if (known) return known;
-  const dressing: Dressing = { words: null, values: null, delivered: new Set<any>(), registered: false };
-  DRESSINGS.set(doc, dressing);
-  if (providesRules(doc)) return dressing;
-  const Sheet = (doc.defaultView as Window & typeof globalThis).CSSStyleSheet;
+  let dressing = DRESSINGS.get(doc);
+  if (!dressing) {
+    dressing = { words: null, values: null, delivered: new Set<any>(), registered: false };
+    DRESSINGS.set(doc, dressing);
+    if (providesRules(doc)) return dressing;
+    dressing.words = new ((doc.defaultView as Window & typeof globalThis).CSSStyleSheet)();
+    dressing.words.replaceSync(WORDS_RULES);
+  }
+  if (!dressing.words) return dressing;
   if (!doc.getElementById(LAYERS_ID)) {
     const layers = doc.createElement('style');
     layers.id = LAYERS_ID;
     layers.textContent = `@layer ${LAYER};`;
     doc.head.prepend(layers);
   }
-  dressing.words = new Sheet();
-  dressing.words.replaceSync(WORDS_RULES);
-  doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, dressing.words];
+  if (!doc.adoptedStyleSheets.includes(dressing.words)) doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, dressing.words];
   return dressing;
 }
 
@@ -146,12 +151,11 @@ export function deliverValues(doc: Document, words: Iterable<string>) {
     dressing.delivered.add(word);
     grew = true;
   }
-  if (!grew) return;
-  if (!dressing.values) {
-    dressing.values = new ((doc.defaultView as Window & typeof globalThis).CSSStyleSheet)();
-    doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, dressing.values];
-  }
-  dressing.values.replaceSync([...dressing.delivered].map((word) => `${selectorOf(word)} { ${PROPERTY_OF.get(word.slice(0, word.indexOf(':')))}: ${word.slice(word.indexOf(':') + 1)}; }`).join('\n'));
+  if (!grew && !dressing.values) return;
+  // The document is asked, not remembered: a re-seated document wears no values sheet even when no word is new.
+  dressing.values ??= new ((doc.defaultView as Window & typeof globalThis).CSSStyleSheet)();
+  if (!doc.adoptedStyleSheets.includes(dressing.values)) doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, dressing.values];
+  if (grew) dressing.values.replaceSync([...dressing.delivered].map((word) => `${selectorOf(word)} { ${PROPERTY_OF.get(word.slice(0, word.indexOf(':')))}: ${word.slice(word.indexOf(':') + 1)}; }`).join('\n'));
 }
 
 /** Is this adopted sheet one of the engine's three sheets keyed on words — the words sheet a host without the provision gets, the values sheet, and the continuation dressing? A host reading the sheets the document wears (`seam/client.js`' conditions key) leaves them out, as it leaves out the root's own sheets and the reads' delivery sheet. */
