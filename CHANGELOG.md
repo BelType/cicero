@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **A page drawn under a scale lays its margin bands out as the unscaled page does.** `layoutBands` read each margin cell's intrinsic widths off `getBoundingClientRect`, which is drawn under every transform above the page, so a host that zooms with `transform: scale(s)` handed css-page-3 §5.3.2 widths in its own pixels and the module's cache kept them for every scale after: a band whose boxes wrap at one scale and fit at another was divided differently (a page drawn at 0.5 gave 234.789 px and 85.211 px where the unscaled page gives 233.863 px and 86.137 px, and kept them at 1.5). The widths are now divided by the scale the band's own rect shows against its width in the page's pixels. `test/browser/band-scale.browser.ts` is the case: a page under 0.5, then 1.5, then 1, against the same page unscaled (assessment 2026-11-07, `critic1-page-zoom`).
+
 ## 0.1.8 — 2026-11-07
 
 - **A kept frame wears the words sheet and the values sheet again on its second print.** `ensureDressing` answered the record it kept per document, and `deliverValues` adopted the values sheet only the first time it made one, so a host that empties a kept document's `adoptedStyleSheets` before printing again (the CLI's kept page does) printed the second time without the engine's trimming rules, where the provision does not carry them, and without any `--beltype-slice` value, since no word was new. Both now ask the document whether it wears the sheet and adopt it again where it does not, and the layer is named again in the head, as the continuation dressing already did (*the engine asks the document for its sheets*). The red case is in `test/dressing.test.ts`.
