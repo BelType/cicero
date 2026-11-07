@@ -208,6 +208,7 @@ Modules: `src/fragments.js`, `src/data-beltype.js`, `src/dressing.js`, `src/has-
 9. A divided table repeats its header group on every continuation and its footer group on every fragment but the last, unless the group is taller than a quarter of the page area (see *the-header-repeats*).
 10. A repeated header joins the continuation's rows as the whole table does (see *a-repeated-header-joins-the-rows-as-chromium-prints-them*).
 11. A piece is laid out by the browser as a box of its own, so `text-wrap` shapes each piece's lines alone: under `balance` a continuation balances its own lines, where Chromium's print does not balance a divided paragraph (measured 2026-11-07: a continuation of fourteen words printed eight and six, and shows seven and seven). The words on each page agree; under `pretty` the lines agreed as well.
+12. An `<ol>` a cut divides is numbered from the first item its piece keeps: the piece's copy carries a `start` of that item's ordinal, as HTML numbers it with `start`, `value`, `reversed` and a `counter-set` or `counter-increment` of `list-item`, so the browser's own marker counts on (measured against Chromium's print 2026-11-07).
 
 ### VI.2 The `data-beltype` registry
 

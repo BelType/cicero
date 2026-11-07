@@ -8,7 +8,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { truncateFrom as truncateFromTyped, mutateToContinuation as mutateToContinuationTyped, mutateToFirstFragment as mutateToFirstFragmentTyped, spanWidths, markCont as markContTyped, markCut } from '../src/fragments.ts';
+import { listOrdinals as listOrdinalsTyped, truncateFrom as truncateFromTyped, mutateToContinuation as mutateToContinuationTyped, mutateToFirstFragment as mutateToFirstFragmentTyped, spanWidths, markCont as markContTyped, markCut } from '../src/fragments.ts';
 import { noteEngineText as noteEngineTextTyped } from '../src/word-space.ts';
 import { byShape } from './fakes.ts';
 
@@ -430,4 +430,17 @@ test('joinedWords skips a subtree wearing the artifact word, and counts the rest
   const root = el(null, [text('body one '), el('artifact', [text('copy of the header ')]), text('body two')]);
   const words = joinedWords(root, () => false).map((w: any) => w.text);
   assert.deepEqual(words, ['body', 'one', 'body', 'two']);
+});
+
+/** An element as `listOrdinals` reads it: a tag, element children and attributes. */
+const tag = (tagName: string, attrs: Record<string, string> = {}, children: any[] = []) => ({ tagName, children, getAttribute: (n: string) => attrs[n] ?? null, hasAttribute: (n: string) => n in attrs });
+const numbers = (ol: any) => [...byShape(listOrdinalsTyped)(ol).values()];
+
+test('listOrdinals numbers an ol as HTML does: start, value, reversed, and a nested list owns its own items', () => {
+  const li = (attrs = {}, children: any[] = []) => tag('LI', attrs, children);
+  assert.deepEqual(numbers(tag('OL', {}, [li(), li(), li()])), [1, 2, 3]);
+  assert.deepEqual(numbers(tag('OL', { start: '5' }, [li(), li({ value: '20' }), li()])), [5, 20, 21]);
+  assert.deepEqual(numbers(tag('OL', { reversed: '' }, [li(), li(), li()])), [3, 2, 1]);
+  assert.deepEqual(numbers(tag('OL', { reversed: '', start: '9' }, [li(), li({ value: '4' }), li()])), [9, 4, 3]);
+  assert.deepEqual(numbers(tag('OL', {}, [li({}, [tag('OL', {}, [li(), li()])]), tag('DIV', {}, [li()])])), [1, 2]);
 });
