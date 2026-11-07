@@ -110,3 +110,37 @@ for (const [name, body] of [
     assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
   });
 }
+
+/** What `.x::after` and the margin box print, apart from the markers. */
+const AFTER = /#-?\d+\./g;
+const HEAD = /n-?\d+\./g;
+
+for (const [name, body] of [
+  ['a list', `${lines(2)}<ol>${items(6)}</ol>${lines(6)}<p class="x">after</p>`],
+  ['a list with start', `${lines(2)}<ol start="5">${items(6)}</ol>${lines(6)}<p class="x">after</p>`],
+  ['a reversed list with start', `${lines(2)}<ol reversed start="30">${items(6)}</ol>${lines(6)}<p class="x">after</p>`],
+  ['a list holding an inner list', `${lines(2)}<ol><li>item o<ol>${items(3)}</ol></li>${items(2)}</ol>${lines(6)}<p class="x">after</p>`]
+] as const) {
+  test(`counter(list-item) read after ${name}, on the page past it, is the count Chromium prints`, async () => {
+    const out = await both(`after-${name.replace(/\W+/g, '-')}`, `${CSS} .x::after { content: " #" counter(list-item) "." }`, body, AFTER);
+    assert.ok(out.chromium.length > 1 && out.chromium[1].length > 0, `the oracle crosses a page: ${JSON.stringify(out.chromium)}`);
+    assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
+  });
+}
+
+/** Chromium's print shows no document counter in a margin box (0 for every name, measured 2026-11-07), so the reference is Cicero's own reading of a counter the author increments on each item by hand: `list-item` must read as that one does. */
+for (const [name, body] of [
+  ['a list', `${lines(8)}<ol>${items(10)}</ol>`],
+  ['a list with start', `${lines(8)}<ol start="5">${items(10)}</ol>`]
+] as const) {
+  test(`a margin box's counter(list-item) on the page ${name} continues onto counts the items before it`, async () => {
+    const key = name.replace(/\W+/g, '-');
+    const start = /start="(\d+)"/.exec(body)?.[1];
+    const ref = start ? `ol { counter-reset: q ${Number(start) - 1} }` : 'ol { counter-reset: q }';
+    const of = async (counter: string, extra: string) => (await both(`margin-${counter}-${key}`, `${CSS} ${extra} li { counter-increment: q } @page { @top-center { content: "n" counter(${counter}) "." } }`, body, HEAD)).cicero;
+    const listItem = await of('list-item', '');
+    const hand = await of('q', ref);
+    assert.ok(hand.length > 1 && hand[1][0] !== 'n0.', `the reference counts: ${JSON.stringify(hand)}`);
+    assert.deepEqual(listItem, hand);
+  });
+}
