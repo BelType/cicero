@@ -164,7 +164,7 @@ Module: `src/stonehand.js`.
 8. A box's end gap is a break point only where the box ends past the page edge (see *the-end-gap-breaks-only-at-the-edge*).
 9. The collection runs in two phases: what needs no line measure first, and the line readings only as far as they can win (see *the-lines-that-cannot-win-are-not-measured*).
 10. **Decided, not built.** A competing flow (a footnote area, a repeated header) is one fragmentainer that bargains the main flow's foot (see *a-competing-flow-bargains-the-foot-of-the-main-flow*). The footnote area is a row of the content area below the flow (see *the-footnote-area-is-a-row-of-the-page*).
-11. A table cell a cut divides is judged with its content set from the cell's top, its `vertical-align` offset dropped, and its first piece reaches the page's foot, as Chromium's print aligns a divided cell within its first fragment (measured 2026-11-07, `test/browser/table-row-cut.browser.ts`; no record yet).
+11. A table cell a cut divides is judged with its content set from the cell's top, its `vertical-align` offset dropped, and its first piece reaches the page's foot, as Chromium's print aligns a divided cell within its first fragment (measured 2026-11-07, `test/browser/table-row-cut.browser.ts`; see *a-divided-cell-aligns-within-each-piece*).
 
 ## 8. Article V — The build loop
 
@@ -208,7 +208,7 @@ Modules: `src/fragments.js`, `src/data-beltype.js`, `src/dressing.js`, `src/has-
 8. The first fragment ends with the hyphenation character the source asks for, written where the cut falls (see *the-hyphen-is-written-at-the-cut*).
 9. A divided table repeats its header group on every continuation and its footer group on every fragment but the last, unless the group is taller than a quarter of the page area (see *the-header-repeats*). A group that does not repeat is shown once, where its words fall in display order (I.1.8): a header on the table's first fragment and a footer on its last, wherever each is written, as Chromium prints them. A footer group written before its rows and taller than the page area is refused by name, as a box taller than its page is (see *the-word-space-follows-the-table-display-order*; measured against Chromium's print 2026-11-07, `test/browser/table-groups.browser.ts`).
 10. A repeated header joins the continuation's rows as the whole table does (see *a-repeated-header-joins-the-rows-as-chromium-prints-them*).
-11. A piece is laid out by the browser as a box of its own, so `text-wrap` shapes each piece's lines alone: under `balance` a continuation balances its own lines, where Chromium's print does not balance a divided paragraph (measured 2026-11-07: a continuation of fourteen words printed eight and six, and shows seven and seven). The words on each page agree; under `pretty` the lines agreed as well.
+11. A piece is laid out by the browser as a box of its own, so `text-wrap` shapes each piece's lines alone: under `balance` a continuation balances its own lines, where Chromium's print does not balance a divided paragraph (measured 2026-11-07: a continuation of fourteen words printed eight and six, and shows seven and seven). The words on each page agree; under `pretty` the lines agreed as well. (see *a-divided-cell-aligns-within-each-piece*)
 12. An `<ol>` a cut divides is numbered from the first item its piece keeps: the piece's copy carries a `start` of that item's ordinal, as HTML numbers it with `start`, `value`, `reversed` and a `counter-set` or `counter-increment` of `list-item`, so the browser's own marker counts on (measured against Chromium's print 2026-11-07).
 
 ### VI.2 The `data-beltype` registry
@@ -259,6 +259,7 @@ Modules: `src/document-state.js`, `src/reads.js`.
 4. A named string's value is evaluated at its element, with the element's own counter operations already in force (see *the-host-rewrites-what-the-parser-drops*).
 5. `element()` is answered by the same keyword arithmetic as `string()`, with `null` as the empty value; a second implementation is refused (see *a-running-element-is-a-named-node*).
 6. The readers `styleOf`, `textOf` and `attrOf` are the door, so a host that holds its document elsewhere computes the same state (project, *the-engine-knows-no-view*).
+7. A `counter-reset` opens a scope over its element, the element's descendants and its following siblings, as CSS 2.1 §12.4.1 and css-lists-3 say; Chromium's print does not reach the following siblings that way (measured F4 for the specification's F2; claimed by no case), and the replay keeps the specification, so a sibling-scoped counter that straddles a page break may read differently in the body and in a margin box (see *a-sibling-counter-scope-stays-by-the-book*).
 
 ### VIII.2 The reads
 
@@ -485,6 +486,8 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | XIII.3 | The leading-decoration door joins the face: `WRAPPED`, `clonesDecoration`, `truncateLeadingDecoration`. | *the-fragment-that-wraps-itself* |
 | 2026-11-07 | XIII.4, XIII.5 | The rim joins the faces as `./rim`; `./internal/*` is stated as `src/` only, which it always was. | *late-truth-is-an-edit* |
 | 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
+| 2026-11-07 | IV.11, VI.1.11 | Both items now cite their record, *a-divided-cell-aligns-within-each-piece*, written from the ruling of 2026-11-07. | *a-divided-cell-aligns-within-each-piece* |
+| 2026-11-07 | VIII.1.7 | The sibling counter scope stays by the book: the replay follows CSS 2.1 §12.4.1 where Chromium's print does not, stated with the measured divergence. | *a-sibling-counter-scope-stays-by-the-book* |
 
 ## 18. Known open at ratification
 
