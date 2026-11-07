@@ -1429,7 +1429,8 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
       const cutY = v.y;
       const places = (v.items as RowItem[]).map(({ item, state, verdict }) => ({
         item,
-        at: state === 'above' ? { box: item, word: null, px: { remaining: 0, paint: null }, flows: [] } : state === 'below' || state === 'held' ? { box: item, word: null, px: null, flows: [] } : verdict ? verdictPlace(verdict) : placesOf(item, cutY)
+        // An item that is `done` has shown all its content and continues as a shell of what its box has left; the Stonehand said so knowing where a divided cell's content stands (`cellLift`), which the geometry of the feed does not.
+        at: state === 'above' ? { box: item, word: null, px: { remaining: 0, paint: null }, flows: [] } : state === 'done' ? { box: item, word: null, px: { remaining: item.rect.bottom - cutY, paint: null }, flows: [] } : state === 'below' || state === 'held' ? { box: item, word: null, px: null, flows: [] } : verdict ? verdictPlace(verdict) : placesOf(item, cutY)
       }));
       const last = (places.pop() as NonNullable<typeof places[number]>);
       return { ...last.at, itemBox: last.item, flows: [...places.map(({ item, at }) => ({ ...at, itemBox: item, remainingPx: item.rect.top < cutY && item.rect.bottom > cutY ? item.rect.bottom - cutY : null })), ...last.at.flows] };
@@ -1634,6 +1635,12 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
             if (item && item.rect.top < v.y - 0.25 && item.rect.bottom > v.y + 0.25) extents.push({ path: pathOf(sourceOf(item.el), blocks[cutB], cutB), px: foot - item.rect.top });
             for (const f of place.flows) visit(f);
           })(rowPlace);
+        } else if (v.kind !== 'E') {
+          // A table cell the main path's cut divides gets the same extension: Chromium's print aligns a divided cell's content within its first fragment, which reaches the foot, and the Stonehand judged the cut so (`cellLift`).
+          const foot = pageStart + usableH;
+          for (let p: Box|null = v.kind === 'A' ? v.box.parent : v.box; p; p = p.parent) {
+            if (win.getComputedStyle(p.el).display === 'table-cell' && p.rect.top < v.y - 0.25 && p.rect.bottom > v.y + 0.25) extents.push({ path: pathOf(sourceOf(p.el), blocks[cutB], cutB), px: foot - p.rect.top });
+          }
         }
 
         const tf = performance.now();

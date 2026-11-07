@@ -163,6 +163,7 @@ Module: `src/stonehand.js`.
 8. A box's end gap is a break point only where the box ends past the page edge (see *the-end-gap-breaks-only-at-the-edge*).
 9. The collection runs in two phases: what needs no line measure first, and the line readings only as far as they can win (see *the-lines-that-cannot-win-are-not-measured*).
 10. **Decided, not built.** A competing flow (a footnote area, a repeated header) is one fragmentainer that bargains the main flow's foot (see *a-competing-flow-bargains-the-foot-of-the-main-flow*). The footnote area is a row of the content area below the flow (see *the-footnote-area-is-a-row-of-the-page*).
+11. A table cell a cut divides is judged with its content set from the cell's top, its `vertical-align` offset dropped, and its first piece reaches the page's foot, as Chromium's print aligns a divided cell within its first fragment (measured 2026-11-07, `test/browser/table-row-cut.browser.ts`; no record yet).
 
 ## 8. Article V — The build loop
 
@@ -468,6 +469,7 @@ Each name keeps the contract its module's article states. A change to one is a c
 | Date | Article | Change | Owning record |
 |---|---|---|---|
 | 2026-10-29 | all | Ratified at the move into its own repository. | — |
+| 2026-11-07 | IV.11 | A divided table cell is judged and presented aligned within its first piece. | — (measured; assessment 2026-11-07) |
 
 ## 18. Known open at ratification
 
