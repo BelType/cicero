@@ -20,6 +20,7 @@
 
 import { applyRecordsUnder, hyphenCharOf } from './compose-dom.ts';
 import { addWord, ADJOIN, ARTIFACT, AWAY, END, ENGINE_MARKS, hasAnyWord, hasWord, removeWord, SHELL, SPLIT, START, WRAPPED } from './data-beltype.ts';
+import { pairsOf } from './document-state.ts';
 import { divides, elAtIn, flowsOf } from './positions.ts';
 import { BREAKING_SPACE, clonesDecoration, cutRanges, emptyText, leaveOut, replaceChars, isEngineText, isFixedBox, isInlineBox, isLineBreak, copyOf, shellOf, noteText, READS_ITS_CHILDREN, sourceOf, sourceStyle } from './word-space.ts';
 import type { CompositionRecord } from './compose-dom.ts';
@@ -756,7 +757,67 @@ export function mutateToContinuation(clone: Element, { cut = null, remainderPx =
   }
   if (remainderPx != null && source) applyCarriedRemainder((clone as HTMLElement), source, remainderPx);
   for (const m of mine) mutateToContinuation(m.itemClone, { cut: m.cut, remainderPx: m.e.remainingPx ?? null, source: m.itemSource, cloneOf, flows: m.nested, rootPath: m.e.item, hollow });
+  numberDividedLists(root, cut, source, cloneOf);
   return root;
+}
+
+/** The list items an `<ol>` owns, in tree order: HTML's list owner is the nearest `ol`, `ul` or `menu` ancestor. An item that is not displayed as a list item has no ordinal, where a style can be read. */
+function ownedItems(ol: Element): Element[] {
+  const out: Element[] = [];
+  (function walk(el: Element) {
+    for (const c of el.children) {
+      if (/^(?:OL|UL|MENU)$/i.test(c.tagName)) continue;
+      if (/^LI$/i.test(c.tagName)) {
+        const display = sourceStyle(c)?.display;
+        if (display == null || display.includes('list-item')) out.push(c);
+      }
+      walk(c);
+    }
+  })(ol);
+  return out;
+}
+
+/**
+ * The ordinal value of each item an `<ol>` owns, as HTML numbers them (§4.4.8) and css-lists-3 states it as the `list-item` counter: the list resets the counter one step before its `start`, which under `reversed` defaults to the number of items; each item adds its step, 1 or −1 under `reversed` unless a `counter-increment` names `list-item`, and a `counter-set` of `list-item`, or else a `value` attribute, sets it.
+ *
+ * @remarks A `counter-reset` of `list-item` on an item, which opens a list of its own inside the list, is not modelled.
+ */
+export function listOrdinals(ol: Element): Map<Element,number> {
+  const items = ownedItems(ol);
+  const reversed = ol.hasAttribute('reversed');
+  const dflt = reversed ? -1 : 1;
+  const start = parseInt(ol.getAttribute('start') ?? '', 10);
+  let n = (Number.isFinite(start) ? start : reversed ? items.length : 1) - dflt;
+  const out = new Map<Element,number>();
+  for (const li of items) {
+    const style = sourceStyle(li);
+    const named = (value: unknown, fallback: number) => pairsOf(value, fallback).find(([name]) => name === 'list-item')?.[1];
+    n += named(style?.counterIncrement, 1) ?? dflt;
+    const value = parseInt(li.getAttribute('value') ?? '', 10);
+    const set = named(style?.counterSet, 0) ?? (Number.isFinite(value) ? value : null);
+    if (set != null) n = set;
+    out.set(li, n);
+  }
+  return out;
+}
+
+/**
+ * Every `<ol>` a cut divides is numbered from the first item its piece keeps: the piece's copy carries a `start` attribute of that item's ordinal, so the browser's own marker counts on from the source's numbering. Without it a continued list numbered from 1 again on every page, and the first piece of a `reversed` list counted down from the items it kept (measured 2026-11-07 against Chromium's print, `test/browser/list-continuation.browser.ts`). Read from the source, so it holds whichever cut ran first.
+ */
+function numberDividedLists(root: Element, cut: Address|null, source: Element|null, cloneOf: Map<Element,Element>|null) {
+  if (!divides(cut) || !source || !cloneOf) return;
+  const target = elAtIn(source, (cut as Address).path);
+  for (let a = target?.parentElement ?? null; a; a = a === source ? null : a.parentElement) {
+    if (!/^OL$/i.test(a.tagName)) continue;
+    const copy = cloneOf.get(a);
+    if (!copy) continue;
+    for (const [li, n] of listOrdinals(a)) {
+      const c = cloneOf.get(li);
+      if (!c || !root.contains(c) || hasWord(c, AWAY)) continue;
+      copy.setAttribute('start', String(n));
+      break;
+    }
+  }
 }
 
 /** The shell branch of the start cut: the box the path names continues at exactly the extent it has left, blank or painted. */
@@ -950,6 +1011,7 @@ export function mutateToFirstFragment(clone: Element, { cut = null, extPx = 0, s
   }
   /** And the cut line stays justified. css-text-3 §7.2 says a line before a forced or fragmentation break is not the last line of its block, so `text-align: justify` binds it — but in a clone cut AT the break it is the last line and the browser would set it ragged. The alignment is restated rather than inherited, and it is read from the source through the word space's map, because a detached clone has no computed style to ask. The Compositor makes the same move for the same reason (`compose-dom.js`), which is what makes this the engine's one answer written twice for two different line providers rather than two answers. */
   if (sourceStyle(inner)?.textAlign === 'justify') (inner as HTMLElement).style.textAlignLast = 'justify';
+  numberDividedLists(clone, cut, source, cloneOf);
   return clone;
 }
 
