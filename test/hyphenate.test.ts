@@ -126,7 +126,14 @@ test('Italian: accents, elisions and punctuation', () => {
   assert.deepEqual(hyphenationOffsets('D.Lgs.', it), []);
 });
 
-test('English still reads only plain letters', () => {
-  assert.deepEqual(hyphenationOffsets('computer,', en), []);
-  assert.deepEqual(hyphenationOffsets("computer's", en), []);
+test('English reads a word\'s core: what stands around it moves no offset, a possessive among it, and an apostrophe inside is not a letter', () => {
+  const computer = hyphenationOffsets('computer', en);
+  assert.ok(computer.length > 0, 'the control');
+  assert.deepEqual(hyphenationOffsets('computer,', en), computer);
+  assert.deepEqual(hyphenationOffsets('computer.)', en), computer);
+  assert.deepEqual(hyphenationOffsets("computer's", en), computer);
+  assert.deepEqual(hyphenationOffsets('“computer”', en), computer.map((o) => o + 1));
+  assert.deepEqual(hyphenationOffsets("don't", en), []);
+  assert.deepEqual(hyphenationOffsets('café,', en), [], 'no pattern knows the letter');
+  assert.deepEqual(hyphenationOffsets('3.14', en), []);
 });
