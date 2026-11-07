@@ -322,10 +322,10 @@ function liftRepeatedHeader(group: HTMLElement) {
  * **`keep` is the first fragment's door into the same surgery** (*the first fragment is constructed*, 2026-09-15). A shell continues a box whose own content closed on the page before, so page one wants everything after that box gone and the box itself standing — the one difference from the grab's reading, where the boundary box is what resumes. With `keep`, the boundary element stays and is dressed as a fragment that ends there, which it is.
  *
  * @param clone - the top-level block's clone, already hinted and already consumed to the cursor.
- * @param el - the boundary element, addressed in the clone's own coordinates.
+ * @param el - the boundary node, addressed in the clone's own coordinates: an element, or the first node of a run of lines, which has no element (*the anonymous box is in the procession*).
  * @param opts - `keep`: the boundary element stays in the fragment (and is dressed), rather than leaving with its successors. `hollow`: what leaves is kept hollow (`putAway`).
  */
-export function truncateFrom(clone: Element, el: Element, { keep = false, hollow = false }: { keep?: boolean; hollow?: boolean; } = {}) {
+export function truncateFrom(clone: Element, el: ChildNode, { keep = false, hollow = false }: { keep?: boolean; hollow?: boolean; } = {}) {
   if (el === clone) return clone;
   const chain: Element[] = [];
   for (let e = (el as Element | null); e && e !== clone; e = e.parentElement) {

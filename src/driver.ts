@@ -16,7 +16,7 @@
 
 import { Ledger, createEntry } from './ledger.ts';
 import { assertRenderConditions, awaitCloneImages, awaitFonts, awaitImages, createMeasureContext } from './measure.ts';
-import { takeReport } from './gauge.ts';
+import { holdsAnonymousBlocks, takeReport } from './gauge.ts';
 import { adjudicate, adjudicateFlow, firstBelowTheEdge, isAbsolutelyPositioned, isOutOfFlow, isMonolith, neverCutInside, reachesBelowTheEdge, processionBottoms, fitsPage } from './stonehand.ts';
 import { composeDocument, applyRecordsUnder } from './compose-dom.ts';
 import { CompositionCache } from './composition-key.ts';
@@ -64,6 +64,8 @@ export type ForcingEvent = {
   sealedBy: number;
   /** It stands inside a box that lays its children side by side. */
   rowish: boolean;
+  /** For a run of lines after a block child, the event is the run's first word in `el`, which holds it, and this is the block child it follows; the feed is cut after it (*the anonymous box is in the procession*). */
+  runAfter?: Element;
 };
 
 /** One block of a page's feed: its clone, the source it was cloned from, and the address it resumes at. */
@@ -293,7 +295,7 @@ export const combineParity = (earlier: 'left'|'right'|null, later: 'left'|'right
  *
  * @param blocks - the top-level blocks, in document order.
  */
-export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, posOf, posOfCut = null, isMonolith: monolith = isMonolith, blockChildren = blockChildrenOf }: { styleOf: (el: Element) => CSSStyleDeclaration; pageNameOf: (el: Element) => string; cutOf: (el: Element,b: number) => Address; posOf: (el: Element,b: number) => number; posOfCut?: ((cut: Address) => number)|null; isMonolith?: typeof isMonolith; blockChildren?: typeof blockChildrenOf; }) {
+export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, posOf, posOfCut = null, isMonolith: monolith = isMonolith, blockChildren = blockChildrenOf, extentOf = null }: { styleOf: (el: Element) => CSSStyleDeclaration; pageNameOf: (el: Element) => string; cutOf: (el: Element,b: number,word?: number|null) => Address; posOf: (el: Element,b: number) => number; posOfCut?: ((cut: Address) => number)|null; isMonolith?: typeof isMonolith; blockChildren?: typeof blockChildrenOf; extentOf?: ((el: Element) => { before: number; count: number; })|null; }) {
   const events: ForcingEvent[] = [];
   const blockStart: number[] = [];
   /**
@@ -307,7 +309,23 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
     const k = events.length;
     events.push(e);
     const inner = sealedBy >= 0 ? sealedBy : neverCutInside(el, st) ? k : -1;
-    if (!parallel && !monolith(el, st)) for (const child of blockChildren(el)) visit(child, b, inner, rowish || SIDE_BY_SIDE.has(st.display ?? ''));
+    if (!parallel && !monolith(el, st)) {
+      const kids = blockChildren(el);
+      const runs = !!extentOf && holdsAnonymousBlocks(st.display ?? '');
+      const row = rowish || SIDE_BY_SIDE.has(st.display ?? '');
+      for (let i = 0; i < kids.length; i++) {
+        visit(kids[i], b, inner, row);
+        if (!runs) continue;
+        // A run of lines after this child is an anonymous block box, and the box a forced `break-after` closing here is pending into: an event at its first word, in the word space of the box that holds it (*the anonymous box is in the procession*). Words standing between the child's end and the next child's start, or this box's end, are the run; none is no box.
+        const ext = extentOf as NonNullable<typeof extentOf>;
+        const own = ext(el);
+        const done = ext(kids[i]);
+        const word = done.before + done.count;
+        const next = kids[i + 1];
+        if ((next ? ext(next).before : own.before + own.count) <= word) continue;
+        events.push({ b, el, cut: cutOf(el, b, word - own.before), name: e.name, before: false, beforeParity: null, after: false, afterParity: null, end: events.length + 1, pos: e.pos + word - own.before, inFlow: true, sealedBy: inner, rowish: row, runAfter: kids[i] });
+      }
+    }
     e.after = !parallel && isForced(st.breakAfter); // a float's own break-after was never read, and still is not
     e.afterParity = parityOf(st.breakAfter);
     e.end = events.length;
@@ -331,7 +349,7 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
     const e = events[k];
     const before = !namesOnly && e.before;
     // §4.3's combination at the one break point where two forced values meet: the `break-after` pending into the box, and the box's own `break-before`, the later element in the flow, whose parity wins where it has one. The address is a copy, so no page can reach into the index through it.
-    return { b: e.b, namedSwitch: e.name !== name, el: e.el, cut: { ...e.cut, path: [...e.cut.path] }, parity: combineParity(pending?.parity ?? null, before ? e.beforeParity : null), rowish: e.rowish };
+    return { b: e.b, namedSwitch: e.name !== name, el: e.el, cut: { ...e.cut, path: [...e.cut.path] }, parity: combineParity(pending?.parity ?? null, before ? e.beforeParity : null), rowish: e.rowish, runAfter: e.runAfter };
   };
   /** The first event strictly after the cursor — a binary search, because a bare address never precedes the one before it in walk order — or `n` where there is none. */
   const firstAfter = ( cursorCut: Address) => {
@@ -377,6 +395,7 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
         const e = events[k];
         if (e.sealedBy >= 0) k = events[e.sealedBy].end;
         else if (!e.inFlow) k = e.end;
+        else if (e.runAfter) k++; // a run's place is the grab's alone: the Cast-off cuts at a box, and moving forward only grows the feed
         else return { b: e.b, el: e.el, cut: { ...e.cut, path: [...e.cut.path] } };
       }
       return null;
@@ -701,16 +720,18 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   /** The grab's events, indexed here, once (*the page asks the index*, 2026-09-25) — beside the document's own counters and for the same reason: the source is never written (*the source document is never written*, C5), so what the grab reads about a box is the same on every page, and the walk that asked it of the tree on every page cost the BGD manual 66 ms a page whatever the cursor. `forcingIndexOf` above carries the question and its rules; the page asks `forcing.find`. */
   // The memo, if the seam offered one and the sheets leave it standing (*the forced-break index is kept across runs*, 2026-10-09; settled once for the call by `settledMemo`): the reads below are answered from it where an element was read before, and read from the browser and kept where not.
   memo?.restart();
+  const extentOf = (el: Element) => ({ before: index.wordsBefore(el), count: index.wordCountIn(el) });
   const forcing = memo
     ? forcingIndexOf(blocks, {
       styleOf: (el) => ((memo.facts(el, () => snapshotOfStyle(win.getComputedStyle(el))) as unknown) as CSSStyleDeclaration),
       pageNameOf: (el) => memo.pageName(el, () => effectivePageName(el)),
       blockChildren: (el) => memo.blockChildren(el, () => blockChildrenOf(el)),
-      cutOf: (el, b) => cutTo(el, b, { rawPath: pathOf(el, blocks[b], b, isFixedBox, (e) => memo.indexIn(e, () => inFlowIndex(e))) }),
+      cutOf: (el, b, word = null) => cutTo(el, b, { word, rawPath: pathOf(el, blocks[b], b, isFixedBox, (e) => memo.indexIn(e, () => inFlowIndex(e))) }),
       posOf: (el, b) => index.posOf(b, index.wordsBefore(el)),
-      posOfCut
+      posOfCut,
+      extentOf
     })
-    : forcingIndexOf(blocks, { styleOf: (el) => win.getComputedStyle(el), pageNameOf: effectivePageName, cutOf: (el, b) => cutTo(el, b), posOf: (el, b) => index.posOf(b, index.wordsBefore(el)), posOfCut });
+    : forcingIndexOf(blocks, { styleOf: (el) => win.getComputedStyle(el), pageNameOf: effectivePageName, cutOf: (el, b, word = null) => cutTo(el, b, { word }), posOf: (el, b) => index.posOf(b, index.wordsBefore(el)), posOfCut, extentOf });
   performance.measure('cicero:forcing-index', { start: t, end: (t = performance.now()), detail: { events: forcing.size, ...(memo ? { memoHits: memo.hits, memoMisses: memo.misses } : {}) } });
 
   /**
@@ -800,10 +821,15 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
    *
    * @param who - the caller, for the error.
    */
-  const cutCloneAt = (clone: Element, cloneOfSource: Map<Element,Element>, place: { b: number; el: Element; }, who: string) => {
-    const target = cloneOfSource.get(place.el);
+  const cutCloneAt = (clone: Element, cloneOfSource: Map<Element,Element>, place: { b: number; el: Element; runAfter?: Element; }, who: string) => {
+    const target = cloneOfSource.get(place.runAfter ?? place.el);
     if (!target || !clone.contains(target)) throw new Error(`${who} could not address its own place in block ${place.b} — a defect to file, not a bail to hide`);
-    truncateFrom(clone, target, { hollow });
+    if (!place.runAfter) return void truncateFrom(clone, target, { hollow });
+    // A run has no element: the feed is cut at the first node after the block child it follows, which stands in the run, so the child stays whole and the run leaves with everything after it.
+    let at: Node = target;
+    while (!at.nextSibling && at.parentNode && at !== clone) at = at.parentNode;
+    if (!at.nextSibling) throw new Error(`${who} found no run after its block child in block ${place.b}: a defect to file, not a bail to hide`);
+    truncateFrom(clone, at.nextSibling as ChildNode, { hollow });
   };
 
   const ledger = new Ledger();
@@ -864,7 +890,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
       const source = blocks[b];
       const cut = b === first ? cursor.cut : null;
       const ends = !!place && b === place.b;
-      if (ends && place.cut.path.length === 1) break; // the place is this block's own start: the whole block leaves, exactly as the item-granular grab always cut
+      if (ends && place.cut.path.length === 1 && place.cut.word == null) break; // the place is this block's own start: the whole block leaves, exactly as the item-granular grab always cut
       const { clone } = cloneFlowPiece(source, { start: divides(cut) ? cut : null, end: ends ? place.cut : null, items: itemsIn(b), hollow, into: cloneOfSource }); // no composition: the tail is cut first, then the hints
       if (ends) cutCloneAt(clone, cloneOfSource, place, who); // the tail first, so nothing the page does not show is hinted
       if (composition) applyRecordsUnder(clone, source, composition); // hints before the start cut — a continuation keeps exactly the remaining subset of the same chosen lines (*cut-invariance*, C7)
