@@ -16,7 +16,7 @@
  */
 
 import { BREAK, selectorOf } from './data-beltype.ts';
-import { blockChildrenOf, footerBeforeRows, isAtom, isEngineText, isInlineBox, isLineBreak, mayBeAutoHyphenated, rangeOf, READS_ITS_CHILDREN, rowsAmong, SIDE_BY_SIDE, wordRuns } from './word-space.ts';
+import { blockChildrenOf, footerBeforeRows, headerAfterRows, isAtom, isEngineText, isInlineBox, isLineBreak, mayBeAutoHyphenated, rangeOf, READS_ITS_CHILDREN, rowsAmong, SIDE_BY_SIDE, wordRuns } from './word-space.ts';
 
 /** The Compositor's own `<br>`, found by the browser and never by splitting the attribute here (the walkers below run per box). */
 const BREAK_SELECTOR = `br${selectorOf(BREAK)}`;
@@ -55,6 +55,8 @@ export type Box = {
   anonymous?: boolean;
   /** A table's footer group written before its rows (`footerBeforeRows`), moved to the end of the table's procession, where §17.2 lays it out. */
   laidOutLast?: boolean;
+  /** A table's header group written after its rows (`headerAfterRows`), moved to the front of the table's procession, where §17.2 lays it out. */
+  laidOutFirst?: boolean;
 };
 
 /** One line box, recovered arithmetically from the rects clustered onto it and the line-heights they are set on (`computeLines`). */
@@ -173,6 +175,16 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
       const [footer] = list.splice(f, 1);
       list.splice(last, 0, footer); // `last` moved down by one with the removal, so this is the place after it
       footer.laidOutLast = moved = true;
+    }
+    // The header stands first, the mirror (*thead-after-rows-and-tall-footer-lose-rows*, 2026-11-07): §17.2 lays a `table-header-group` out *"before all other rows and row groups"*, so one written after them is moved before the first. Its words stay after the rows in the word space, which is why the Stonehand offers no place inside it or right after it, and why the driver refuses one that does not repeat: only a copy can show it on a page before its words.
+    for (const list of [box.blockChildren, box.children]) {
+      const h = list.findIndex((c) => headerAfterRows(c.el));
+      if (h < 0) continue;
+      const first = list.findIndex((c) => /^table-row(-group)?$/.test(win.getComputedStyle(c.el).display));
+      if (first < 0 || first > h) continue;
+      const [header] = list.splice(h, 1);
+      list.splice(first, 0, header);
+      header.laidOutFirst = moved = true;
     }
   }
 

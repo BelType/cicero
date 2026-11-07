@@ -504,6 +504,19 @@ export function footerBeforeRows(el: Element) {
 }
 
 /**
+ * Is this a table's header group written after a row or row group of its table, which CSS 2.1 §17.2 lays out before them all the same (*"always displayed before all other rows and row groups"*)?
+ *
+ * @remarks The mirror of {@link footerBeforeRows} (*thead-after-rows-and-tall-footer-lose-rows*, 2026-11-07): the Gauge walks such a header first, the Stonehand offers no place inside it or right after it, and its words stand after the rows in the word space, so a page before its words shows it by its repeated copy alone. One that does not repeat, in a divided table, is refused by the driver. Read by computed display, so a clone answers for its source.
+ *
+ * @param el - a clone or a source element.
+ */
+export function headerAfterRows(el: Element) {
+  if (sourceStyle(el)?.display !== 'table-header-group') return false;
+  for (let s = el.previousElementSibling; s; s = s.previousElementSibling) if (/^table-row(-group)?$/.test(sourceStyle(s)?.display ?? '')) return true;
+  return false;
+}
+
+/**
  * The computed style of the box an author declared — the clone's registered source, or the element itself where it is live and connected. `null` for everything else, which is the honest answer rather than a default: a detached clone with no registration is a `<br>` or a filler span the Compositor inserted, and an element nobody declared has no declaration to read.
  *
  * Extracted from `clonesDecoration` when the first fragment came to need two more readings of the same source — its block-end padding, which §5.3's extension is added on top of under `clone`, and its `text-align`, which css-text-3 §7.2 makes the clone's cut line answer to. Three questions, one map, one place that knows a clone cannot be asked about itself.

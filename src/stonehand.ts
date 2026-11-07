@@ -255,7 +255,7 @@ function walkOf(report: MeasureReport, sourceOf: (cloneEl: Element) => Element|n
   };
   const monolithic = ( box: Box) => {
     if (box.anonymous) return false; // a run of lines, never one unit
-    if (box.laidOutLast) return true; // a footer written before its rows: its words stand before the rows in the word space, so no place inside it could be addressed (*the footer before the rows*)
+    if (box.laidOutLast || box.laidOutFirst) return true; // a footer written before its rows: its words stand before the rows in the word space, so no place inside it could be addressed (*the footer before the rows*)
     const live = sourceOf(box.el) ?? box.el;
     const held = isMonolith(box.el, styleOfBox(box), live);
     // Named once per box, on the console, so a page that looks wrong for this reason says so.
@@ -433,7 +433,8 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
     const siblings = box === root ? [] : report.processionOf(box).filter((b) => !isAbsolutelyPositioned(styleOfBox(b)));
     const si = siblings.indexOf(box);
     // A footer written before its rows offers no boundary before it (*the footer before the rows*, 2026-10-15): the place is after the last row in the layout and before the first in the document, and an address can only say the second.
-    if (si > 0 && !box.laidOutLast) {
+    // Nor does the box after a header written after its rows (the mirror): the place is after the header in the layout and before every row in the document, so the page would hold the header's copy alone.
+    if (si > 0 && !box.laidOutLast && !siblings[si - 1].laidOutFirst) {
       // Two siblings answer here, and they are not always the same one. **The keeps** are the immediately-adjacent box's, because §4.1 names *"a float and an immediately-adjacent in-flow or floated box"* as a Class A pair in as many words — a float's own `break-after` binds the boundary after it, which is §3.1's *should* on floats that this engine honours and Chromium declines. **The position** is the previous in-flow sibling's bottom border edge, because a parallel flow's extent is not a place in the procession the cuts divide (§2.1): the float is laid out beside the content, so the page closes where the previous in-flow box ended and the float's own bottom says nothing about it. Pricing this at the float's bottom is how a 96mm rail put every slab standing beside it off the page — measured, `cases/21-parallel-flows`, where the boundary before the first slab was priced at y 400 in a 264px page area.
       const pair = siblings[si - 1];
       const anchor = last(siblings.slice(0, si).filter((b) => !parallelBox(b))) ?? null;
