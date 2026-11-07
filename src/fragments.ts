@@ -377,20 +377,56 @@ function charRanges(word: JoinedWord, from: number, to: number) {
   return out;
 }
 
+/** Whether the whitespace of a text node stands in its layout (css-text-4 §4.1): where it collapses it is nothing at a line's edge, and where it is preserved each newline draws a line. */
+const preservesSpace = (t: Text) => !!t.parentElement && /^(pre|pre-wrap|pre-line|break-spaces)$/.test(sourceStyle(t.parentElement)?.whiteSpace ?? '');
+
+/** Take a stretch of a cut's whitespace out of the fragment: leave it where it collapses, so layout reads the data exactly as before, and remove it where it is preserved, or a continuation opens on the empty lines of every line cut away. Either way the record says it is not shown. */
+function dropSpace(t: Text, from: number, to: number) {
+  if (to <= from) return;
+  if (preservesSpace(t)) cutRanges(t, [{ start: from, end: to }]);
+  else leaveOut(t, from, to);
+}
+
 /**
- * Say that everything before the resume point is held and not shown (*the engine names the source point*, 2026-10-13). Consuming blanks the words and leaves the whitespace between them, so a continuation's data still begins with the spaces of every word cut away; those are the source's characters and no part of the interval, and so are the whitespace before the first kept word and every text node that stands wholly before it. Records only: layout reads the data exactly as before.
+ * The indentation of the line a resume word opens: the whitespace before it back to a newline, in characters. Read before the words before it go, because only they tell the space that opens a line from the space that followed a word. A cut at a soft wrap has no newline in that gap and no indentation, the space hanging at the end of the line before; a line after a `<br>` looks the same and loses its indentation at the top of a page.
+ */
+function indentationBefore(clone: Element, node: Text, start: number) {
+  let text = '';
+  for (const t of textsIn(clone)) {
+    if (t === node) {
+      text += t.data.slice(0, start);
+      break;
+    }
+    text += t.data;
+  }
+  let i = text.length;
+  while (i > 0 && BREAKING_SPACE.test(text[i - 1])) i--;
+  const newline = text.lastIndexOf('\n');
+  return newline < i ? 0 : text.length - newline - 1;
+}
+
+/**
+ * Say that everything before the resume point is held and not shown (*the engine names the source point*, 2026-10-13). Consuming blanks the words and leaves the whitespace between them, so a continuation's data still begins with the spaces of every word cut away; those are the source's characters and no part of the interval, and so are the whitespace before the first kept word and every text node that stands wholly before it. Where the whitespace collapses these are records only, and where it is preserved they leave the data (`dropSpace`), all but the indentation of the line the page opens on.
  *
  * @param resume - the node holding the first kept character, or null when nothing is kept.
+ * @param indent - the characters immediately before it to keep, from {@link indentationBefore}.
  */
-function leaveOutBefore(clone: Element, resume: Text|null) {
+function leaveOutBefore(clone: Element, resume: Text|null, indent: number) {
+  const lead = [];
   for (const t of textsIn(clone)) {
     if (t === resume) break;
-    leaveOut(t, 0, t.data.length);
+    lead.push({ node: t, end: t.data.length });
   }
   if (resume) {
     let at = 0;
     while (at < resume.data.length && BREAKING_SPACE.test(resume.data[at])) at++;
-    leaveOut(resume, 0, at);
+    lead.push({ node: resume, end: at });
+  }
+  let left = indent;
+  for (const { node, end } of lead.reverse()) {
+    const kept = preservesSpace(node) ? Math.min(left, end) : 0;
+    left -= kept;
+    dropSpace(node, 0, end - kept);
   }
 }
 
@@ -398,12 +434,12 @@ function leaveOutBefore(clone: Element, resume: Text|null) {
 function leaveOutAfter(clone: Element, keep: Text) {
   let end = keep.data.length;
   while (end > 0 && BREAKING_SPACE.test(keep.data[end - 1])) end--;
-  leaveOut(keep, end, keep.data.length);
   let after = false;
-  for (const t of textsIn(clone)) {
-    if (after) leaveOut(t, 0, t.data.length);
+  for (const t of [...textsIn(clone)]) {
+    if (after) dropSpace(t, 0, t.data.length);
     else if (t === keep) after = true;
   }
+  dropSpace(keep, end, keep.data.length);
 }
 
 /** The text nodes under an element, in document order — by `childNodes`, as `joinedWords` reads, so the DOM-free suites' trees serve. */
@@ -421,7 +457,9 @@ function consumeLeadingWords(clone: Element, n: number, char: number = 0, hollow
   // A resume inside word n (*a line inside a word is a break point*, 2026-09-23): its first `char` characters were shown on the page before, and go with the words before it. The page resumes at the part holding the first character left.
   const inside = char > 0 && n < words.length ? charRanges(words[n], 0, char) : [];
   const resumeWord = words[Math.min(n, words.length - 1)];
-  const resumeNode = n < words.length ? (partAt(resumeWord, char) ?? resumeWord.parts[0]).node : null;
+  const resumePart = n < words.length ? partAt(resumeWord, char) ?? resumeWord.parts[0] : null;
+  const resumeNode = resumePart?.node ?? null;
+  const indent = resumePart && char === 0 ? indentationBefore(clone, resumePart.node, resumePart.start) : 0;
 
   // Blank the consumed words' exact character ranges, one pass a node (`word-space.js`' `cutRanges`, which records what went).
   const perNode: Map<Text,JoinedPart[]> = new Map<any, any>();
@@ -430,7 +468,7 @@ function consumeLeadingWords(clone: Element, n: number, char: number = 0, hollow
     (perNode.get(part.node) as JoinedPart[]).push(part);
   }
   for (const [node, ranges] of perNode) cutRanges(node, ranges);
-  leaveOutBefore(clone, resumeNode);
+  leaveOutBefore(clone, resumeNode, indent);
 
   // Structural pass: an element with no remaining words, standing entirely before the resume point, is spent — its edges adjoin the cut (§5.2) and it leaves the fragment.
   const spent: Element[] = [];

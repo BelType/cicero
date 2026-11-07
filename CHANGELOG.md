@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A continuation of preserved text opens on the next line.** Consuming left the whitespace of every word cut away, which collapses under `white-space: normal` and under `pre`, `pre-wrap`, `pre-line` and `break-spaces` drew one empty line for each newline: a listing's second page opened on the first page's blank lines, and when they filled it the run refused with *entry position runs backward (I1)*. That whitespace now leaves the data where it is preserved, all but the indentation of the line the page opens on, and so does the whitespace after a fragment's last word. A blank line falling exactly at the head of a page goes with the cut, where Chromium keeps it (the essay's case of the blank line at the page head).
 - **No break point stands in a repeated copy or beside it.** A table with a header whose first row under the copy did not fit took a place before where the page resumed, and the run refused the document with *entry position runs backward (I1)*. The row now divides under the copy, page for page with Chromium.
 - **`@page` rules inside `@layer`, `@supports`, `@media` and imported sheets count** (`pageRulesOf`), and an unlayered rule beats a layered one whatever their order.
 - **`cssString` escapes every control character**, so a carriage return or a form feed in a value cannot end the string.
