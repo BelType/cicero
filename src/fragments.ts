@@ -22,7 +22,7 @@ import { applyRecordsUnder, hyphenCharOf } from './compose-dom.ts';
 import { addWord, ADJOIN, ARTIFACT, AWAY, END, ENGINE_MARKS, hasAnyWord, hasWord, removeWord, SHELL, SPLIT, START, WRAPPED } from './data-beltype.ts';
 import { pairsOf } from './document-state.ts';
 import { divides, elAtIn, flowsOf } from './positions.ts';
-import { BREAKING_SPACE, clonesDecoration, cutRanges, emptyText, leaveOut, replaceChars, isEngineText, isFixedBox, isInlineBox, isLineBreak, copyOf, shellOf, noteText, READS_ITS_CHILDREN, sourceOf, sourceStyle } from './word-space.ts';
+import { BREAKING_SPACE, clonesDecoration, cutRanges, emptyText, leaveOut, replaceChars, isEngineText, mayBeAutoHyphenated, isFixedBox, isInlineBox, isLineBreak, copyOf, shellOf, noteText, READS_ITS_CHILDREN, sourceOf, sourceStyle } from './word-space.ts';
 import type { CompositionRecord } from './compose-dom.ts';
 import type { ResumePath } from './ledger.ts';
 import type { Address, ResumeNode } from './positions.ts';
@@ -541,6 +541,12 @@ function consumeTrailingWords(clone: Element, n: number, char: number = 0, hollo
       const hyphen = hyphenCharOf(sourceStyle((soft.node.parentElement as Element)) ?? {});
       replaceChars(soft.node, soft.start, soft.end, hyphen); // one character for one character maps one to one; the empty string, or several, is a removal and the engine's own text (`word-space.js`)
     }
+  } else if (char > 0) {
+    // A cut between two letters under `hyphens: auto` is one the Gauge minted only where it measured the hyphen the browser drew (`gauge.js`, `piecesOf`), so the same predicate on the same characters says the first fragment ends with it: the hyphenation character is added after the last kept letter, as the engine's own text. A Compositor's break already carries its written hyphen, an engine part at the boundary, and gets none.
+    const last = charRanges(words[n], char - 1, char);
+    const kept = last.find((r) => !r.engine);
+    const style = kept && sourceStyle((kept.node.parentElement as Element));
+    if (kept && style && !last.some((r) => r.engine) && mayBeAutoHyphenated(words[n].text[char - 1], words[n].text[char], style.hyphens)) replaceChars(kept.node, kept.end, kept.end, hyphenCharOf(style));
   }
 
   leaveOutAfter(clone, keepNode);
