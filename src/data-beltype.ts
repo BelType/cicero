@@ -331,18 +331,18 @@ const RESUMED_BOX = `${RESUMED}:not(${w(SHELL)})`;
  * The rules, as text. Each is a sentence about a word.
  *
  * - `away`: a box put away on this page is not displayed, and it stays an element so every structural selector reads as it does in the source (*every branch gets a place*, 2026-09-21).
- * - A resumed piece gives up the margin that adjoins the break, and the indent (the box is not beginning); and, unless the box wraps each fragment whole (`wrapped`, css-break-3 §5.4's `clone`), its border and padding at that edge.
+ * - A resumed piece gives up the margin that adjoins the break, and the indent (the box is not beginning); and, unless the box wraps each fragment whole (`wrapped`, css-break-3 §5.4's `clone`), its border, its padding and its corners' rounding at that edge: a slice is the box cut through, so the cut edge is square (Chromium's print, measured 2026-11-07).
  * - A resumed piece's counter operations already happened where the box began (`counter-reset`, `counter-increment` and `counter-set` are `none` on it): the page's start delivers the counters as they stood (`chase.js`'s `setCounters`), and a clone that fired them again would count the box twice.
- * - A cut-off piece gives up the margin before the break, and unless `wrapped` its border and padding there.
+ * - A cut-off piece gives up the margin before the break, and unless `wrapped` its border, padding and rounding there.
  * - `adjoin`: the box a bare-path cut resumes at, and the first-child chain through which its margin collapses, give up the margin that adjoins the break (css-break-3 §5.2) and nothing else — they are not divided.
  */
 export const WORDS_RULES = `
 @layer ${LAYER} {
   ${w(AWAY)} { display: none !important; }
   ${RESUMED_BOX} { margin-top: 0 !important; text-indent: 0 !important; counter-reset: none !important; counter-increment: none !important; counter-set: none !important; }
-  ${RESUMED_BOX}:not(${w(WRAPPED)}) { border-top-width: 0 !important; padding-top: 0 !important; }
+  ${RESUMED_BOX}:not(${w(WRAPPED)}) { border-top-width: 0 !important; padding-top: 0 !important; border-top-left-radius: 0 !important; border-top-right-radius: 0 !important; }
   ${CUT_OFF} { margin-bottom: 0 !important; }
-  ${CUT_OFF}:not(${w(WRAPPED)}) { border-bottom-width: 0 !important; padding-bottom: 0 !important; }
+  ${CUT_OFF}:not(${w(WRAPPED)}) { border-bottom-width: 0 !important; padding-bottom: 0 !important; border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
   ${w(ADJOIN)} { margin-top: 0 !important; }
 }
 `;

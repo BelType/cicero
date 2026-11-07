@@ -376,6 +376,11 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
     return px;
   };
 
+  /** The rise a cut grants inside a table cell it divides: the cell's own nearest, the box included and the root not (a row item's rise is its row's, `rowPlan`). */
+  const liftIn = (box: Box) => {
+    for (let p: Box|null = box; p && p !== root; p = p.parent) if (styleOfBox(p).display === 'table-cell') return cellLift(w, p);
+    return 0;
+  };
   /** A box's bottom as a place in the procession: a row ends where its tallest item does, not where the item that happens to stand last in the source does. */
   const bottomOf = ( box: Box) => {
     const row = rowOf(box);
@@ -404,13 +409,15 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
       if (item.rect.bottom <= h + eps) plan.push({ item, state: 'above', verdict: null });
       else if (item.rect.top >= h - eps) plan.push({ item, state: 'below', verdict: null });
       else {
-        const [begins, reachesBelow] = contentSpanOf(w, item, h, eps);
+        // A cell the height divides sets its content from its own top on this page (`cellLift`), so its content is judged that much lower.
+        const lift = cellLift(w, item);
+        const [begins, reachesBelow] = contentSpanOf(w, item, h + lift, eps);
         if (begins === null) plan.push({ item, state: 'divided', verdict: null }); // holds nothing to show: a stretched box, divided by the geometry alone
-        else if (begins >= h - eps) plan.push({ item, state: 'below', verdict: null }); // its content begins at or below the height: the break falls in the gap above it (§4.1's Class C, whatever made the gap — padding, an alignment), and the item resumes whole
+        else if (begins >= h + lift - eps) plan.push({ item, state: 'below', verdict: null }); // its content begins at or below the height: the break falls in the gap above it (§4.1's Class C, whatever made the gap — padding, an alignment), and the item resumes whole
         else if (!reachesBelow) plan.push({ item, state: 'done', verdict: null }); // all it has to show stands above the height; only its box reaches below, stretched by the row
         else if (monolithic(item)) plan.push({ item, state: 'held', verdict: null }); // a monolith the height crosses resumes whole: the stated limit, as a float's (the item is the graphic, and nothing inside it is a place)
         else {
-          const v = flowVerdict(w, item, h, eps);
+          const v = flowVerdict(w, item, h + lift, eps);
           if (!v) return null; // content crosses the height and the item offers no place above it: it shows nothing here
           plan.push({ item, state: 'divided', verdict: v });
         }
@@ -443,7 +450,7 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
         candidates.push({
           kind: 'A',
           cls: 'A',
-          y: bottomOf(anchor),
+          y: bottomOf(anchor) - liftIn(box.parent as Box),
           docIndex,
           box,
           cost: clonedBlockEnd(box.parent), // the box itself goes whole to the next page; what this boundary breaks is its container and up
@@ -515,7 +522,7 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
     if (stats) stats.gapMs += performance.now() - tg;
     if (gap) {
       const y = Math.min(gap.bottom, limit);
-      if (y - gap.base > eps) {
+      if (y - (gap.base - liftIn(box)) > eps) {
         candidates.push({
           kind: 'C',
           cls: 'C',
@@ -571,11 +578,12 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
     const orphans = parseInt(st.orphans, 10) || 1;
     const widows = parseInt(st.widows, 10) || 1;
     const window_ = classBWindow(T, orphans, widows);
+    const lift = liftIn(box);
     for (let k = 0; k < T - 1; k++) {
       out.push({
         kind: 'B',
         cls: 'B',
-        y: lines[k].bottom,
+        y: lines[k].bottom - lift,
         docIndex,
         box,
         cost: clonedBlockEnd(box),
@@ -631,6 +639,18 @@ function subtreeOf( boxes: Box[],  root: Box) {
     out.push(boxes[j]);
   }
   return out;
+}
+
+/**
+ * How far a table cell's content rises when a cut divides the cell: the distance from its content box's top to its first line or monolith. A cell's `vertical-align` places its content in the cell's whole height; Chromium's print aligns a divided cell's first fragment within that fragment instead (`FinalizeTableCellLayout`: *the fragment will start at the block-start edge* on a resumption, and the free space is the fragment's own), so content the alignment set below the cut stands above it once the cell is divided. The presentation matches it by pinning the divided cell's height to the page's foot. Zero for anything else, and for a cell aligned at its top.
+ *
+ * @remarks Under collapsed borders the content box is read with the cell's whole border width where half of it is used, so the rise is under by half a border, never over.
+ */
+function cellLift(w: ReturnType<typeof walkOf>, cell: Box): Px {
+  const st = w.styleOfBox(cell);
+  if (st.display !== 'table-cell') return 0;
+  const [begins] = contentSpanOf(w, cell, -Infinity, 0);
+  return begins === null ? 0 : Math.max(0, begins - (cell.rect.top + (parseFloat(st.borderTopWidth) || 0) + (parseFloat(st.paddingTop) || 0)));
 }
 
 /** Where a flow's content stands against a height: where it begins (the top of its first line or monolith, null where it holds none) and whether any of it stands below the height — asked of the leaves that reach below it alone, so a flow of a thousand paragraphs above the foot costs the leaves it needs and not its line stacks (a leaf whose box ends above the height has every line above it too). */
