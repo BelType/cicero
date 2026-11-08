@@ -170,3 +170,18 @@ test('an inline position: fixed on the new box shifts the in-flow indices after 
   memo.settle(0);
   assert.deepEqual(rawPath(F, 0), [0, 1], 'F is the second in-flow child now');
 });
+
+test('the console is told once per memo life at each level, naming the rule that set it and its sheet', () => {
+  const memo = new ForcingMemo();
+  assert.equal(memo.notice({ reach: 0, culprit: null, count: 0 }), null);
+  const two = memo.notice({ reach: 2, culprit: { selector: 'section:has(> h1)', sheet: '<style> 1', kind: 'style' }, count: 3 });
+  assert.match(two!, /the rule "section:has\(> h1\)" in <style> 1, and 3 more rules,/);
+  assert.match(two!, /read afresh on every run/);
+  assert.equal(memo.notice({ reach: 2, culprit: { selector: 'p:has(em)', sheet: '<style> 1', kind: 'style' }, count: 0 }), null, 'once');
+  const one = memo.notice({ reach: 1, culprit: { selector: 'p + p', sheet: 'https://example.org/book.css', kind: 'style' }, count: 0 });
+  assert.match(one!, /the rule "p \+ p" in https:\/\/example\.org\/book\.css can make/);
+  assert.equal(memo.notice({ reach: 1, culprit: { selector: 'p ~ p', sheet: '<style> 1', kind: 'style' }, count: 1 }), null, 'once');
+  const fresh = new ForcingMemo();
+  assert.match(fresh.notice({ reach: 2, culprit: { selector: null, sheet: '<style> 2', kind: 'container' }, count: 1 })!, /an @container rule in <style> 2, and 1 more rule,/);
+  assert.match(new ForcingMemo().notice({ reach: 2, culprit: { selector: null, sheet: 'https://cdn.example/x.css', kind: 'unreadable' }, count: 0 })!, /the sheet https:\/\/cdn\.example\/x\.css, which the engine cannot read,/);
+});

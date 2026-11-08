@@ -20,7 +20,7 @@ import { holdsAnonymousBlocks, takeReport } from './gauge.ts';
 import { adjudicate, adjudicateFlow, firstBelowTheEdge, isAbsolutelyPositioned, isOutOfFlow, isMonolith, neverCutInside, reachesBelowTheEdge, processionBottoms, fitsPage } from './stonehand.ts';
 import { composeDocument, applyRecordsUnder } from './compose-dom.ts';
 import { CompositionCache } from './composition-key.ts';
-import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, registerGcpmProperties, sheetsUseHas, sheetReach, sheetsCountInPseudos } from './capture.ts';
+import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, registerGcpmProperties, sheetsUseHas, sheetReachOf, sheetsCountInPseudos } from './capture.ts';
 import { snapshotOfStyle } from './forcing-memo.ts';
 import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, truncateFrom } from './fragments.ts';
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
@@ -614,7 +614,7 @@ export function paginate(doc: Document, opts: { composed?: boolean; compositionC
 /**
  * The memo this call reads through, settled once before any walk, or `null` (*the forced-break index is kept across runs*, 2026-10-09; *a resumed run keeps its reads*, 2026-10-22).
  *
- * The boxes a resumed call names as edited — `dirtyAt` and `edited`, resolved against the blocks as they stand now — are reported through the memo's one door, {@link ForcingMemo.replaced}, beside the boxes `patchBox` reported there: a host that edits a box in place, as the venue's pins do, replaces no element and would leave the walks' parts of its box standing. Then the memo is settled against the sheets' reach; a sheet by which a box could change an ancestor's style (`sheetReach` 2) empties it for this call, and the console says so once.
+ * The boxes a resumed call names as edited — `dirtyAt` and `edited`, resolved against the blocks as they stand now — are reported through the memo's one door, {@link ForcingMemo.replaced}, beside the boxes `patchBox` reported there: a host that edits a box in place, as the venue's pins do, replaces no element and would leave the walks' parts of its box standing. Then the memo is settled against the sheets' reach; a sheet by which a box could change an ancestor's style (`sheetReach` 2) empties it for this call and a sheet by which it could change a sibling's (1) narrows it, and the console says each once, naming the rule ({@link ForcingMemo.notice}).
  */
 function settledMemo(doc: Document, { forcingMemo = null, prior, dirtyAt, edited = [], blocks }: { forcingMemo?: ForcingMemo|null; prior?: Prior; dirtyAt?: Address; edited?: Address[]; blocks?: Element[]; }): ForcingMemo|null {
   if (!forcingMemo) return null;
@@ -625,12 +625,11 @@ function settledMemo(doc: Document, { forcingMemo = null, prior, dirtyAt, edited
       if (block) forcingMemo.replaced(elAtIn(block, at.path) ?? block);
     }
   }
-  if (forcingMemo.settle(sheetReach(doc))) return forcingMemo;
-  if (!forcingMemo.said) {
-    forcingMemo.said = true;
-    doc.defaultView?.console?.info('BelType/Cicero: a stylesheet uses :has(), an @container rule or a selector the engine cannot read, so the forced-break index and the run-level walks are read afresh on every run rather than kept. The pages are the same; an edit costs more.');
-  }
-  return null;
+  const read = sheetReachOf(doc);
+  const usable = forcingMemo.settle(read.reach);
+  const line = forcingMemo.notice(read);
+  if (line) doc.defaultView?.console?.info(line);
+  return usable ? forcingMemo : null;
 }
 
 /**
