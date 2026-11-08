@@ -1,6 +1,6 @@
 {
   "name": "@beltype/cicero",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Cicero, a paged-media engine for the live browser: it cuts a document into pages under CSS Paged Media and presents them as real frames. Beta.",
   "type": "module",
   "license": "MIT",
