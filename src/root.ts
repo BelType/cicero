@@ -20,7 +20,7 @@ import { pointShownBy, sourcePointOf } from './source-point.ts';
 import { copyOf, holdsFixedBox, sourceOf } from './word-space.ts';
 import { holdsPresented } from './presenters.ts';
 import { transliterateContent, neutralizeMarginBoxes, sheetsUseHas } from './capture.ts';
-import { ARTIFACT, addWord, FIXED, FRAGMENT, selectorOf, setValue, wordOf } from './data-beltype.ts';
+import { ARTIFACT, decodeFragment, addWord, FIXED, FRAGMENT, selectorOf, setValue, wordOf } from './data-beltype.ts';
 import { deliverValues, ensureContinuationDressing, ensureDressing, isWordsSheet } from './dressing.ts';
 import { carriedPast, divides, elAtIn, extensionPx, flattenResume, flowsOf, indexBlocks, pageIntervals, pageOfPos, widthKeyOf, wordsBeforeChar } from './positions.ts';
 import type { BeltypePage } from './chase.ts';
@@ -715,7 +715,7 @@ export class BeltypeRoot extends HTMLElement {
     this.#listening = true;
     const view = (this.ownerDocument.defaultView as Window & typeof globalThis);
     const targetOf = ( hash: string) => {
-      const id = hash.length > 1 ? decodeURIComponent(hash.slice(1)) : '';
+      const id = hash.length > 1 ? decodeFragment(hash) : '';
       const found = id ? this.ownerDocument.getElementById(id) ?? this.ownerDocument.getElementsByName(id)[0] : null;
       return found && this.contains(found) ? found : null;
     };

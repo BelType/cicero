@@ -354,3 +354,13 @@ export const WORDS_RULES = `
 }
 `;
 
+
+/**
+ * The id a URL fragment names, percent-decoded; the raw text when it is not valid percent-encoding (`#%E0%A4%A`), where `decodeURIComponent` throws.
+ *
+ * @param hash - A `location.hash`, with or without its `#`.
+ */
+export function decodeFragment(hash: string): string {
+  const raw = hash.startsWith('#') ? hash.slice(1) : hash;
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}

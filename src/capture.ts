@@ -954,25 +954,15 @@ function compareSpecificity(a: number[], b: number[]) {
   return 0;
 }
 
-/** Margin-box declarations out of a CSSPageRule — via child CSSMarginRule objects where the engine exposes them, else a cssText walk. Returns { 'bottom-center': rawContentValue, ... }. */
+/** Margin-box declarations out of a CSSPageRule — via the child CSSMarginRule objects (the pinned Chromium has them; `margin-box-padding.browser.ts` asserts it). Returns { 'bottom-center': rawContentValue, ... }. */
 function marginBoxesOf(rule: CSSPageRule): Record<string,string> {
   const out: Record<string,string> = {};
-  if (rule.cssRules) {
-    for (const child of (rule.cssRules as Iterable<MarginRuleLike>)) {
-      const name = (child.name ?? child.selectorText ?? '').replace(/^@/, '');
-      if (MARGIN_BOXES.includes(name)) {
-        const content = child.style?.getPropertyValue('content');
-        if (content) out[name] = content.trim();
-      }
+  for (const child of ((rule.cssRules ?? []) as Iterable<MarginRuleLike>)) {
+    const name = (child.name ?? child.selectorText ?? '').replace(/^@/, '');
+    if (MARGIN_BOXES.includes(name)) {
+      const content = child.style?.getPropertyValue('content');
+      if (content) out[name] = content.trim();
     }
-    if (Object.keys(out).length) return out;
-  }
-  const re = /@([a-z-]+)\s*\{([^}]*)\}/g;
-  let m: RegExpExecArray|null;
-  while ((m = re.exec(rule.cssText))) {
-    if (!MARGIN_BOXES.includes(m[1])) continue;
-    const c = /content\s*:\s*([^;}]+)/.exec(m[2]);
-    if (c) out[m[1]] = c[1].trim();
   }
   return out;
 }

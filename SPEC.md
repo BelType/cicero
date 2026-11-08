@@ -420,7 +420,21 @@ The handle carries further members that this article does not make API. They are
 
 ## 16. Article XIII — The package faces
 
-**The package publishes five faces, and nothing outside them is reachable by a stable name.**
+**The package publishes nine faces, and nothing outside them is reachable by a stable name.**
+
+| Face | Module |
+|---|---|
+| `.` | `seam/host.js`, the host's entry |
+| `./engine` | `seam/index.js`, the adapter (`ciceroEngine`) |
+| `./flags` | `seam/flags.js` |
+| `./rewrite` | `seam/rewrite-document.js` (`rewriteDocumentSheets`) |
+| `./facsimile` | `seam/facsimile.js` |
+| `./client` | `seam/client.js`, the browser entry |
+| `./rim` | `seam/rim.js` |
+| `./fragmentation` | `src/fragmentation.js` |
+| `./page` | `src/chase.js`, the `<beltype-page>` element |
+
+`./internal/*` is the tenth path and is no face (XIII.5), and `./package.json` is the manifest. `test/faces.test.ts` holds this table against `package.json`'s `exports`.
 
 ### XIII.1 `.`
 
@@ -446,7 +460,7 @@ The handle carries further members that this article does not make API. They are
 | `word-space` | `BREAKING_SPACE`, `clonesDecoration`, `copyOf`, `isFixedBox`, `isInlineBox`, `isLineBreak`, `noteSource` |
 | `positions` | `divides`, `elAt`, `extensionPx`, `indexBlocks`, `normalizePath`, `pageContaining`, `pageIntervals`, `pathOf`, `placeAt` |
 | `fragments` | `joinedWords`, `mutateToContinuation`, `mutateToFirstFragment`, `pinTrack`, `truncateLeadingDecoration` |
-| `stonehand` | `adjudicate`, `fitsPage`, `isOutOfFlow`, `neverCutInside`, `processionBottoms`, `reachesBelowTheEdge` |
+| `stonehand` | `adjudicate`, `firstBelowTheEdge`, `fitsPage`, `isOutOfFlow`, `neverCutInside`, `processionBottoms`, `reachesBelowTheEdge` |
 | `gauge` | `takeReport` |
 | `measure` | `assertRenderConditions`, `awaitCloneImages`, `awaitFonts`, `createMeasureContext` |
 | `driver` | `forcingIndexOf`, `gapAbove`, `pageNameDownFrom`, `runningBoxes`, `runningPosition`, `topLevelBlocks` |
@@ -487,6 +501,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | VI.1.4 | A slice's cut edges lose their corner rounding. | *the-fragment-that-wraps-itself* |
 | 2026-11-07 | VI.1.11 | `text-wrap` shapes each piece alone, stated. | — (measured; assessment 2026-11-07) |
 | 2026-11-07 | XIII.3 | The leading-decoration door joins the face: `WRAPPED`, `clonesDecoration`, `truncateLeadingDecoration`. | *the-fragment-that-wraps-itself* |
+| 2026-11-08 | XIII, XIII.3 | The article names the nine faces `package.json` exports and `test/faces.test.ts` holds them; `firstBelowTheEdge` joins the `stonehand` row. | — (assessment 2026-11-07, `spec-faces-drift`) |
 | 2026-11-07 | XIII.4, XIII.5 | The rim joins the faces as `./rim`; `./internal/*` is stated as `src/` only, which it always was. | *late-truth-is-an-edit* |
 | 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
 | 2026-11-07 | IV.11, VI.1.11 | Both items now cite their record, *a-divided-cell-aligns-within-each-piece*, written from the ruling of 2026-11-07. | *a-divided-cell-aligns-within-each-piece* |

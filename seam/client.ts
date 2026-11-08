@@ -25,7 +25,7 @@ import { dress, isDressingSheet } from '../src/root.ts';
 import { isDeliverySheet } from '../src/reads.ts';
 import { ForcingMemo } from '../src/forcing-memo.ts';
 import { isInlineBox, isFixedBox, holdsFixedBox } from '../src/word-space.ts';
-import { FRAGMENT, selectorOf } from '../src/data-beltype.ts';
+import { FRAGMENT, decodeFragment, selectorOf } from '../src/data-beltype.ts';
 import { present, presenterCount } from '../src/presenters.ts';
 import { rewriteDocumentSheets } from './rewrite-document.ts';
 import { isLayerName } from './rewrite.ts';
@@ -465,7 +465,7 @@ function show(session: Session, { account, index, total, from, to, resume }: { a
   seatDoors(blocks);
   if (!session.hashed) {
     // An address that names a place in the document (`…#chapter`) is a place on a page that may not be built; the browser's own scroll to the fragment ran before there were pages. A place not cut to yet waits for the cut that reaches it.
-    const named = window.location.hash ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null;
+    const named = window.location.hash ? document.getElementById(decodeFragment(window.location.hash)) : null;
     if (!named || !root.contains(named)) session.hashed = true;
     else if (root.pageOf(named) !== 'not-yet') { root.reveal(named); session.hashed = true; }
   }
