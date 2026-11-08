@@ -66,8 +66,21 @@ export function isComposable(el: Element) {
     if (!isInlineBox(child)) return false;
   }
   for (let a = el.parentElement; a; a = a.parentElement) if (isAtom(a)) return false;
+  if (inColumns(el)) return false;
   if (holdsGeneratedText(el, win)) return false;
   return collectWords(el).words.some((w) => !w.atom);
+}
+
+/**
+ * A sixth clause: a block in a multi-column container, or itself one, keeps the browser's lines. The Compositor has one measure per block and reads it from the block's own box, not from a column's, so a `columns: 3` box 210px wide was set at the container's measure, the longest line 356px against a column of 70. Refused like a block beside a float, with a console line (`refusedInColumns`); the real fix is a per-column measure and the fragmentation of a multi-column box, which is not this engine's yet.
+ */
+export function inColumns(el: Element) {
+  const win = el.ownerDocument.defaultView as Window;
+  for (let a: Element | null = el; a; a = a.parentElement) {
+    const cs = win.getComputedStyle(a);
+    if (cs.columnCount !== 'auto' || cs.columnWidth !== 'auto') return true;
+  }
+  return false;
 }
 
 /**
@@ -376,17 +389,28 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
       if (win.getComputedStyle(clone).float !== 'none') floats.push({ el: clone, rect: clone.getBoundingClientRect() });
     }
     // A float's own descendants are laid out in the float's own formatting context at the float's own width, which is exactly what their rect reports — nothing is refused there. What is refused is a block the float reaches into: a sibling it stands beside, or an ancestor whose line boxes it is nested in.
-    const intrudedByFloat: (clone: Element,rect: DOMRect) => boolean = (clone, rect): boolean => floats.some((f) => !f.el.contains(clone) && overlaps(rect, f.rect));
+    const intrudedByFloat: (clone: Element,rect: { top: number; bottom: number; left: number; right: number; }) => boolean = (clone, rect): boolean => floats.some((f) => !f.el.contains(clone) && overlaps(rect, f.rect));
+    /** The block's content box: a float wholly in the padding or the border (a hanging number) shortens none of its line boxes, so it is the content box the float's rect is compared with. */
+    const contentBoxOf = (cs: CSSStyleDeclaration, rect: DOMRect) => {
+      const left = rect.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+      const top = rect.top + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
+      return { left, top, right: rect.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight), bottom: rect.bottom - parseFloat(cs.borderBottomWidth) - parseFloat(cs.paddingBottom) };
+    };
     const refusedBesideFloat = [];
     /** A second refusal, of the same kind and for the same reason (*a line inside a word is a break point*, 2026-09-23). The Compositor's break opportunities are spaces, hyphenation points and css-text-4 §6.4's emergency break; a block whose text the browser may break anywhere else — `word-break: break-all`, `line-break: anywhere`, or a script written without spaces (`word-space.js`' `UNSPACED_SCRIPT`) — reaches it as words it cannot divide. Measured on `packages/essay/cases/63-the-line-inside-a-word`: a thirty-line `break-all` paragraph was one word to the DP, set on one nowrap line, and twenty-one of its thirty lines were on no page. So such a block keeps the browser's lines, and the console says so; the real fix is the Compositor learning UAX #14's opportunities, which is a later round. */
     const refusedUnspaced = [];
+    /** A third refusal: a block in a multi-column container (`inColumns`). */
+    const refusedInColumns = [];
 
     const jobs = [];
     for (const [clone, source] of cloneToSource) {
-      if (!isComposable(clone)) continue;
+      if (!isComposable(clone)) {
+        if (inColumns(clone) && PARAGRAPH_DISPLAY.has(win.getComputedStyle(clone).display)) refusedInColumns.push(source);
+        continue;
+      }
       const cs = win.getComputedStyle(clone);
       const rect = clone.getBoundingClientRect();
-      if (floats.length && intrudedByFloat(clone, rect)) {
+      if (floats.length && intrudedByFloat(clone, contentBoxOf(cs, rect))) {
         refusedBesideFloat.push(source);
         continue;
       }
@@ -443,8 +467,18 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
         c.style.textIndent = '0';
         return c;
       });
+      // A nested paragraph is measured inside shallow copies of its ancestors up to its top-level block, or it loses what it inherits from them and what a descendant selector reads: a pull quote's `blockquote { font: italic 22px serif }` measured at the measure container's 16px set lines 22% too wide for the box (`composed-pull-quote-overrun`). ponytail: shallow copies carry attributes only, so a sibling selector (`p + p`, `:first-child`) still reads the lone copy; clone the earlier siblings too if one is ever measured wrong.
+      const measureRoots = jobs.map((j, i) => {
+        let top: Element = nowrapClones[i];
+        for (let cur = j.source; !tops.has(cur) && cur.parentElement; cur = cur.parentElement) {
+          const wrap = cur.parentElement.cloneNode(false) as Element;
+          wrap.appendChild(top);
+          top = wrap;
+        }
+        return top;
+      });
       const probes = jobs.map((job, i) => seatHyphenProbe(nowrapClones[i], job.hyphenChar));
-      ctx.measure(nowrapClones);
+      ctx.measure(measureRoots);
       // One pass reading, one pass removing: the removal is the last write, so the layout it forces is the last one the composition pays for. `collectWords` runs after it, or a probe's character would be a word.
       const hyphenWidths = probes.map(probeWidth);
       for (const probe of probes) probe?.remove();
@@ -484,7 +518,7 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
     }
 
 
-    return { floaty: floats.length > 0, refusedBesideFloat, refusedUnspaced };
+    return { floaty: floats.length > 0, refusedBesideFloat, refusedUnspaced, refusedInColumns };
   };
 
   let todo = blocks.map((_, i) => i).filter((i) => !(trustMemo && memos?.[i]));
@@ -518,13 +552,21 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
       tally.blocks.set(memoKeys[i], { records, floaty: laid.floaty, refused: laid.refusedUnspaced.filter((src) => el.contains(src)).length });
     }
   }
-  const { refusedBesideFloat, refusedUnspaced } = laid;
+  const { refusedBesideFloat, refusedUnspaced, refusedInColumns } = laid;
 
   // Never in silence — the render-conditions rule, applied to a decision the engine declines to take rather than to one it takes under a relaxation.
   if (refusedBesideFloat.length) {
     win.console?.warn(
       `BelType/Cicero: ${refusedBesideFloat.length} block(s) sit beside a float and are NOT composed by this engine — ` +
       'their lines are the browser\'s, because a float shortens line boxes and the Compositor has one measure per block, not one per line. ' +
+      'The pages are honest; the line breaking in those blocks is not this engine\'s.'
+    );
+  }
+
+  if (refusedInColumns.length) {
+    win.console?.warn(
+      `BelType/Cicero: ${refusedInColumns.length} block(s) sit in a multi-column container and are NOT composed by this engine — ` +
+      'their lines are the browser\'s, because the Compositor has one measure per block, not one per column. ' +
       'The pages are honest; the line breaking in those blocks is not this engine\'s.'
     );
   }
