@@ -15,7 +15,7 @@
  */
 
 import { Ledger, createEntry } from './ledger.ts';
-import { assertRenderConditions, awaitCloneImages, awaitFonts, awaitImages, createMeasureContext } from './measure.ts';
+import { assertRenderConditions, awaitCloneImages, awaitFonts, eagerImages, createMeasureContext } from './measure.ts';
 import { holdsAnonymousBlocks, takeReport } from './gauge.ts';
 import { adjudicate, adjudicateFlow, firstBelowTheEdge, isAbsolutelyPositioned, isOutOfFlow, isMonolith, neverCutInside, reachesBelowTheEdge, processionBottoms, fitsPage } from './stonehand.ts';
 import { composeDocument, applyRecordsUnder } from './compose-dom.ts';
@@ -643,13 +643,13 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   assertRenderConditions(doc, { relaxDpr });
   // The two rewritten GCPM declarations, registered before anything reads a computed style: unregistered, a custom property inherits, and `string-set` on a heading would reach every descendant of it (*the host rewrites what the parser drops*, 2026-09-14).
   registerGcpmProperties(doc.defaultView);
-  // Once each, before the first measure — late-arriving truth never enters adjudication. one call site covers every host, because the seam's bootstrap, the editing tools' `beltype:ready` call and the venue's own client all enter through here. The images are a stand-in for the first run, and `measure.js`'s `awaitImages` carries the whole reason (*images are awaited at intake*, beltype#39).
+  // Once each, before the first measure — late-arriving truth never enters adjudication. one call site covers every host, because the seam's bootstrap, the editing tools' `beltype:ready` call and the venue's own client all enter through here. The images are not awaited (ruled 2026-11-08): they are made eager and the run goes on, and an arrival that changes a box is the rim's (`measure.js`'s `eagerImages` carries the reason).
   // The run keeps time in the User Timing API (*the run keeps time*, 2026-09-25): one running timestamp, one `performance.measure` per phase, `detail` carrying the count a reader normalizes by. A measure is read by nothing here and decides nothing.
   let t = performance.now();
   await awaitFonts(doc);
   performance.measure('cicero:fonts', { start: t, end: (t = performance.now()) });
-  const images = await awaitImages(originals ?? intakeBlocks ?? doc);
-  performance.measure('cicero:images', { start: t, end: (t = performance.now()), detail: { images } });
+  const images = eagerImages(originals ?? intakeBlocks ?? doc);
+  performance.measure('cicero:images', { start: t, end: (t = performance.now()), detail: { images, awaited: false } }); // the eager pass alone: nothing is waited for since 2026-11-08
 
   const table = intakeTable ?? readGeometryTable(doc);
   await awaitFonts(doc, table.furnitureFaces); // the faces page furniture names, requested now and not when the first margin box is presented (the table is read after the first wait, so its lengths are measured as they always were)
@@ -1297,7 +1297,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
       performance.measure('cicero:feed', { start: t, end: (t = performance.now()), detail: { page: account.length, blocks: items.length, carried: (cursor.carried ?? []).length, bound: bounded ? words : null, reach: (bounded ? posOfCut((place as NonNullable<typeof place>).cut) : forcingCuts ? posOfCut(forcedEvent.cut) : index.total) - cursor.pos, pours } });
       container = (ctx as MeasureContext).measure(items.map((it) => it.clone), laid.facts?.[account.length] ?? null); // a page fact a flow site reads stands as the run before decided it, or at its reservation (*the page carries its conditions*)
       performance.measure('cicero:layout', { start: t, end: (t = performance.now()), detail: { page: account.length, blocks: items.length } });
-      // The clones' own images, settled before the report is taken: a clone of a loaded image is not always available in the turn it is mounted (`measure.js`'s `awaitCloneImages`), and a figure measured at no height moves every cut after it.
+      // The clones' own images, settled before the report is taken: a clone of a loaded image is not always available in the turn it is mounted (`measure.js`'s `awaitCloneImages`), and a figure measured at no height moves every cut after it. Kept when the first run's awaits went (2026-11-08), until the Service Worker case is measured without it.
       const waited = await awaitCloneImages(container);
       performance.measure('cicero:clone-images', { start: t, end: (t = performance.now()), detail: { page: account.length, waited } });
       report = takeReport(container, { contentHeight: conditions.contentH });

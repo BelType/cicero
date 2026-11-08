@@ -1,9 +1,9 @@
 /**
  * The measure pass (first-coding-round.md, item 2): a hidden measurement container at true content width, off-viewport, one block flow, shared by every page of one geometry. The Chase is not in it and does not measure. Geometry comes from clones laid out here; law (break-* constraints, orphans, widows) is read from the source elements in the live document, so neutralization below never blinds legality reading.
  *
- * *Render-identical conditions* (I5) are pinned here: they are asserted at intake (unit DPR, explicit line-height — the DPR ruling), fonts and images are awaited once before the first measure, and native break properties plus orphans/widows are neutralized in the measure context. They are inert in an unfragmented column anyway — neutralization is stated, not assumed.
+ * *Render-identical conditions* (I5) are pinned here: they are asserted at intake (unit DPR, explicit line-height — the DPR ruling), fonts are awaited once before the first measure, and native break properties plus orphans/widows are neutralized in the measure context. They are inert in an unfragmented column anyway — neutralization is stated, not assumed.
  *
- * The images are awaited as a stand-in for the first run, and `awaitImages` says why in full.
+ * The first run no longer awaits the document's images (ruled 2026-11-08): it makes them eager ({@link eagerImages}), and the rim answers an arrival that changed a box. A measured slice's own images are still awaited ({@link awaitCloneImages}).
  *
  * @packageDocumentation
  */
@@ -53,30 +53,45 @@ export async function awaitFonts(doc: Document, faces: string[] = []) {
   await doc.fonts.ready;
 }
 
+/** The `<img>` elements of a scope: a Document answers `images`; an element is asked for its own; a list of elements (the intake's top-level boxes) is asked box by box, each box included. */
+const imagesOf = (scope: Document|Element|Element[]): Iterable<HTMLImageElement> => Array.isArray(scope)
+  ? scope.flatMap((el) => (el.localName === 'img' ? [(el as HTMLImageElement)] : [...el.querySelectorAll('img')]))
+  : (scope as Document).images ?? scope.querySelectorAll('img');
+
 /**
- * Await every image that has not settled — [*images are awaited at intake*](../../../.claude/decisions/cicero/images-are-awaited-at-intake.md), reported as beltype#39.
+ * Make every `loading="lazy"` image eager, and wait for none: what the first run does with the document's pictures since 2026-11-08.
  *
- * **This is a stand-in, and the difference matters to whoever reads it next.** The tablet's model does not say images are awaited: it says they are *measured at declared or placeholder sizes*, and that the wrong measurement is then corrected through the one machinery all late-arriving truth shares — void from the box, rebuild forward — which since 2026-10-13 is the resumable run, called by the rim at the seam (`seam/rim.js`, *late truth is an edit*): a picture that becomes pending after the first measure is heard and resumed from, so for such a picture the correction exists. The await below is therefore a stand-in for the first run only: the choice there is still between awaiting and measuring an `<img>` at zero for the first paint, which is what the engine did until 2026-09-18, and what put whole blocks on no page. Retiring it trades a known-good first paint for one resume per image, and what that costs on the manual is a measurement owed (the record's Consequences), not a ruling.
+ * @remarks Egildo ruled on 2026-11-08 that the intake's and the driver's first-run awaits are retired, on the measurement `.claude/plans/quick-rulings-2026-11-08/image-await.md` in the monorepo: on a 59-page document with 60 images served 300 to 800 ms late, the first paint fell from 5.8 s to 0.74 s, the final layout was the same, and with declared sizes nothing moved on arrival. A picture measured before it arrived is late truth, and the rim answers it (`seam/rim.js`, *late truth is an edit*, amended 2026-11-08): one resume where its arrival changed its box, none where it did not. So the fast first paint is the author's to give: an image that declares its `width` and `height` is measured at its size before a byte of it arrives.
  *
- * **A measurement the engine has no way to correct must not be taken early.** The first run has the way now and does not use it; the await goes when that trade is measured and ruled.
+ * **A lazy image is still made eager** (*late truth is an edit*, 2026-10-13). Measured that day: a lazy image with no box never issues its request, and a parked original has no box, so it was measured at zero and never revisited. Lazy loading optimises for a viewport, and print has no viewport: there is nothing for it to save, and *the source document is never written* (C5) is untouched because the attribute is set on the original's `loading` property, which is a request for the bytes and not a change to what the document says. The clones the measure container receives copy the attribute, so they are eager too.
+ *
+ * **It reads the originals and never the copies** (2026-10-08). A presented document carries a clone of every box on every page, and `document.images` met each picture once per copy (19 468 images for 157 real ones on a 123-page manual). A host that has presented hands the top-level boxes it took at intake; a first run has no copies and is handed the document.
+ *
+ * @param scope - as {@link awaitImages}'s.
+ * @returns how many images were looked at, which the run's timing reads and nothing that decides does.
+ */
+export function eagerImages(scope: Document|Element|Element[]): number {
+  let seen = 0;
+  for (const img of imagesOf(scope)) {
+    seen++;
+    if (!img.complete && img.loading === 'lazy') img.loading = 'eager'; // setting it starts the request a lazy image never made
+  }
+  return seen;
+}
+
+/**
+ * Await every image in a scope that has not settled, a lazy one made eager first as {@link eagerImages} makes it. Since 2026-11-08 its one caller in the engine is {@link awaitCloneImages}: the first run no longer waits for the document's pictures (*images are awaited at intake*, retired that day for the first run).
  *
  * A failed load settles at its error size: the wait resolves on `error` as it resolves on `load`, because what adjudication needs is that the geometry has stopped changing, not that it is the one the author wanted. `allSettled` for the same reason — one picture that never arrives must not hold the others.
  *
- * **A `loading="lazy"` image is made eager and awaited like the others** (*late truth is an edit*, 2026-10-13). Measured that day: a lazy image with no box never issues its request, and a parked original has no box, so the load the old paragraph hoped for ("the event may simply never come") was not a risk but the rule — the picture was measured at zero and never revisited. Lazy loading optimises for a viewport, and print has no viewport: there is nothing for it to save, and *the source document is never written* (C5) is untouched because the attribute is set on the original's `loading` property, which is a request for the bytes and not a change to what the document says. The clones the measure container receives copy the attribute, so they are eager too.
- *
- * **It reads the originals and never the copies** (2026-10-08). A presented document carries a clone of every box on every page, and `document.images` met each picture once per copy — 19 468 images for 157 real ones on a 123-page manual, walked on every edit. A host that has presented hands the top-level boxes it took at intake and only their pictures are asked; a first run has no copies and is handed the document.
- *
- * @param scope - a Document answers `images`; an element is asked for its own; a list of elements (the intake's top-level boxes) is asked box by box, each box included.
- * @returns how many images were looked at — read by the run's timing and by nothing that decides.
+ * @param scope - a Document answers `images`; an element is asked for its own; a list of elements is asked box by box, each box included.
+ * @returns how many images were looked at.
  */
 export async function awaitImages(scope: Document|Element|Element[]): Promise<number> {
   const pending = [];
   let seen = 0;
-  const images = Array.isArray(scope)
-    ? scope.flatMap((el) => (el.localName === 'img' ? [(el as HTMLImageElement)] : [...el.querySelectorAll('img')]))
-    : (scope as Document).images ?? scope.querySelectorAll('img');
   // A snapshot of a live collection, and no event can fire between the test and the listener: the loop is one synchronous turn.
-  for (const img of images) {
+  for (const img of imagesOf(scope)) {
     seen++;
     if (img.complete) continue;
     if (img.loading === 'lazy') img.loading = 'eager'; // before the listeners: setting it starts the request a lazy image never made
@@ -90,9 +105,9 @@ export async function awaitImages(scope: Document|Element|Element[]): Promise<nu
 }
 
 /**
- * The clones' images, awaited where they are measured — the same stand-in, one step further in (2026-09-21, found by the Chromium 153 census).
+ * The clones' images, awaited where they are measured (2026-09-21, found by the Chromium 153 census). **It stays when the first run's two awaits went (ruled 2026-11-08) until the Service Worker case below is measured without it**: the measurement behind that ruling ran under no worker, and with this await gone too its first paint fell again, from 0.74 s to 0.39 s, and undeclared sizes refilled the pages as each picture came.
  *
- * `awaitImages(doc)` settles the document's own `<img>` elements, and the engine measures clones of them, mounted in the measure container. That was sound only on an unstated premise: that a clone of a loaded image is available synchronously — HTML's *list of available images*, which lets a second `<img>` for an already-fetched URL be `complete` the moment it is inserted. Chromium 150 honoured it everywhere. **Chromium 153 does not in a document a Service Worker controls**: measured in the editing tools' pane, every clone answered `complete: false` and a height of 0 in the turn it was mounted, and its real height 300 ms later — so every figure measured nothing, the cuts fell late, and the presentation then clipped what the account believed it had placed (the Caster specimen lost Figure 2 and the drawing after it, on no page at all). The CLI's dev server has no worker and was untouched, which is why the battery did not see it.
+ * Until 2026-11-08 `awaitImages(doc)` settled the document's own `<img>` elements first, and the engine measures clones of them, mounted in the measure container. That was sound only on an unstated premise: that a clone of a loaded image is available synchronously — HTML's *list of available images*, which lets a second `<img>` for an already-fetched URL be `complete` the moment it is inserted. Chromium 150 honoured it everywhere. **Chromium 153 does not in a document a Service Worker controls**: measured in the editing tools' pane, every clone answered `complete: false` and a height of 0 in the turn it was mounted, and its real height 300 ms later — so every figure measured nothing, the cuts fell late, and the presentation then clipped what the account believed it had placed (the Caster specimen lost Figure 2 and the drawing after it, on no page at all). The CLI's dev server has no worker and was untouched, which is why the battery did not see it.
  *
  * So the premise is checked instead of assumed: after a mount, if any image in the container has not settled, wait for it and lay out again. It costs nothing where the premise holds, and *a measurement the engine has no way to correct must not be taken early* is already this file's rule.
  *

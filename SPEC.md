@@ -111,8 +111,8 @@ Modules: `src/measure.js`, `src/capture.js`, `src/box-shorthand.js`, `src/margin
 
 1. Cicero refuses to adjudicate a document whose root line-height computes to `normal` (tablet, *render-identical conditions*, I5).
 2. Unit device pixel ratio is asserted for print. On screen the DPR half is relaxed, and the console says so on every run (see *cicero-enters-the-seam-in-beta*).
-3. Fonts and images are awaited once, before the first measure: a measurement the engine has no way to correct must not be taken early (see *images-are-awaited-at-intake*).
-4. After every mount of the measure feed, an image not yet settled is awaited and the feed laid out again before the report (see *the-clones-images-are-awaited-where-they-are-measured*).
+3. Fonts are awaited once, before the first measure: a measurement the engine has no way to correct must not be taken early (see *images-are-awaited-at-intake*). The document's images are not awaited since 2026-11-08: the first run makes a `loading="lazy"` image eager and goes on, an image that declares its `width` and `height` is measured at its size before it arrives, and an arrival is late truth, answered by the rim (XI.3.6) (see *late-truth-is-an-edit*, amended 2026-11-08).
+4. After every mount of the measure feed, an image not yet settled is awaited and the feed laid out again before the report (see *the-clones-images-are-awaited-where-they-are-measured*). This await stays until it is measured without it in a document a Service Worker controls, the case it was made for.
 5. The measure context neutralises native break properties, orphans and widows, and every transform (`transform`, `rotate`, `scale`, `translate`, `perspective`). Legality is read from the sources (see *fragmentation-comes-first*).
 
 ### II.2 The geometry table
@@ -337,6 +337,7 @@ Modules: `seam/index.js`, `seam/client.js`, `seam/rim.js`, `seam/facsimile.js`, 
 3. A top-level box announces its own size; a reading more than a quarter pixel from the measured height is an edit at the box (see *a-box-announces-its-own-size*).
 4. Every piece a built page draws a block through is observed, its first reading is its expected height, and a later change is an edit at the page that shows it (see *a-fragment-announces-its-own-size*).
 5. A sheet inside an `<svg>` or inside a copy is not a condition of the document (see *the-conditions-are-the-sheets-of-the-document*).
+6. A picture's `load` or `error` in a top-level box is judged when the runs have ended, and is an `image` signal only where its arrival changed the box: a box drawn as itself whose height stands within a quarter pixel of the measured height (half a pixel more where the box's own `offsetHeight` is read, the observer having read it as nothing) is no signal; a box not drawn as itself while some page is not built is judged again later; any box the rim cannot compare is a signal (see *late-truth-is-an-edit*, amended 2026-11-08).
 
 ### XI.4 The facsimile
 
@@ -488,6 +489,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
 | 2026-11-07 | IV.11, VI.1.11 | Both items now cite their record, *a-divided-cell-aligns-within-each-piece*, written from the ruling of 2026-11-07. | *a-divided-cell-aligns-within-each-piece* |
 | 2026-11-07 | VIII.1.7 | The sibling counter scope stays by the book: the replay follows CSS 2.1 §12.4.1 where Chromium's print does not, stated with the measured divergence. | *a-sibling-counter-scope-stays-by-the-book* |
+| 2026-11-08 | II.1.3, II.1.4, XI.3.6 | The first run no longer awaits the document's images, and lazy ones are made eager; the clone await stays until the Service Worker case is measured; a picture's arrival is a signal only where it changed its box. | *late-truth-is-an-edit*, amended 2026-11-08 |
 
 ## 18. Known open at ratification
 
