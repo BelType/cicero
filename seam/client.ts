@@ -15,10 +15,10 @@
  * @packageDocumentation
  */
 
-import { paginate, topLevelBlocks, topLevelBoxes, fixedBoxes, runningBoxes, describeConditions } from '../src/driver.ts';
+import { paginate, topLevelBlocks, topLevelBoxes, fixedBoxes, runningBoxes, runningIdentOf, describeConditions } from '../src/driver.ts';
 import { assertRenderConditions, awaitFonts, awaitImages } from '../src/measure.ts';
 import { pathOf } from '../src/positions.ts';
-import { readGeometryTable } from '../src/capture.ts';
+import { readGeometryTable, sheetReach } from '../src/capture.ts';
 import { composeForPresentation } from '../src/compose-dom.ts';
 import { attributesOf, CompositionCache } from '../src/composition-key.ts';
 import { dress, isDressingSheet } from '../src/root.ts';
@@ -126,21 +126,25 @@ const sheetLabels = (doc: Document) => wornSheets(doc).map((sheet) => {
 /**
  * Replace the box an edit fell in, in the document this module presented, with the one the host compiled (*the run resumes from an entry*, build four, 2026-10-08).
  *
- * `index` is the top-level box's place in the document's own order (`presented.boxes`) and `path` the element-child indices from it to the box that changed — empty where the top-level box itself did. The answer is the new box's address, the one `run({ resumeAt })` takes, or `null` when the seam will not promise the replacement is sound and the host reloads instead. It refuses when: nothing was presented; the index is not a flow block (a fixed box or a running element is not edited this way); the path does not lead to an element of the same name; a top-level box's own attributes differ (a class that makes a block a running element is the one change the host cannot see); the top-level box is one a fixed box or a running element was lifted out of at intake (the block the host compiled again holds a box the presented block does not, and the paths would disagree about the tree); or the replacement holds a fixed box or a running element of its own (lifting it is a change to the intake's lists, which is a run's work, so the old box is put back and the host reloads). The second test is a computed style, so it is asked once the replacement stands in the tree, parked where it is a new top-level block; a sheet's text is never the reason (*a fixed box refuses only its own block*, 2026-10-22).
+ * `index` is the top-level box's place in the document's own order (`presented.boxes`) and `path` the element-child indices from it to the box that changed — empty where the top-level box itself did. The answer is the new box's address, the one `run({ resumeAt })` takes, `{ chrome: true }` where the top-level box is a running element (below), or `null` when the seam will not promise the replacement is sound and the host reloads instead. It refuses when: nothing was presented; the index is a fixed box; the path does not lead to an element of the same name; a top-level box's own attributes differ (a class that makes a block a running element is the one change the host cannot see); the top-level box is one a fixed box or a running element was lifted out of at intake (the block the host compiled again holds a box the presented block does not, and the paths would disagree about the tree); or the replacement holds a fixed box or a running element of its own (lifting it is a change to the intake's lists, which is a run's work, so the old box is put back and the host reloads). The second test is a computed style, so it is asked once the replacement stands in the tree, parked where it is a new top-level block; a sheet's text is never the reason (*a fixed box refuses only its own block*, 2026-10-22).
+ *
+ * **A running element's edit is a chrome event** (*the run resumes from an entry*, amended 2026-11-08, Egildo's ruling of that day). A top-level running element is out of the flow and drawn in the margin boxes of the pages it runs on, which have fixed sizes, so a word changed there moves no cut, and which element a page shows is a fact about positions that did not move. The replacement takes the old element's place in the run's list, and the chrome of every standing page that shows it is drawn again (`root.js`' `redrawRunning`); nothing is cut, and the answer is `{ chrome: true }`, which `run({ resumeAt })` answers at once. A host tells it from a flow patch by its `chrome` member: an address has none. The same rules hold as for a block, plus two: a replacement whose top-level box no longer names the same running element under the sheets is put back and refused, and so is any running edit while a sheet holds a `:has()` or a container query (`sheetReach` 2), by which the element's content could restyle the flow. A running element's own counters and strings are unread (`document-state.js`), so no value the reads deliver is moved by it. A running element nested in a block is still refused, by the lifted rule above.
  *
  * A new top-level block is parked before anything reads it (`root.js`: *an unplaced original is parked, not unassigned*), because `getComputedStyle` answers nothing for a slottable no slot takes and every reading the composition and the measure take from the source would go blank. A box inside a block is already in the flat tree and needs nothing. The old box is detached; the pages that show it are pages the run is about to cut again, and the ones it does not are not showing it (a page before the restart ends before the box begins, and the clause that an equal address is believed only past the edited box keeps the pages after).
  */
-function patchBox(index: number, path: number[], el: Element): Address|null {
+function patchBox(index: number, path: number[], el: Element): Address|ChromePatch|null {
   if (!presented) return null;
   const { blocks, boxes, root } = presented;
   const top = boxes[index];
   const b = top ? blocks.indexOf(top) : -1;
-  if (b < 0 || presented.lifted.has(top)) return null;
+  const r = top ? presented.running.findIndex((x) => x.el === top) : -1;
+  if ((b < 0 && r < 0) || presented.lifted.has(top)) return null;
   let old = top;
   for (const i of path) old = old?.children[i];
   if (!facsimile && (el.matches(PDF_OBJECT) || el.querySelector(PDF_OBJECT))) return null; // a PDF the first intake did not meet: the module is not loaded and the presenter is not registered, so the host reloads and the intake does it
   if (!old || old.localName !== el.localName || (path.length === 0 && attributesOf(old) !== attributesOf(el))) return null;
   const park = (root.shadowRoot?.querySelector('slot[data-beltype-park]') as HTMLSlotElement | null | undefined);
+  if (r >= 0) return patchRunning(r, index, path, old, el, park);
   const slot = path.length === 0 ? old.assignedSlot : null;
   const held = slot?.assignedNodes() ?? [];
   old.replaceWith(el);
@@ -159,6 +163,32 @@ function patchBox(index: number, path: number[], el: Element): Address|null {
   const address = (handle.addressOf as NonNullable<Handle['addressOf']>)(el);
   if (address) edited.push(address);
   return address;
+}
+
+/** What `patch` answers for an edit of a running element, and what `run({ resumeAt })` takes back to answer at once: nothing in the flow moved, so there is no address to resume at (*the run resumes from an entry*, amended 2026-11-08). */
+export type ChromePatch = { chrome: true };
+
+/** {@link patchBox} for a top-level running element, at `r` in the run's list: the replacement stands in its place and every page that shows it has its chrome drawn again, nothing cut. */
+function patchRunning(r: number, index: number, path: number[], old: Element, el: Element, park: HTMLSlotElement | null | undefined): ChromePatch|null {
+  const { boxes, root, running, table } = (presented as NonNullable<typeof presented>);
+  if (sheetReach(document) === 2) return null; // a `:has()` or a container query can let the element's content restyle the flow, which is a run's to find
+  const top = boxes[index];
+  old.replaceWith(el);
+  const parkIt = (node: Element) => park?.assign(...(park.assignedNodes() as Array<Element | Text>), node); // a running element is parked (`root.js`), and a node that leaves its host loses its manual assignment
+  if (path.length === 0) parkIt(el);
+  if (runningIdentOf(window, path.length === 0 ? el : top) !== running[r].name) {
+    el.replaceWith(old);
+    if (path.length === 0) parkIt(old);
+    return null;
+  }
+  forcingMemo.replaced(el);
+  if (path.length === 0) {
+    boxes[index] = el;
+    running[r] = { ...running[r], el }; // in place: a run under way and the next presentation read this array
+  }
+  rim?.add(boxes[index], top);
+  root.redrawRunning(r, running, (cond) => table.pageFor((cond as PageCondition)).marginBoxes);
+  return { chrome: true };
 }
 
 /** THE RIM, from the intake until the frame lets the run go (`rim.js`, *late truth is an edit*): the subscription to the facts that arrive after a measure. `null` before the intake. */
@@ -469,7 +499,7 @@ function seatDoors(blocks: Element[]) {
   // The host's two doors onto the document it compiled again (*the run resumes from an entry*, build four): which source stands at a top-level box of the new document, and the replacement of an edited box with the new document's. Verbs, because the lists they work on are the module's own.
   h.box = (i) => {
     const box = presented?.boxes[i];
-    return box && presented?.blocks.includes(box) ? box : null;
+    return box && (presented?.blocks.includes(box) || presented?.running.some((r) => r.el === box)) ? box : null; // a running element is a box a host may patch, as a chrome event
   };
   h.patch = (i, path, el) => patchBox(i, path, el);
 }
@@ -485,11 +515,13 @@ function seatDoors(blocks: Element[]) {
  *
  * **`resumeAt` makes the call a resumed run** (*the run resumes from an entry*, build two, 2026-10-08): the address of the box edited since the last call, as `addressOf` spells it. The call then reuses the Ledger the last one kept, restarts one page before the page holding that address, stops at the first page that ends where the prior run's page ended, keeps the prior pages after it and refills only the pages it cut again. It falls back to a whole run, silently and correctly, when the last call was in the other mode or under other conditions (`conditionsKey`), or when the document's top-level blocks are not as many as the prior Ledger was cut over — so the result's `resumed` is `null` exactly when nothing was reused. In the composed mode the composition re-composes only the paragraphs the edit touched (build three): the cache is kept across calls and keyed by the paragraph, not the element object. **An edit while the document is not complete resumes within the pages cut and, unless `until` says otherwise, stops at the horizon it had** (an edit beyond it recuts the one page before it and nothing else, since the pages after it do not exist).
  *
+ * **`resumeAt: { chrome: true }`, what `patch` answers for a running element's edit, is answered at once** (*the run resumes from an entry*, amended 2026-11-08): the patch drew the chrome itself, so the call cuts nothing, lets no stopped run go, and answers the last call's result with `resumed` `{ from: 1, to: 0, shift: 0, converged: true, kept: pages }`, no page cut again and every page kept. In the other mode than the last call's, or before any call has answered, it is the call it would be with no `resumeAt`.
+ *
  * **`layer` names the cascade layer the host wants the document's own sheets in** (*the author's sheets in a layer the host names*, 2026-10-17): every same-origin sheet the document carries is wrapped in it by the rewrite, so a host's own sheets, layered after it, outrank the author's whatever their specificity. Absent, the frame keeps the layer it was last run with, and a frame no call ever named one for is rewritten exactly as before. A change of name clears the rewrite's verdicts; a sheet already wrapped in the old name keeps it.
  *
  * @returns what the console line reports; the presented pages stay live in the DOM. `pages` is how many are cut; `complete` whether that is the document's end. `resumed` names the pages cut again, from 1: `from` through `to`, with `shift` the pages the run added (or, negative, removed) and `kept` the prior pages after `to` left standing. `why` is a plain sentence, set exactly when `resumed` is `null`: the first run on a frame, no `resumeAt`, another mode, conditions that moved (and which part), a block count that moved, or a reference whose page number sent the run round again. `composition` is the composed mode's count (`null` in the default): `misses` the paragraphs composed, `hits` the ones found already composed, `blocks` their sum, and `laid` the top-level blocks cloned and measured to read their widths (the rest were answered by the cache whole).
  */
-export function run(opts?: { composed?: boolean; resumeAt?: Address|null; until?: number|Element|null; layer?: string|null; }): Promise<{ pages: number; ms: number; composed: boolean; complete: boolean; resumed: { from: number; to: number; shift: number; converged: boolean; kept: number; }|null; why: string|null; composition: { blocks: number; hits: number; misses: number; laid: number; }|null; }> {
+export function run(opts?: { composed?: boolean; resumeAt?: Address|ChromePatch|null; until?: number|Element|null; layer?: string|null; }): Promise<{ pages: number; ms: number; composed: boolean; complete: boolean; resumed: { from: number; to: number; shift: number; converged: boolean; kept: number; }|null; why: string|null; composition: { blocks: number; hits: number; misses: number; laid: number; }|null; }> {
   if (released) return Promise.reject(new Error('BelType/Cicero: this client was released; the next document loads its own'));
   const call = runOnce(opts);
   calls.add(call);
@@ -499,13 +531,19 @@ export function run(opts?: { composed?: boolean; resumeAt?: Address|null; until?
 }
 
 /** {@link run}, once its call is counted. @param [opts] */
-async function runOnce({ composed = false, resumeAt = null, until = null, layer = frameLayer }: Parameters<typeof run>[0] = {}) {
+async function runOnce({ composed = false, resumeAt: asked = null, until = null, layer = frameLayer }: Parameters<typeof run>[0] = {}) {
   const t0 = performance.now();
   if (layer != null && !isLayerName(layer)) throw new TypeError(`run: "${layer}" is not a cascade layer name`); // before anything is undressed or held
   if (layer !== frameLayer) {
     judgedSheets = new WeakMap<any, any>(); // every sheet is judged again, under the new name
     frameLayer = layer;
   }
+  // A running element's patch was drawn when it was made (*the run resumes from an entry*, amended 2026-11-08): nothing is cut, a run stopped at a page keeps its place, and the answer is the last one's with every page kept. A call in the other mode, or before any answer, is the run it would have been without the address.
+  if (asked && 'chrome' in asked && handle.last && handle.last.composed === composed) {
+    handle.last = { ...handle.last, ms: Math.round(performance.now() - t0), resumed: { from: 1, to: 0, shift: 0, converged: true, kept: handle.last.pages }, why: null };
+    return handle.last;
+  }
+  const resumeAt = asked && 'chrome' in asked ? null : asked;
   // A run stopped at a page goes on, unless the host asked for something that is not a continuation.
   if (live && !resumeAt && live.composed === composed) return carryOn(live, until, t0);
   if (!resumeAt) sizeResumes.clear(); // a whole run: every box's size may ask again
