@@ -19,6 +19,9 @@ export const STRING_SET_PROP = '--beltype-string-set';
 /** `position: running(head)` survives as this custom property, holding the identifier alone. */
 export const RUNNING_PROP = '--beltype-running';
 
+/** `hyphenate-limit-lines` survives as this custom property, its value text carried verbatim (Chromium drops the property, so the Compositor reads the author's limit from here). It inherits, as the original does, and so is not among {@link CUSTOM_PROPS}. */
+export const HYPHENATE_LIMIT_LINES_PROP = '--beltype-hyphenate-limit-lines';
+
 /** Both, for a host that registers them. `syntax: '*'` because the values are the author's own text and this engine is not their grammar; `inherits: false` because neither original inherits. */
 export const CUSTOM_PROPS = [STRING_SET_PROP, RUNNING_PROP];
 

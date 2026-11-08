@@ -27,7 +27,7 @@
  */
 
 import { parse, walk } from './csstree.ts';
-import { STRING_SET_PROP, RUNNING_PROP, encodeString, encodeElement, encodePageName, BLANK_SUFFIX, encodeRead, parseReadFunction, READ_PREFIX, encodeStringProp } from '../src/gcpm-encoding.ts';
+import { STRING_SET_PROP, RUNNING_PROP, HYPHENATE_LIMIT_LINES_PROP, encodeString, encodeElement, encodePageName, BLANK_SUFFIX, encodeRead, parseReadFunction, READ_PREFIX, encodeStringProp } from '../src/gcpm-encoding.ts';
 import { MARGIN_BOXES } from '../src/margin-boxes.ts';
 import { FRAGMENT_GUARD, HAS_PROPERTY_PREFIX, HAS_REGISTRY_SELECTOR, encodeHasArgument, encodeHasUnion } from '../src/data-beltype.ts';
 
@@ -446,6 +446,11 @@ function rewriteText(original: string, pages: boolean = true): { text: string; c
           edits.push({ start: node.loc.start.offset, end: colon, text: STRING_SET_PROP });
           counts.stringSet++;
         }
+        return;
+      }
+      if (property === 'hyphenate-limit-lines') { // Chromium drops it at parse, and the Compositor reads the author's limit from the custom property instead
+        const colon = source.indexOf(':', node.loc.start.offset);
+        if (colon > node.loc.start.offset) edits.push({ start: node.loc.start.offset, end: colon, text: HYPHENATE_LIMIT_LINES_PROP });
         return;
       }
       if (property === 'position') {

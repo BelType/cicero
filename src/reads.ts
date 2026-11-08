@@ -276,6 +276,13 @@ export function findPageSites(doc: Document, originals: Element[]|null = null, k
   return sites.length ? sites : null;
 }
 
+/** The flow sites that read the page total, as the rule that reads it names them: what {@link hideReservations} paints invisible while the total is unknown, since a flow site reads `0` until then (`chase.ts`'s `setCounters`). A `counter(page)` and a named string are true from the first page and are not among them. */
+export function totalSites(doc: Document): Pick<Site,'key'|'pseudos'>[] {
+  return contentRules(doc)
+    .filter((r) => /counters?\(\s*pages\s*[,)]/.test(r.content))
+    .map((r) => ({ key: hostSelector(r.selector), pseudos: r.pseudos }));
+}
+
 /** What every page of a run publishes, as the measure wears it: the page's number and the document's total, and its named strings' properties (`chase.js`'s `setCounters` and `setStrings`, the same values). */
 export function pageFactsOf(account: Array<{ closes: { pageNumber: number; strings?: Record<string,Record<string,string>>; }; }>): PagePublish[] {
   return account.map((entry) => {
@@ -371,7 +378,7 @@ export const isDeliverySheet = (doc: Document, sheet: CSSStyleSheet) => SHEETS.g
  * @param sites - the page reads that are still at the reservation.
  * @param scope - the selector of the element the presented pages stand in.
  */
-export function hideSheetText(sites: Site[], scope: string = 'beltype-root'): string {
+export function hideSheetText(sites: Pick<Site,'key'|'pseudos'>[], scope: string = 'beltype-root'): string {
   const byKey: Map<string,Set<string>> = new Map<any, any>();
   for (const s of sites) {
     if (!s.key) continue;
@@ -386,7 +393,7 @@ export function hideSheetText(sites: Site[], scope: string = 'beltype-root'): st
  *
  * @param scope - as {@link hideSheetText}.
  */
-export function hideReservations(doc: Document, sites: Site[], scope: string | undefined = undefined) {
+export function hideReservations(doc: Document, sites: Pick<Site,'key'|'pseudos'>[], scope: string | undefined = undefined) {
   const text = hideSheetText(sites, scope);
   if (!text) return;
   let sheet = HIDERS.get(doc);
@@ -575,7 +582,7 @@ export async function settleReads<R extends { account: any[], index: ReturnType<
   let delivered = reservations(sites, warm);
   if (found) deliver(doc, merged(fixed.values, delivered));
   else withdraw(doc);
-  if (hide) hideReservations(doc, paged.filter((s) => delivered.get(s.key ?? '')?.get(s.prop) === cssString(RESERVATION)), hide === true ? undefined : hide);
+  if (hide) hideReservations(doc, [...paged.filter((s) => delivered.get(s.key ?? '')?.get(s.prop) === cssString(RESERVATION)), ...(pageSites ? totalSites(doc) : [])], hide === true ? undefined : hide);
   performance.measure('cicero:reads', { start: t, end: (t = performance.now()), detail: { references: sites.length, pageSites: pageSites?.length ?? 0 } });
 
   let runs = 0;

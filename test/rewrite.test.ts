@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { rewriteSheet as rewriteSheetTyped, rewriteNote as rewriteNoteTyped } from '../seam/rewrite.ts';
 import { rewriteDocumentSheets as rewriteDocumentSheetsTyped } from '../seam/rewrite-document.ts';
 import { ciceroEngine } from '../seam/index.ts';
-import { STRING_SET_PROP, RUNNING_PROP, decodeContentFn as decodeContentFnTyped, decodePageName, decodeRead, FN_PREFIX } from '../src/gcpm-encoding.ts';
+import { STRING_SET_PROP, RUNNING_PROP, HYPHENATE_LIMIT_LINES_PROP, decodeContentFn as decodeContentFnTyped, decodePageName, decodeRead, FN_PREFIX } from '../src/gcpm-encoding.ts';
 import { HAS_PROPERTY_PREFIX, authorSelectorOf, bareHasCount, decodeHasArgument } from '../src/data-beltype.ts';
 
 /** The encoded string literals a rewritten sheet carries, unquoted, in order. */
@@ -30,6 +30,12 @@ test('string-set keeps its value text and loses only its property name', () => {
   assert.match(out.text, new RegExp(`${STRING_SET_PROP}: chapter content\\(\\) ' — ' counter\\(n\\)`));
   assert.match(out.text, /color: red/, 'the declarations around it are the author\'s and do not move');
   assert.match(out.text, /font-size: 9pt/);
+});
+
+test('hyphenate-limit-lines keeps its value and loses only its property name', () => {
+  const out = rewriteSheet('p { color: red; hyphenate-limit-lines: 2 }');
+  assert.equal(out.changed, true);
+  assert.equal(out.text, `p { color: red; ${HYPHENATE_LIMIT_LINES_PROP}: 2 }`);
 });
 
 test('position: running() becomes the custom property holding the identifier alone', () => {
