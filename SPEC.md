@@ -329,8 +329,8 @@ Modules: `seam/index.js`, `seam/client.js`, `seam/rim.js`, `seam/facsimile.js`, 
 1. Loading `client.js` sets `window.__beltypeCicero` and does nothing else; rendering waits to be asked (see *cicero-enters-the-seam-in-beta*).
 2. A run adopts the document into `<beltype-root>`, paginates as far as it is asked and presents what it cut (see *the-pages-are-cut-as-far-as-they-are-asked*).
 3. `run()` may be called again on the frame it presented; the intake is kept, and the Ledger is byte-equal to the first call's within one realm and viewport (see *the-run-resumes-from-an-entry*).
-4. `patch` refuses a replacement for a fixed box only where the fixed box was lifted from that block or the replacement holds one (see *a-fixed-box-refuses-only-its-own-block*).
-5. A running element's edit is a chrome event. `patch` at a top-level running element, or at a box inside one, puts the replacement in the running element's place in the run's list, draws again the margin boxes of every standing page that shows it, cuts nothing, and answers `{ chrome: true }`, which a host tells from an address by its `chrome` member. It refuses where the top-level box no longer names the same running element, and while a sheet holds a `:has()` or a container query. A running element nested in a block is refused as item 4's lifted block is (see *the-run-resumes-from-an-entry*, amended 2026-11-08).
+4. `patch` refuses a replacement for a fixed box or a running element only where the replacement is or holds one. The intake adopts only the top-level boxes: a fixed box or a running element written inside a block stays there, so a block that holds one is patched like any other (see *a-fixed-box-refuses-only-its-own-block*, *a-fixed-box-at-any-depth*; Egildo's ruling of 2026-11-08, the record's amendment owed).
+5. A running element's edit is a chrome event. `patch` at a top-level running element, or at a box inside one, puts the replacement in the running element's place in the run's list, draws again the margin boxes of every standing page that shows it, cuts nothing, and answers `{ chrome: true }`, which a host tells from an address by its `chrome` member. It refuses where the top-level box no longer names the same running element, and while a sheet holds a `:has()` or a container query. A running element nested in a block is refused by item 4, since the replacement is one (see *the-run-resumes-from-an-entry*, amended 2026-11-08).
 
 ### XI.3 The rim
 
@@ -495,6 +495,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-08 | II.4.2 | The sheets' reach passes over a rule that only paints, and the memo's console notice names the rule and its sheet at both levels. | *the-forced-break-index-is-kept-across-runs* (ruled 2026-11-08) |
 | 2026-11-08 | VI.2.5 | The `host` word joins the registry, and the intake passes over it and over the tags that never render, through one filter. | — (ruled 2026-11-08; no record yet) |
 | 2026-11-08 | II.1.3, II.1.4, XI.3.6 | The first run no longer awaits the document's images, and lazy ones are made eager; the clone await stays until the Service Worker case is measured; a picture's arrival is a signal only where it changed its box. | *late-truth-is-an-edit*, amended 2026-11-08 |
+| 2026-11-08 | XI.2.4 | The intake no longer lifts a fixed box or a running element out of the block it was written in, and `patch` no longer refuses an edit inside that block. | *a-fixed-box-refuses-only-its-own-block* (amendment owed) |
 
 ## 18. Known open at ratification
 

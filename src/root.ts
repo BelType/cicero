@@ -176,7 +176,7 @@ export class BeltypeRoot extends HTMLElement {
   /**
    * THE INTAKE: the document's boxes become this element's light DOM (*content is one document*, I6), and are parked at once — before the first cut, not at the first presentation (*the pages are cut as far as they are asked*, 2026-10-12). A run that can stop at a page measures the sources while pages stand in the document, so it measures them where a resumed run always has: inside the root, in the flat tree under a slot that renders nothing, where `getComputedStyle` answers (*an unplaced original is parked, not unassigned*). Appended without parking they would answer nothing at all.
    *
-   * @param boxes - the blocks, then the fixed boxes, then the running elements.
+   * @param boxes - the top-level boxes: the blocks, then the fixed boxes, then the running elements. A fixed box or running element inside a block comes in with its block.
    */
   intake(...boxes: Element[]) {
     this.append(...boxes);
