@@ -36,11 +36,10 @@ import type { BeltypeRoot } from '../src/root.ts';
 import type { PageCondition } from '../src/capture.ts';
 
 /**
- * What the first call took at intake, kept for a later call on the same frame — `null` before any presentation. The root is the one `<beltype-root>` this module made; the blocks, fixed boxes and running elements are its light children; the table is the geometry the author's `@page` rules gave, captured before `present()` cleared their margin boxes' `content`.
+ * What the first call took at intake, kept for a later call on the same frame — `null` before any presentation. The root is the one `<beltype-root>` this module made; the blocks, and the fixed boxes and running elements the document declared at its top level, are its light children, and a fixed box or running element written inside a block stays inside it (*a fixed box at any depth*, 2026-09-15); the table is the geometry the author's `@page` rules gave, captured before `present()` cleared their margin boxes' `content`.
  * `boxes` is every top-level box the document declared, in the document's own order and whatever kind it became (a block, a fixed box, a running element) — the order intake destroys by appending blocks, then fixed boxes, then running elements, and the one a host that compiled the document again addresses a box by (`patch`).
- * `lifted` is the top-level boxes a fixed box or a running element was lifted out of at intake: each holds one box fewer than the block a host compiles again, so `patch` refuses an edit inside one (*a fixed box refuses only its own block*, 2026-10-22).
  */
-let presented: { root: BeltypeRoot; blocks: Element[]; fixed: Element[]; running: ReturnType<typeof runningBoxes>; table: ReturnType<typeof readGeometryTable>; boxes: Element[]; lifted: Set<Element>; undo: () => void; }|null = null;
+let presented: { root: BeltypeRoot; blocks: Element[]; fixed: Element[]; running: ReturnType<typeof runningBoxes>; table: ReturnType<typeof readGeometryTable>; boxes: Element[]; undo: () => void; }|null = null;
 
 /** What the last call left, for a call that resumes: its paginate result, the mode it ran in and the conditions it ran under (`conditionsKey`). `null` before any. */
 let previous: { result: Prior; composed: boolean; conditions: string; }|null = null;
@@ -126,7 +125,7 @@ const sheetLabels = (doc: Document) => wornSheets(doc).map((sheet) => {
 /**
  * Replace the box an edit fell in, in the document this module presented, with the one the host compiled (*the run resumes from an entry*, build four, 2026-10-08).
  *
- * `index` is the top-level box's place in the document's own order (`presented.boxes`) and `path` the element-child indices from it to the box that changed — empty where the top-level box itself did. The answer is the new box's address, the one `run({ resumeAt })` takes, or `null` when the seam will not promise the replacement is sound and the host reloads instead. It refuses when: nothing was presented; the index is not a flow block (a fixed box or a running element is not edited this way); the path does not lead to an element of the same name; a top-level box's own attributes differ (a class that makes a block a running element is the one change the host cannot see); the top-level box is one a fixed box or a running element was lifted out of at intake (the block the host compiled again holds a box the presented block does not, and the paths would disagree about the tree); or the replacement holds a fixed box or a running element of its own (lifting it is a change to the intake's lists, which is a run's work, so the old box is put back and the host reloads). The second test is a computed style, so it is asked once the replacement stands in the tree, parked where it is a new top-level block; a sheet's text is never the reason (*a fixed box refuses only its own block*, 2026-10-22).
+ * `index` is the top-level box's place in the document's own order (`presented.boxes`) and `path` the element-child indices from it to the box that changed — empty where the top-level box itself did. The answer is the new box's address, the one `run({ resumeAt })` takes, or `null` when the seam will not promise the replacement is sound and the host reloads instead. It refuses when: nothing was presented; the index is not a flow block (a fixed box or a running element is not edited this way); the path does not lead to an element of the same name; a top-level box's own attributes differ (a class that makes a block a running element is the one change the host cannot see); or the replacement is, or holds, a fixed box or a running element (a change to the intake's lists, which is a run's work, so the old box is put back and the host reloads). A block that holds a fixed box or a running element is patched like any other: the intake leaves them where the author wrote them, so the block the host compiled again and the presented block are the same tree, and the path walks both alike (see CHANGELOG, Unreleased). The second test is a computed style, so it is asked once the replacement stands in the tree, parked where it is a new top-level block; a sheet's text is never the reason (*a fixed box refuses only its own block*, 2026-10-22).
  *
  * A new top-level block is parked before anything reads it (`root.js`: *an unplaced original is parked, not unassigned*), because `getComputedStyle` answers nothing for a slottable no slot takes and every reading the composition and the measure take from the source would go blank. A box inside a block is already in the flat tree and needs nothing. The old box is detached; the pages that show it are pages the run is about to cut again, and the ones it does not are not showing it (a page before the restart ends before the box begins, and the clause that an equal address is believed only past the edited box keeps the pages after).
  */
@@ -135,7 +134,7 @@ function patchBox(index: number, path: number[], el: Element): Address|null {
   const { blocks, boxes, root } = presented;
   const top = boxes[index];
   const b = top ? blocks.indexOf(top) : -1;
-  if (b < 0 || presented.lifted.has(top)) return null;
+  if (b < 0) return null;
   let old = top;
   for (const i of path) old = old?.children[i];
   if (!facsimile && (el.matches(PDF_OBJECT) || el.querySelector(PDF_OBJECT))) return null; // a PDF the first intake did not meet: the module is not loaded and the presenter is not registered, so the host reloads and the intake does it
@@ -333,7 +332,7 @@ async function letGo() {
 }
 
 /**
- * THE INTAKE (*the pages are cut as far as they are asked*, 2026-10-12): the document's boxes become the root's light DOM, parked, before the first cut. A run that can stop at a page measures the sources while pages stand in the document, so it measures them where a resumed run always has. Nothing else in the first call changes: the lists and the geometry table are read first, with the document where it was, exactly as the run read them before.
+ * THE INTAKE (*the pages are cut as far as they are asked*, 2026-10-12): the document's boxes become the root's light DOM, parked, before the first cut. Only its top-level boxes are adopted: a fixed box or a running element written inside a block stays where the author put it, since every mechanism that takes it out of the flow (`isFixedBox`) works at any depth and every page's copy is made from the original wherever it stands, so the tree a host compiles and the tree the engine holds are one (see CHANGELOG, Unreleased). A run that can stop at a page measures the sources while pages stand in the document, so it measures them where a resumed run always has. Nothing else in the first call changes: the lists and the geometry table are read first, with the document where it was, exactly as the run read them before.
  *
  * Fonts are awaited here as well as in the driver, because the driver's wait asks the browser which fonts are loading, and a document whose boxes are all parked is laying nothing out: a face the text would have asked for is never asked for. With the document still laid out, a forced layout asks for them, and the wait is real.
  */
@@ -350,11 +349,12 @@ async function takeIntake(relaxDpr: boolean) {
   const running = runningBoxes(document);
   // The document's top-level boxes in its own order, taken before the root exists and before the appending below destroys the order: the same filter `topLevelBoxes` (driver.js) applies, which is not exported, and a second copy of this one line is cheaper than a change to `src/`.
   const boxes = [...document.body.children].filter((el) => !el.id.startsWith('__beltype') && !['STYLE', 'SCRIPT'].includes(el.tagName));
-  const moved = [...blocks, ...fixed, ...running.map((r) => r.el)].map((el) => ([el, el.parentNode, el.nextSibling] as const));
-  const lifted = new Set([...fixed, ...running.map((r) => r.el)].map((el) => boxes.find((box) => box !== el && box.contains(el))).filter((box) => box !== undefined));
+  // Only the top-level boxes are adopted: a fixed box or a running element inside a block stays in it, out of the word space, the feed and the presentation by `isFixedBox` at any depth, and copied per page from where it stands (*a fixed box at any depth*), so the host's tree and the engine's are one.
+  const adopted = [...blocks, ...fixed, ...running.map((r) => r.el)].filter((el) => el.parentElement === document.body);
+  const moved = adopted.map((el) => ([el, el.parentNode, el.nextSibling] as const));
   const root = (document.createElement('beltype-root') as BeltypeRoot);
   document.body.appendChild(root);
-  root.intake(...blocks, ...fixed, ...running.map((r) => r.el)); // *Content is one document* (I6): the document adopted as the root's light DOM. A running element is adopted and never assigned, which is §1.2.1's *does not display there* with nothing arranged for it.
+  root.intake(...adopted); // *Content is one document* (I6): the document adopted as the root's light DOM. A running element is adopted and never assigned, which is §1.2.1's *does not display there* with nothing arranged for it.
   root.cutTo = ( el: Element) => cutTo(el);
   root.onPieces = ( built: Array<[Element,Element]>,  removed: Iterable<Element>) => rim?.pieces(built, removed); // the pieces a built page draws its blocks through, which the rim observes from the frame they are built in (*a fragment announces its own size*)
   presented = {
@@ -364,7 +364,6 @@ async function takeIntake(relaxDpr: boolean) {
     running,
     table,
     boxes,
-    lifted,
     // A run that fails before it has shown a page puts the document back where it found it, so the host's message — *showing it unpaginated instead* — is true.
     undo() {
       for (const [el, parent, next] of moved.toReversed()) parent?.insertBefore(el, next);

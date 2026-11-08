@@ -328,7 +328,7 @@ Modules: `seam/index.js`, `seam/client.js`, `seam/rim.js`, `seam/facsimile.js`, 
 1. Loading `client.js` sets `window.__beltypeCicero` and does nothing else; rendering waits to be asked (see *cicero-enters-the-seam-in-beta*).
 2. A run adopts the document into `<beltype-root>`, paginates as far as it is asked and presents what it cut (see *the-pages-are-cut-as-far-as-they-are-asked*).
 3. `run()` may be called again on the frame it presented; the intake is kept, and the Ledger is byte-equal to the first call's within one realm and viewport (see *the-run-resumes-from-an-entry*).
-4. `patch` refuses a replacement for a fixed box only where the fixed box was lifted from that block or the replacement holds one (see *a-fixed-box-refuses-only-its-own-block*).
+4. `patch` refuses a replacement for a fixed box or a running element only where the replacement is or holds one. The intake adopts only the top-level boxes: a fixed box or a running element written inside a block stays there, so a block that holds one is patched like any other (see *a-fixed-box-refuses-only-its-own-block*, *a-fixed-box-at-any-depth*; Egildo's ruling of 2026-11-08, the record's amendment owed).
 
 ### XI.3 The rim
 
@@ -488,6 +488,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
 | 2026-11-07 | IV.11, VI.1.11 | Both items now cite their record, *a-divided-cell-aligns-within-each-piece*, written from the ruling of 2026-11-07. | *a-divided-cell-aligns-within-each-piece* |
 | 2026-11-07 | VIII.1.7 | The sibling counter scope stays by the book: the replay follows CSS 2.1 §12.4.1 where Chromium's print does not, stated with the measured divergence. | *a-sibling-counter-scope-stays-by-the-book* |
+| 2026-11-08 | XI.2.4 | The intake no longer lifts a fixed box or a running element out of the block it was written in, and `patch` no longer refuses an edit inside that block. | *a-fixed-box-refuses-only-its-own-block* (amendment owed) |
 
 ## 18. Known open at ratification
 
