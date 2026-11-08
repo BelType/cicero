@@ -74,9 +74,9 @@ export function bringsNewFace(event: Event): boolean {
  * @param p.idle - resolves when no run is under way and nothing the rim told is still being answered: a size is judged then, against the table the run leaves.
  * @param p.unbuilt - whether some page of the presentation is not built yet: a picture's box that is not drawn as itself may stand on it, and is judged again when the observer next reports. Absent, every page is built.
  * @param p.busy - whether a run is under way or a signal is being answered now: asked again just before a size is judged, since a named signal may have come while the ear waited for the frame.
- * @returns `add` subscribes to a box, releasing what the box it replaced (a patched edit) and the box itself already held, so one load is one signal; `pieces` observes the pieces a page was just built with, each beside its source box, and lets go of the ones a presentation took out; `stop` releases everything.
+ * @returns `add` subscribes to a box, releasing what the box it replaced (a patched edit) and the box itself already held, so one load is one signal; `pieces` observes the pieces a page was just built with, each beside its source box, and lets go of the ones a presentation took out; `judging` says whether a size or a picture was heard and not yet judged; `stop` releases everything.
  */
-export function watchLateTruth({ document: doc, fonts = doc.fonts, originals, onSignal, presented = () => false, pageHolding = () => null, measured = () => undefined, idle = async () => {}, busy = () => false, unbuilt = () => false }: { document: Document; fonts?: FontFaceSet; originals: Element[]; onSignal: (detail: { kind: 'image'|'element'|'font'|'size'|'store'; boxes: Element[]; pages?: Array<number|null>; }) => void; presented?: (box: Element) => boolean; pageHolding?: (piece: Element) => number|null; measured?: (box: Element) => number|undefined; idle?: () => Promise<void>; busy?: () => boolean; unbuilt?: () => boolean; }): { stop: () => void; add: (box: Element,replaced?: Element) => void; pieces: (built: Array<[Element,Element]>,removed: Iterable<Element>) => void; } {
+export function watchLateTruth({ document: doc, fonts = doc.fonts, originals, onSignal, presented = () => false, pageHolding = () => null, measured = () => undefined, idle = async () => {}, busy = () => false, unbuilt = () => false }: { document: Document; fonts?: FontFaceSet; originals: Element[]; onSignal: (detail: { kind: 'image'|'element'|'font'|'size'|'store'; boxes: Element[]; pages?: Array<number|null>; }) => void; presented?: (box: Element) => boolean; pageHolding?: (piece: Element) => number|null; measured?: (box: Element) => number|undefined; idle?: () => Promise<void>; busy?: () => boolean; unbuilt?: () => boolean; }): { stop: () => void; judging: () => boolean; add: (box: Element,replaced?: Element) => void; pieces: (built: Array<[Element,Element]>,removed: Iterable<Element>) => void; } {
   const win = (doc.defaultView as Window & typeof globalThis);
   let stopped = false;
   /** What each box's listeners hand back. */
@@ -239,6 +239,8 @@ export function watchLateTruth({ document: doc, fonts = doc.fonts, originals, on
 
   return {
     add,
+    /** Is a size or a picture heard and not yet judged? The client's `settled` waits for it. */
+    judging: () => judging,
     pieces(built, removed) {
       for (const el of removed) {
         if (!pieces.delete(el)) continue;
