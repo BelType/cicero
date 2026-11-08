@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **The end of a paragraph cut at a hyphen the browser drew is no longer lost to a printer (Codeberg issue 14).** 0.1.10 (`d7e7c7e`, *a page cut falls at a line the browser hyphenated under `hyphens: auto`*) wrote that hyphen into the last kept text node of the first fragment, so the node read `conse‐` where the source reads `consequat`. A printer locates a fragment by its text inside its source's own text nodes, folding a trailing hyphen only into a soft hyphen the source holds, so it found none, took the piece for text the engine wrote, and Caster's tiling invariant refused the print of the studio's Quiet Press for characters "presented on no page" (4 paragraphs, 749 characters). The first fragment now keeps its letters alone and the hyphen stands as the Compositor's does: a text node of its own, the engine's, before a `<br data-beltype="break">`, written after the leave-out and the structural pass that would take it for spent (`consumeTrailingWords` in `src/fragments.ts`). Chromium's print is unchanged (`test/browser/hyphen-at-the-cut.browser.ts`). Proved by `test/browser/split-paragraph-tail.browser.ts`, red on 0.1.10, and by the writer's case in `test/fragments.test.ts`.
+
 ## 0.1.10 — 2026-11-08
 
 - **A PDF embed whose fallback image has no alt can warn instead of refusing, for an editor.** `install(doc, present)` in `seam/facsimile.ts` refused such a source at intake by throwing, so an editor built on the engine (prosemirror-beltype) failed every page of a document that held one. It takes a third argument, `{ missingAlt?: 'refuse' | 'warn' }`, default `'refuse'`, which keeps the throw and its wording. Under `'warn'` each such source is told once by `console.warn`, naming the element as the throw does, and its copy carries no `role` and no `aria-label`, so Caster's structure walk refuses it at print by name as before (Egildo's ruling of 2026-11-08). `test/browser/facsimile.browser.ts` holds both modes.

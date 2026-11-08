@@ -9,13 +9,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { listOrdinals as listOrdinalsTyped, truncateFrom as truncateFromTyped, mutateToContinuation as mutateToContinuationTyped, mutateToFirstFragment as mutateToFirstFragmentTyped, spanWidths, markCont as markContTyped, markCut } from '../src/fragments.ts';
-import { noteEngineText as noteEngineTextTyped } from '../src/word-space.ts';
+import { isEngineText as isEngineTextTyped, noteEngineText as noteEngineTextTyped } from '../src/word-space.ts';
 import { byShape } from './fakes.ts';
 
 const truncateFrom = byShape(truncateFromTyped);
 const mutateToContinuation = byShape(mutateToContinuationTyped);
 const mutateToFirstFragment = byShape(mutateToFirstFragmentTyped);
 const noteEngineText = byShape(noteEngineTextTyped);
+const isEngineText = byShape(isEngineTextTyped);
 const markCont = byShape(markContTyped);
 
 /**
@@ -174,6 +175,17 @@ class Txt {
     this.parentElement = null;
   }
   get textContent() { return this.data; }
+  get parentNode() { return this.parentElement; }
+  get nextSibling() {
+    const kids = this.parentElement?.childNodes;
+    return kids ? kids[kids.indexOf(this) + 1] ?? null : null;
+  }
+  splitText(off: number) {
+    const tail = new Txt(this.data.slice(off));
+    this.data = this.data.slice(0, off);
+    this.parentElement?.insertBefore(tail, this.nextSibling);
+    return tail;
+  }
 }
 
 class El extends Bearer {
@@ -200,6 +212,11 @@ class El extends Bearer {
   get nextSibling() {
     const kids = this.parentElement?.childNodes;
     return kids ? kids[kids.indexOf(this) + 1] ?? null : null;
+  }
+  insertBefore(child: any, before: any) {
+    child.parentElement = this;
+    this.childNodes.splice(before ? this.childNodes.indexOf(before) : this.childNodes.length, 0, child);
+    return child;
   }
   remove() {
     const kids = this.parentElement?.childNodes;
@@ -398,13 +415,17 @@ test('a cut at the Compositor\'s own break keeps the hyphen it wrote on the firs
 });
 
 /** A cut the Gauge minted at a break the browser hyphenated under `hyphens: auto`: no character of the source holds the hyphen, so the first fragment adds it after the last kept letter, and a Compositor's break, whose hyphen is already written, gets no second one. */
-const autoStyled = (el: any, style: any = { hyphens: 'auto', hyphenateCharacter: 'auto' }) => Object.assign(el, { isConnected: true, ownerDocument: { defaultView: { getComputedStyle: () => ({ getPropertyValue: () => '', ...style }) } } });
+const autoStyled = (el: any, style: any = { hyphens: 'auto', hyphenateCharacter: 'auto' }) => Object.assign(el, { isConnected: true, ownerDocument: { createTextNode: (data: string) => new Txt(data), createElement: (name: string) => Object.assign(new El(name), { tagName: name.toUpperCase() }), defaultView: { getComputedStyle: () => ({ getPropertyValue: () => '', ...style }) } } });
 
 test('a cut at a break the browser hyphenated under hyphens: auto ends the first fragment with the hyphenation character', () => {
   const p = autoStyled(new El('p', [new Txt('a an incomprehensibility more')]));
   const root = new El('section', [p]);
   mutateToFirstFragment(root, asBoth(root, { cut: cut([0, 0], { word: 2, char: 13 }) }));
   assert.equal(root.textContent.trimEnd(), 'a an incomprehensi‐', 'U+2010 is added after the last kept letter, where Chromium draws it');
+  const [letters, hyphen, mark] = p.childNodes;
+  assert.equal(letters.data, 'a an incomprehensi', 'the source node keeps its letters alone, so a printer finds it in the source');
+  assert.ok(isEngineText(hyphen) && hyphen.data === '‐', 'the hyphen is a text node of its own, the engine\'s');
+  assert.deepEqual(mark.words, ['break'], 'before a break mark, as the Compositor\'s hyphen stands');
   const q = autoStyled(new El('p', [new Txt('a an incomprehensibility more')]), { hyphens: 'auto', hyphenateCharacter: '"="' });
   const other = new El('section', [q]);
   mutateToFirstFragment(other, asBoth(other, { cut: cut([0, 0], { word: 2, char: 13 }) }));
