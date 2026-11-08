@@ -11,6 +11,8 @@
  *
  * **`make` runs often** — for every copy, each page that shows one, each hollow shell, each measuring copy — and so it is cheap and synchronous and starts no work: the drawing is deferred to when the element is connected AND seen (an `IntersectionObserver`), and what it draws is cached per (url, page, width, device pixel ratio). An element in the measure container does not draw at all.
  *
+ * **A source with no alt is refused at intake by default**; `install`'s `missingAlt: 'warn'`, for an editor that must keep drawing the document, tells it once instead and copies it with no `role` and no `aria-label`, which Caster refuses at print by name (Egildo's ruling of 2026-11-08).
+ *
  * Loaded only when the document holds a matching element (`seam/client.js`, at intake): a document without a PDF pays nothing, and pdf.js is not fetched. pdf.js is vendored — `pdfjs-dist`, pinned exactly, its module and worker published by `vendorAssets()` at `cicero/seam/pdfjs.js` and `cicero/seam/pdfjs-worker.js` (the one entries of that table that are not the file of their own name).
  *
  * @packageDocumentation
@@ -85,13 +87,18 @@ export function locate(source: Element): { url: string; page: number; pageGiven:
   return { url: href.href, page: pageGiven ? wanted : 1, pageGiven };
 }
 
+/** What a source with no fallback alt meets: refused at intake, or told and copied with no alternative text, for the print to refuse. */
+export type MissingAlt = 'refuse' | 'warn';
+
 /**
- * The alternative text a source carries — its fallback image's `alt`. A PDF page with none is a figure Caster would refuse (PDF/UA wants one), so the refusal is made here, at intake, by name.
+ * The alternative text a source carries — its fallback image's `alt`. A PDF page with none is a figure Caster would refuse (PDF/UA wants one), so under `'refuse'` the refusal is made here, at intake, by name.
  *
- * @throws {Error} naming the element, when there is no fallback `<img>` with a non-blank `alt`.
+ * @returns `null` under `'warn'` when there is none; the caller decides what to tell.
+ * @throws {Error} naming the element, under `'refuse'`, when there is no fallback `<img>` with a non-blank `alt`.
  */
-function altOf(source: Element): string {
+function altOf(source: Element, missingAlt: MissingAlt = 'refuse'): string|null {
   const alt = source.querySelector('img')?.getAttribute('alt')?.trim();
+  if (!alt && missingAlt === 'warn') return null;
   if (!alt) throw new Error(`BelType/Cicero: <object type="application/pdf" data="${source.getAttribute('data')}"> has no fallback <img alt="…"> — the page it embeds would be a figure with no alternative text, and the print refuses that. Write the fallback inside the object: <object …><img src="…" alt="what the page shows"></object>.`);
   return alt;
 }
@@ -100,10 +107,11 @@ function altOf(source: Element): string {
  * The element a copy of `source` is: an `<object is="beltype-facsimile">`, in the contract the header states, with no child yet. Cheap and synchronous, and it starts nothing.
  *
  * @param source - a `<object type="application/pdf">`, parked or placed; its specified lengths are readable, its used width and height are not (measured: a parked source answers `50%` for a percentage width).
- * @throws {Error} when the source has no fallback `alt`.
+ * @param missingAlt - under `'warn'`, a source with no fallback `alt` is copied with no `role` and no `aria-label`.
+ * @throws {Error} when the source has no fallback `alt`, under `'refuse'`.
  * @remarks The element has no child until {@link draw} gives it its canvas (*a facsimile's copy holds its box off screen*, CHANGELOG 2026-10-28). An `<object>` with a child and no `data` decides at its first layout to render the child, which is a reattach of its layout tree, and on a page the browser skips (`content-visibility: auto`, *a page is contained*) a read from script lays the subtree out for the length of the read, drops the reattach when it puts the subtree back, and leaves the copy with no box at all. Measured 2026-10-28: the same copy with no child keeps its box on every read.
  */
-export function make(source: Element): HTMLObjectElement {
+export function make(source: Element, missingAlt: MissingAlt = 'refuse'): HTMLObjectElement {
   const doc = source.ownerDocument;
   const el = (doc.createElement('object', { is: TAG }) as HTMLObjectElement);
   for (const { name, value } of source.attributes) if (name !== 'data' && name !== 'type' && name !== 'is') el.setAttribute(name, value);
@@ -112,8 +120,11 @@ export function make(source: Element): HTMLObjectElement {
   el.setAttribute('data-src', url);
   if (pageGiven) el.setAttribute('data-page', String(page));
   else el.removeAttribute('data-page');
-  el.setAttribute('role', 'img');
-  el.setAttribute('aria-label', altOf(source));
+  const alt = altOf(source, missingAlt);
+  if (alt) {
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', alt);
+  }
   el.setAttribute('contenteditable', 'false');
   const size = sizes.get(keyOf(url, page));
   if (size) {
@@ -207,12 +218,14 @@ async function draw(el: HTMLObjectElement) {
 /**
  * Define the element, read the size of every page the document embeds and register the presenter — before the first run (the intake calls this first, and awaits it), because a presenter is a condition of every copy and a registration after a run is a whole run.
  *
- * Every source is checked for its alt text here, so a document that would print a figure with none is refused at the door and not after the cuts. A PDF that cannot be read is TOLD and not refused: the box has no ratio from the cache, nothing is drawn in it, and its size, if the file turns up later, arrives through the rim; a missing page number is the same — except that it is the author's mistake, and the message says so.
+ * Every source is checked for its alt text here, so under the default a document that would print a figure with none is refused at the door and not after the cuts. A PDF that cannot be read is TOLD and not refused: the box has no ratio from the cache, nothing is drawn in it, and its size, if the file turns up later, arrives through the rim; a missing page number is the same — except that it is the author's mistake, and the message says so.
  *
  * @param present - `window.__beltypeCicero.present`, handed in so this module imports nothing from the engine.
- * @throws {Error} when a source has no fallback `alt`.
+ * @param options - `missingAlt: 'warn'` tells each source with no fallback `alt` once, at intake, and copies it with no alternative text, so the document is drawn and the print refuses it.
+ * @throws {Error} when a source has no fallback `alt`, under the default `missingAlt: 'refuse'`.
  */
-export async function install(doc: Document, present: (selector: string,make: (source: Element) => Element) => void): Promise<void> {
+export async function install(doc: Document, present: (selector: string,make: (source: Element) => Element) => void, options: { missingAlt?: MissingAlt } = {}): Promise<void> {
+  const missingAlt = options.missingAlt ?? 'refuse';
   if (!customElements.get(TAG)) {
     customElements.define(TAG, class extends HTMLObjectElement {
       connectedCallback() { watcher().observe(this); }
@@ -221,7 +234,7 @@ export async function install(doc: Document, present: (selector: string,make: (s
   }
   const reads: Promise<unknown>[] = [];
   for (const source of doc.querySelectorAll(SOURCE)) {
-    altOf(source);
+    if (altOf(source, missingAlt) === null) console.warn(`BelType/Cicero: <object type="application/pdf" data="${source.getAttribute('data')}"> has no fallback <img alt="…">: the page it embeds is a figure with no alternative text, which the editor draws and the print will refuse. Write the fallback inside the object: <object …><img src="…" alt="what the page shows"></object>.`);
     const { url, page } = locate(source);
     reads.push(readSize(url, page).catch((error) => {
       const key = keyOf(url, page);
@@ -229,5 +242,5 @@ export async function install(doc: Document, present: (selector: string,make: (s
     }));
   }
   await Promise.all(reads);
-  present(SOURCE, make);
+  present(SOURCE, missingAlt === 'refuse' ? make : (source) => make(source, missingAlt));
 }
