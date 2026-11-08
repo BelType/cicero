@@ -86,6 +86,16 @@ test('a block with a float wholly in its own padding is composed (Codeberg issue
   assert.ok(paras[0].breaks > 2, `composed: ${paras[0].breaks} breaks`);
 });
 
+test('a float child wholly in its paragraph\'s padding is an outside marker: the paragraph composes and the number stays where it hangs (Codeberg issue 7)', async () => {
+  const { paras } = await composed('hang-child', `<p class="comma"><span class="num">1.</span> ${TEXT}</p>`, '.comma { width: 400px; padding-left: 40px; } .num { float: left; width: 40px; margin-left: -40px; }');
+  assert.ok(paras[0].breaks > 2, `composed: ${paras[0].breaks} breaks`);
+});
+
+test('a float child that intrudes on the content box still refuses', async () => {
+  const { paras } = await composed('intruding-child', `<p class="comma"><span class="num">1.</span> ${TEXT}</p>`, '.comma { width: 400px; padding-left: 40px; } .num { float: left; width: 80px; margin-left: -40px; }');
+  assert.equal(paras[0].breaks, 0);
+});
+
 test('a block a float really intrudes on stays refused', async () => {
   const { paras } = await composed('beside', `<div class="w"><div class="f"></div><p>${TEXT}</p></div>`, '.w { width: 400px; } .f { float: left; width: 100px; height: 60px; }');
   assert.equal(paras[0].breaks, 0);
