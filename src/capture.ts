@@ -159,20 +159,100 @@ function someRule(doc: Document, test: (rule: CSSRule&{ selectorText?: string; }
 }
 
 /**
+ * The properties that paint and move no box, the one list the sheets' reach reads a rule's declarations against (ruled 2026-11-08): a style rule whose every declaration sets one of these is passed over by {@link sheetReach} and {@link topLevelReach} whatever its selector, because the reach asks whether an edit can move another box's facts, and a colour, a shadow or an opacity moves none.
+ *
+ * @remarks
+ * Closed and short on purpose. The CSSOM lists a rule's declarations as longhands, so `background` arrives as its `background-*` longhands and `border-color` as the four sides', and both families are taken by their prefix and suffix besides the names here. Anything else counts as layout, custom properties (`--x`) included, since one may feed a layout value through `var()`.
+ */
+export const PAINT_ONLY: ReadonlySet<string> = new Set(['color', 'background', 'border-color', 'outline-color', 'text-decoration-color', 'text-emphasis-color', 'caret-color', 'accent-color', 'column-rule-color', 'opacity', 'visibility', 'mix-blend-mode', 'box-shadow', 'text-shadow', 'filter', 'backdrop-filter', 'cursor', 'pointer-events', 'user-select', 'will-change', 'forced-color-adjust', 'color-scheme', 'print-color-adjust']);
+
+const paints = (name: string) => PAINT_ONLY.has(name) || name.startsWith('background-') || (name.startsWith('border-') && name.endsWith('-color'));
+
+/** Whether a rule's own declarations, read through `rule.style`, all paint: a rule with none does too. A rule with no `style` is not a style rule and answers no. */
+function paintOnly(rule: CSSRule & { style?: CSSStyleDeclaration }): boolean {
+  const style = rule.style;
+  if (!style || typeof style.length !== 'number') return false;
+  for (let i = 0; i < style.length; i++) if (!paints(style.item(i))) return false;
+  return true;
+}
+
+/** Whether every rule under a grouping rule paints, nested rules and grouping rules within it included; a rule that is neither a style rule nor a grouping rule answers no. */
+function allPaint(rules: CSSRuleList | ArrayLike<CSSRule> | undefined): boolean {
+  for (const rule of Array.from((rules ?? []) as ArrayLike<CSSRule & { style?: CSSStyleDeclaration, cssRules?: CSSRuleList }>)) {
+    if (rule.style ? !paintOnly(rule) : !rule.cssRules) return false;
+    if (rule.cssRules && !allPaint(rule.cssRules)) return false;
+  }
+  return true;
+}
+
+/** The rule that set a reach and the sheet it stands in, which the memo's console notice names (ruled 2026-11-08): `selector` is a style rule's `selectorText`, `null` for an `@container` or `@scope` rule or a sheet the engine cannot read; `sheet` the sheet's `href`, or `<style> n` with its place among the document's sheets, counted from 1. */
+export type ReachCulprit = { selector: string | null; sheet: string; kind: 'style' | 'container' | 'scope' | 'unreadable' };
+
+/** A reach with the first rule that set it and how many more rules reached as far, {@link sheetReachOf}'s and {@link topLevelReachOf}'s answer. */
+export type Reach = { reach: 0|1|2; culprit: ReachCulprit | null; count: number };
+
+/** Every rule of every sheet the document wears, with its sheet's name, walked as {@link someRule} walks them but to the end; a sheet the engine cannot read is handed to `unread`. */
+function eachRule(doc: Document, visit: (rule: CSSRule & { selectorText?: string, cssRules?: CSSRuleList }, sheet: string) => void, unread: (sheet: string) => void) {
+  const inRules = (rules: CSSRuleList, sheet: string) => {
+    for (const rule of (rules as Iterable<CSSRule & { selectorText?: string, cssRules?: CSSRuleList, styleSheet?: CSSStyleSheet | null }>)) {
+      visit(rule, sheet);
+      if (rule.cssRules) inRules(rule.cssRules, sheet);
+      if (rule.styleSheet) inSheet(rule.styleSheet, sheet);
+    }
+  };
+  const inSheet = (sheet: CSSStyleSheet, name: string) => {
+    const own = sheet.href ?? name;
+    let rules;
+    try { rules = sheet.cssRules; } catch { unread(own); return; }
+    inRules(rules, own);
+  };
+  styleSheetsOf(doc).forEach((sheet, i) => inSheet(sheet, `<style> ${i + 1}`));
+}
+
+/** A tally of what reached how far: the highest level, the first rule at it, and the rules after it at the same level. */
+function reachTally() {
+  const found: Reach = { reach: 0, culprit: null, count: 0 };
+  const add = (reach: 0|1|2, culprit: ReachCulprit) => {
+    if (reach > found.reach) Object.assign(found, { reach, culprit, count: 0 });
+    else if (reach > 0 && reach === found.reach) found.count++;
+  };
+  return { found, add };
+}
+
+/** A grouping rule's kind where it is one the reach answers 2 for unless every rule under it paints, else `null`. */
+const queried = (rule: CSSRule): 'container' | 'scope' | null => {
+  const kind = rule.constructor?.name;
+  return kind === 'CSSContainerRule' ? 'container' : kind === 'CSSScopeRule' ? 'scope' : null;
+};
+
+/**
  * How far a box's attributes can reach through the sheets the document wears, read off the selectors (*the forced-break index is kept across runs*, 2026-10-09) — what the forcing index's memo needs to know to say which of its answers an edit made stale, when the unit of replacement is `patchBox`'s, a box at any depth ({@link topLevelReach} reads the same sheets for a whole top-level box).
  *
  * 0: nothing but the box and what is below it; a descendant combinator or a child combinator reads a box's ancestors, which an edit does not change. 1: a sibling — `+`, `~` or `:nth-child(… of …)`, by which a box's attributes decide the style of the boxes after it (or beside it) and what they hold. 2: an ancestor or anything at all — `:has(`, an `@container` rule (a size the edit moves), or a sheet the engine cannot read. Blink's invalidation sets draw the same line and take the same fallback: where a selector defeats the reasoning, widen. The reading is textual and errs only toward more reach — a `+` in a selector's attribute value is read as a combinator — which costs speed and never a stale answer.
+ *
+ * @remarks
+ * A rule whose declarations all paint ({@link PAINT_ONLY}) is passed over before its selector is read, and an `@container` rule every rule under which paints answers nothing of itself; its nested rules are read as rules (ruled 2026-11-08).
  */
 export function sheetReach(doc: Document): 0|1|2 {
-  if (someRule(doc, (rule) => rule.constructor?.name === 'CSSContainerRule' || !!rule.selectorText?.includes(':has('))) return 2;
-  // Parenthesised arguments and attribute selectors out of the way first: `:nth-child(2n+1)` and `[lang~=en]` are not combinators, and `:nth-child(2 of .x)` is the one `nth` form that looks sideways.
-  if (someRule(doc, (rule) => {
+  return sheetReachOf(doc).reach;
+}
+
+/** {@link sheetReach} with the first rule that set the reach and how many more reached as far, for the memo's console notice. */
+export function sheetReachOf(doc: Document): Reach {
+  const { found, add } = reachTally();
+  eachRule(doc, (rule, sheet) => {
+    if (rule.constructor?.name === 'CSSContainerRule') {
+      if (!allPaint(rule.cssRules)) add(2, { selector: null, sheet, kind: 'container' });
+      return;
+    }
     const text = rule.selectorText;
-    if (!text) return false;
-    if (/:nth-[\w-]+\([^)]*\sof\s/.test(text)) return true;
-    return /[+~]/.test(text.replace(/\[[^\]]*\]/g, '').replace(/:nth-[\w-]+\([^)]*\)/g, ''));
-  })) return 1;
-  return 0;
+    if (!text || paintOnly(rule)) return;
+    const culprit: ReachCulprit = { selector: text, sheet, kind: 'style' };
+    if (text.includes(':has(')) return add(2, culprit);
+    // Parenthesised arguments and attribute selectors out of the way first: `:nth-child(2n+1)` and `[lang~=en]` are not combinators, and `:nth-child(2 of .x)` is the one `nth` form that looks sideways.
+    if (/:nth-[\w-]+\([^)]*\sof\s/.test(text) || /[+~]/.test(text.replace(/\[[^\]]*\]/g, '').replace(/:nth-[\w-]+\([^)]*\)/g, ''))) add(1, culprit);
+  }, (sheet) => add(2, { selector: null, sheet, kind: 'unreadable' }));
+  return found;
 }
 
 /**
@@ -185,12 +265,19 @@ export function sheetReach(doc: Document): 0|1|2 {
  *
  * A nested rule is read as it matches: its `&` is its parent's selector in `:is()`, as CSS Nesting defines it. Conservative by construction, and these are the cases it does not read, each answered 2: a `:is()`, `:where()`, `:not()` or other wrapper whose argument holds a combinator and also a sibling combinator, a `:has(` or a structural pseudo-class, which takes in a nested rule whose parent's selector holds them (a wrapper with a bare `*` among its arguments constrains nothing and is passed over, which is how the engine's own `:has()` union reads); a `&` in a rule nested in no style rule; a selector whose quotes or brackets do not close; a relative selector at the top of a rule. The pseudo-classes `sheetReach` passes over (`:target`, `:checked`, `:dir()`) are passed over here too.
  *
+ * A rule whose declarations all paint ({@link PAINT_ONLY}) is passed over before its selector is read, so a paint-only `p + p` or `body:has(.x) p` reaches nothing, and an `@container` or `@scope` rule every rule under which paints answers nothing of itself; the walk reads its nested rules as rules (ruled 2026-11-08).
+ *
  * The unit's promise, which the host keeps: a top-level box whose name or attributes change is a new element, and the element it replaced is among `before`.
  *
  * @param boxes - the top-level boxes as they stand: the element children of their one parent, in order.
  * @param before - the top-level boxes the memo was last settled with (`ForcingMemo`'s `boxes`), empty where it keeps nothing.
  */
 export function topLevelReach(doc: Document, boxes: ArrayLike<Element>, before: ArrayLike<Element> = []): 0|1|2 {
+  return topLevelReachOf(doc, boxes, before).reach;
+}
+
+/** {@link topLevelReach} with the first rule that set the reach, its sheet, and how many more rules reached as far, for the memo's console notice (ruled 2026-11-08). The number alone stays `topLevelReach`'s answer, which a view adapter imports. */
+export function topLevelReachOf(doc: Document, boxes: ArrayLike<Element>, before: ArrayLike<Element> = []): Reach {
   const now = Array.from(boxes);
   const was = Array.from(before);
   const here = new Set(now);
@@ -211,18 +298,20 @@ export function topLevelReach(doc: Document, boxes: ArrayLike<Element>, before: 
     shaped,
     changed
   };
-  let reach: 0|1|2 = 0;
-  const unread = someRule(doc, (rule) => {
-    const kind = rule.constructor?.name;
-    if (kind === 'CSSContainerRule' || kind === 'CSSScopeRule') return true;
-    if (!rule.selectorText || kind === 'CSSPageRule') return false;
+  const { found, add } = reachTally();
+  eachRule(doc, (rule, sheet) => {
+    const kind = queried(rule);
+    if (kind) {
+      if (!allPaint(rule.cssRules)) add(2, { selector: null, sheet, kind });
+      return;
+    }
+    if (!rule.selectorText || rule.constructor?.name === 'CSSPageRule' || paintOnly(rule)) return;
     const text = resolvedSelector(rule);
-    if (text != null && !CROSSING.test(text)) return false;
+    if (text != null && !CROSSING.test(text)) return;
     const r = text == null ? 2 : selectorListReach(text, ctx);
-    if (r > reach) reach = r;
-    return reach === 2;
-  });
-  return unread ? 2 : reach;
+    if (r) add(r, { selector: rule.selectorText, sheet, kind: 'style' });
+  }, (sheet) => add(2, { selector: null, sheet, kind: 'unreadable' }));
+  return found;
 }
 
 /** What {@link topLevelReach} asks of the document while it reads a selector. */

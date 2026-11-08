@@ -136,7 +136,7 @@ Modules: `src/measure.js`, `src/capture.js`, `src/box-shorthand.js`, `src/margin
 ### II.4 The encoding contract
 
 1. `gcpm-encoding.js` is the one place the rewritten forms are spelled. The rewriter writes them and the capture reads them, and every form has an `encode`/`decode` pair (see *the-host-rewrites-what-the-parser-drops*).
-2. A sheet's reach is read every run: 0 where no selector reaches beyond a box's ancestors, 1 where one reaches a sibling, 2 where one reaches an ancestor or the sheet is unreadable (see *the-forced-break-index-is-kept-across-runs*).
+2. A sheet's reach is read every run: 0 where no selector reaches beyond a box's ancestors, 1 where one reaches a sibling, 2 where one reaches an ancestor or the sheet is unreadable (see *the-forced-break-index-is-kept-across-runs*). A rule whose declarations all set a paint-only property (`capture.js`' `PAINT_ONLY`) is passed over whatever its selector, and so is an `@container` or `@scope` rule every rule under which paints; where the reach puts the memo out of use or narrows it, the console says so once per memo life at each level, naming the first rule that set the level, its sheet, and how many more reached as far.
 
 ## 6. Article III — The Gauge
 
@@ -488,6 +488,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
 | 2026-11-07 | IV.11, VI.1.11 | Both items now cite their record, *a-divided-cell-aligns-within-each-piece*, written from the ruling of 2026-11-07. | *a-divided-cell-aligns-within-each-piece* |
 | 2026-11-07 | VIII.1.7 | The sibling counter scope stays by the book: the replay follows CSS 2.1 §12.4.1 where Chromium's print does not, stated with the measured divergence. | *a-sibling-counter-scope-stays-by-the-book* |
+| 2026-11-08 | II.4.2 | The sheets' reach passes over a rule that only paints, and the memo's console notice names the rule and its sheet at both levels. | *the-forced-break-index-is-kept-across-runs* (ruled 2026-11-08) |
 
 ## 18. Known open at ratification
 

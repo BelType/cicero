@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { topLevelReach as topLevelReachTyped } from '../src/capture.ts';
+import { sheetReach as sheetReachTyped, sheetReachOf as sheetReachOfTyped, topLevelReach as topLevelReachTyped, topLevelReachOf as topLevelReachOfTyped } from '../src/capture.ts';
 import { ForcingMemo } from '../src/forcing-memo.ts';
 import { indexBlocks } from '../src/positions.ts';
 import { runningBoxes } from '../src/driver.ts';
@@ -14,6 +14,14 @@ import { RUNNING_PROP } from '../src/gcpm-encoding.ts';
 import { byShape } from './fakes.ts';
 
 const topLevelReach = byShape(topLevelReachTyped);
+const topLevelReachOf = byShape(topLevelReachOfTyped);
+const sheetReach = byShape(sheetReachTyped);
+const sheetReachOf = byShape(sheetReachOfTyped);
+
+/** A rule's declarations as the CSSOM lists them, one longhand per item. */
+const declared = (...names: string[]) => ({ length: names.length, item: (i: number) => names[i] ?? '' });
+/** A style rule with these declarations. */
+const ruleOf = (selectorText: string, ...names: string[]) => ({ selectorText, style: declared(...names) });
 
 /** `tag#id.class.class`, with children. */
 function el(spec: any, ...children: any[]): any {
@@ -141,7 +149,7 @@ test('a :has() opening sideways whose subject is a top-level box: the boxes befo
 });
 
 test('a :has() whose subject is an ancestor of the boxes, and an @container rule: everything', () => {
-  class CSSContainerRule { cssRules = []; }
+  class CSSContainerRule { cssRules = [ruleOf('p', 'margin-top')]; }
   for (const rule of ['body:has(.x) p', ':has(.x)', 'div:has(> section.x)', new CSSContainerRule()]) {
     const { doc, boxes } = documentOf(sections(), [rule]);
     assert.equal(topLevelReach(doc, boxes(), []), 2, String((rule as any).selectorText ?? rule.constructor.name));
@@ -290,4 +298,61 @@ test('the running elements: each top-level box\'s are kept through the door, and
   assert.equal(reads, 2, 'the new section and its paragraph, and nothing else');
   assert.deepEqual(kept, runningBoxes(doc));
   assert.deepEqual(kept.map((r) => [r.el.id, r.name, r.block, r.next?.id ?? null]), [['top', 'title', 0, null], ['head', 'chapter', 1, 'after']]);
+});
+
+test('a rule whose declarations all paint moves no box, and the reach passes over it whatever its selector', () => {
+  const paint = ['color', 'background-color', 'background-image', 'border-top-color', 'outline-color', 'opacity', 'box-shadow'];
+  const cases: [any, any, (doc: any, boxes?: any, before?: any) => number, number][] = [
+    [flat, ruleOf('p + p', 'color'), topLevelReach, 0],
+    [flat, ruleOf('p + p', 'margin-top'), topLevelReach, 1],
+    [flat, ruleOf('p + p', '--gap'), topLevelReach, 1],
+    [flat, ruleOf('p + p'), topLevelReach, 0],
+    [flat, ruleOf('p + p', ...paint), topLevelReach, 0],
+    [flat, ruleOf('p + p', 'color', 'margin-top'), topLevelReach, 1],
+    [sections, ruleOf('body:has(.x) p', 'background-color', 'background-image'), topLevelReach, 0],
+    [sections, ruleOf('body:has(.x) p', 'margin-top'), topLevelReach, 2],
+    [sections, ruleOf('section:has(> h1)', 'background-color', 'background-image'), sheetReach, 0],
+    [sections, ruleOf('section:has(> h1)', 'margin-top'), sheetReach, 2],
+    [flat, ruleOf('p + p', 'color'), sheetReach, 0],
+    [flat, ruleOf('p + p', 'margin-top'), sheetReach, 1],
+    [flat, ruleOf('p + p', '--gap'), sheetReach, 1],
+    [flat, ruleOf('p + p'), sheetReach, 0]
+  ];
+  for (const [boxesOf, rule, reachOf, reach] of cases) {
+    const { doc, boxes } = documentOf(boxesOf(), [rule]);
+    const style = rule.style;
+    assert.equal(reachOf(doc, boxes(), boxes()), reach, `${reachOf === sheetReach ? 'sheet' : 'top-level'}: ${rule.selectorText} { ${Array.from({ length: style.length }, (_, i) => style.item(i)).join('; ')} }`);
+  }
+});
+
+test('an @container or @scope rule whose nested rules all paint moves no box; one layout rule inside it is everything', () => {
+  class CSSContainerRule { cssRules: any[]; constructor(rules: any[]) { this.cssRules = rules; } }
+  class CSSScopeRule { cssRules: any[]; constructor(rules: any[]) { this.cssRules = rules; } }
+  for (const [rule, reach] of [
+    [new CSSContainerRule([ruleOf('p', 'color'), ruleOf('h2 + p', 'background-color')]), 0],
+    [new CSSContainerRule([ruleOf('p', 'color'), ruleOf('p', 'margin-top')]), 2],
+    [new CSSScopeRule([ruleOf('p', 'color')]), 0],
+    [new CSSScopeRule([ruleOf('p', 'padding-top')]), 2]
+  ] as any[][]) {
+    const { doc, boxes } = documentOf(sections(), [rule]);
+    assert.equal(topLevelReach(doc, boxes(), boxes()), reach, rule.constructor.name);
+    if (rule instanceof CSSContainerRule) assert.equal(sheetReach(doc), reach, `sheet: ${rule.constructor.name}`);
+  }
+});
+
+test('the reach names the first rule that set it, its sheet, and how many more reached as far', () => {
+  const two = documentOf(sections(), [ruleOf('p', 'color'), ruleOf('body:has(.x) p', 'margin-top'), ruleOf('h2 + p', 'margin-top'), ruleOf(':has(.y)', 'display')]);
+  (two.doc.styleSheets[0] as any).href = 'https://example.org/book.css';
+  assert.deepEqual(topLevelReachOf(two.doc, two.boxes(), two.boxes()), { reach: 2, culprit: { selector: 'body:has(.x) p', sheet: 'https://example.org/book.css', kind: 'style' }, count: 1 });
+  const one = documentOf(flat(), [ruleOf('p + p', 'color'), ruleOf('h2 + p', 'margin-top'), ruleOf('p ~ p', 'margin-top')]);
+  one.doc.styleSheets.unshift({ cssRules: [] } as any);
+  assert.deepEqual(topLevelReachOf(one.doc, one.boxes(), one.boxes()), { reach: 1, culprit: { selector: 'h2 + p', sheet: '<style> 2', kind: 'style' }, count: 1 });
+  assert.deepEqual(sheetReachOf(one.doc), { reach: 1, culprit: { selector: 'h2 + p', sheet: '<style> 2', kind: 'style' }, count: 1 });
+  class CSSContainerRule { cssRules = [ruleOf('p', 'margin-top')]; }
+  const box = documentOf(sections(), [new CSSContainerRule()]);
+  assert.deepEqual(topLevelReachOf(box.doc, box.boxes(), []), { reach: 2, culprit: { selector: null, sheet: '<style> 1', kind: 'container' }, count: 0 });
+  const none = documentOf(sections(), [ruleOf('p', 'margin-top')]);
+  assert.deepEqual(topLevelReachOf(none.doc, none.boxes(), []), { reach: 0, culprit: null, count: 0 });
+  none.doc.styleSheets.push({ href: 'https://cdn.example/x.css', get cssRules() { throw new Error('cross-origin'); } } as any);
+  assert.deepEqual(topLevelReachOf(none.doc, none.boxes(), []), { reach: 2, culprit: { selector: null, sheet: 'https://cdn.example/x.css', kind: 'unreadable' }, count: 0 });
 });

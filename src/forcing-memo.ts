@@ -14,9 +14,13 @@
  *
  * **Who must keep the promise.** The host: a box replaced any other way than `patchBox` (which calls {@link ForcingMemo.replaced}) must be reported the same way or the run must ask for a fresh memo. Under the top-level unit, a top-level box whose name or attributes change is a new element, and the box it replaced is reported too. The seam fills the memo only from runs on a presented frame, never from the first run after load, whose realm (the sources are children of `body`, not of `<beltype-root>`) can answer a `body > …` or `:first-child` selector otherwise than later runs do.
  *
+ * **A rule that only paints reaches nothing** (ruled 2026-11-08). Both readings pass over a style rule whose declarations all set a property on `capture.js`' `PAINT_ONLY` list, whatever its selector, and an `@container` or `@scope` rule every rule under which paints. Where a reach of 2 puts the memo out of use or a reach of 1 narrows it, {@link ForcingMemo.notice} gives the console one line per memo life at each level, naming the first rule that set the level and its sheet.
+ *
  * @see .claude/decisions/cicero/the-forced-break-index-is-kept-across-runs.md
  * @packageDocumentation
  */
+
+import type { Reach } from './capture.ts';
 
 /** The computed style properties `forcingIndexOf` and the predicates it calls (`isAbsolutelyPositioned`, `isOutOfFlow`, `isMonolith`, `neverCutInside`, `notYetDivided`) read of a box, and so the whole of a snapshot. `test/forcing-memo.test.js` records the reads of a real walk against this list. */
 export const FORCING_STYLE_READS = Object.freeze(['position', 'float', 'display', 'overflowX', 'overflowY', 'columnCount', 'columnWidth', 'breakBefore', 'breakAfter']);
@@ -37,6 +41,8 @@ export class ForcingMemo {
   misses = 0;
   /** Whether the console has said, for this memo's life, that a sheet's reach put it out of use. */
   said = false;
+  /** Whether the console has said, for this memo's life, that a sheet's reach of 1 narrowed what it keeps. */
+  saidNarrowed = false;
   #facts: WeakMap<Element,Record<string,string>> = new WeakMap<any, any>();
   #pageName: WeakMap<Element,string> = new WeakMap<any, any>();
   #children: WeakMap<Element,Element[]> = new WeakMap<any, any>();
@@ -52,6 +58,22 @@ export class ForcingMemo {
   /** The top-level boxes the memo was last settled with under the top-level unit, in order, which `capture.js`' `topLevelReach` takes as `before`; empty where it keeps nothing. */
   get boxes() {
     return this.#boxes;
+  }
+
+  /**
+   * The console line for a reach that put this memo out of use (2) or narrowed it (1), once per memo life at each level, or `null` (ruled 2026-11-08): it names the first rule that set the level, its sheet, and how many more rules reached as far, so an author can find the rule that costs the edit.
+   * @param read - `capture.js`' `sheetReachOf` or `topLevelReachOf`.
+   */
+  notice(read: Reach): string|null {
+    const { reach, culprit, count } = read;
+    if (reach === 0 || !culprit || (reach === 2 ? this.said : this.saidNarrowed)) return null;
+    if (reach === 2) this.said = true;
+    else this.saidNarrowed = true;
+    const what = culprit.kind === 'style' ? `the rule "${culprit.selector}" in ${culprit.sheet}` : culprit.kind === 'unreadable' ? `the sheet ${culprit.sheet}, which the engine cannot read,` : `an @${culprit.kind} rule in ${culprit.sheet}`;
+    const more = count ? `${culprit.kind === 'unreadable' ? '' : ','} and ${count} more ${count === 1 ? 'rule' : 'rules'},` : '';
+    return reach === 2
+      ? `BelType/Cicero: ${what}${more} can change the style of a box an edit did not touch, so the forced-break index and the run-level walks are read afresh on every run rather than kept; the pages are the same and an edit costs more.`
+      : `BelType/Cicero: ${what}${more} can make a box change the style of the boxes beside it, so the forced-break index and the run-level walks read the boxes beside an edited one again rather than keep them; the pages are the same and an edit costs more.`;
   }
 
   /** Forget everything: the conditions moved, the run was not a resume, or it threw. */
