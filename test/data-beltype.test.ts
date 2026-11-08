@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ATTRIBUTE, REGISTRY, FLAGS, KEYS, TRANSFORM, CICERO_PROVISION, CICERO_INTERFACE, ARTIFACT, HOST,
+  decodeFragment, ATTRIBUTE, REGISTRY, FLAGS, KEYS, TRANSFORM, CICERO_PROVISION, CICERO_INTERFACE, ARTIFACT, HOST,
   assertNoKeySuffix, keyEndingWithAnother, words, wordOf, hasWord, addWord, removeWord, hasAnyWord, isEngineMark, setValue, removeKey,
   ENGINE_MARKS, POS_SELECTOR, posOf, setPos, stripPos, withoutPos,
   encodeHasUnion, authorSelectorOf, bareHasCount, isHasRegistryRule, encodeHasArgument, decodeHasArgument, hasWordFor
@@ -155,4 +155,10 @@ test('the registry rule and its argument codec', () => {
     assert.equal(decodeHasArgument(encodeHasArgument(argument)), argument);
   }
   assert.equal(decodeHasArgument('not a string'), null);
+});
+
+test('decodeFragment decodes a fragment and returns a malformed one raw instead of throwing', () => {
+  assert.equal(decodeFragment('#chapter%201'), 'chapter 1');
+  assert.equal(decodeFragment('chapter'), 'chapter');
+  assert.equal(decodeFragment('#%E0%A4%A'), '%E0%A4%A');
 });

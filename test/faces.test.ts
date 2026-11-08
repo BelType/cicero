@@ -43,3 +43,20 @@ test('the rim face answers the module the engine\'s own client imports', async (
   assert.ok(own.isKnownFace(face0), 'a face the host told the face about is one the engine knows');
   assert.equal(face.bringsNewFace({ fontfaces: [face0] } as unknown as Event), false);
 });
+
+test('SPEC Article XIII lists exactly the faces package.json exports, and the fragmentation face the names SPEC lists', async () => {
+  const root = new URL('../', import.meta.url);
+  const spec = (await import('node:fs')).readFileSync(new URL('SPEC.md', root), 'utf8');
+  const pkg = JSON.parse((await import('node:fs')).readFileSync(new URL('package.json', root), 'utf8'));
+  const article = spec.slice(spec.indexOf('Article XIII'), spec.indexOf('### XIII.1'));
+  const listed = [...article.matchAll(/^\| `(\.[^`]*)` \|/gm)].map((m) => m[1]).sort();
+  const exported = Object.keys(pkg.exports).filter((k) => k !== './internal/*' && k !== './package.json').sort();
+  assert.deepEqual(listed, exported);
+  assert.match(article, new RegExp(`publishes ${['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][exported.length]} faces`));
+  // Every name SPEC's table lists for ./fragmentation is exported by it, and every export is listed.
+  const section = spec.slice(spec.indexOf('### XIII.3'), spec.indexOf('### XIII.4'));
+  const names = [...section.matchAll(/^\| `[a-z-]+` \| (.*) \|$/gm)].flatMap((m) => [...m[1].matchAll(/`(\w+)`/g)].map((n) => n[1]));
+  const face = await import('@beltype/cicero/fragmentation');
+  // `Keep` is a type: it has no value to compare.
+  assert.deepEqual(Object.keys(face).sort(), names.filter((n) => n !== 'Keep').sort());
+});

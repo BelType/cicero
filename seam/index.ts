@@ -71,7 +71,7 @@ export const ciceroEngine = {
     return `      if (window.__beltypeCicero) {
         try {
           const cicero = window.__beltypeCicero;
-          const named = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+          const named = location.hash.length > 1 ? document.getElementById((() => { const h = location.hash.slice(1); try { return decodeURIComponent(h); } catch { return h; } })()) : null;
           let answer = await cicero.run({ until: named || 2 });
           if (!answer.complete) {
             const sheet = document.querySelector('beltype-root')?.shadowRoot?.querySelector('beltype-page');

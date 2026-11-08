@@ -69,3 +69,29 @@ test('a margin box\'s padding moves its content: the head sits 20 px above the c
   assert.equal(out.foot.paddingTop, '20px', `the folio's padding: ${JSON.stringify(out.foot)}`);
   await page.context().close();
 });
+
+test('CSSMarginRule exists in the pinned Chromium, so margin boxes are read from the CSSOM and never from cssText', async () => {
+  const page = await (await browser.newContext()).newPage();
+  assert.equal(await page.evaluate(() => typeof (globalThis as any).CSSMarginRule), 'function');
+  await page.context().close();
+});
+
+test('a margin box carries its own font and size: 9pt serif reads 12px and a serif family on the presented page', async () => {
+  docs.set('face', `<!doctype html><html><head><meta charset="utf-8"><title>case</title>${ciceroEngine.headHtml('/')}<style>
+html { font: 20px/1.5 sans-serif; } @page { size: 300px 300px; margin: 60px; @top-center { content: "x"; font: 9pt serif } }
+</style></head><body><p>One page of text.</p></body></html>`);
+  const page = await (await browser.newContext()).newPage();
+  page.on('pageerror', (e) => assert.fail(`page error: ${e.message}`));
+  await page.goto(`${origin}/doc/face`);
+  await page.waitForFunction(() => (window as any).__beltypeCicero?.run);
+  const out = await page.evaluate(async () => {
+    await (window as any).__beltypeCicero.run();
+    const first = document.querySelector('beltype-root')!.shadowRoot!.querySelector('beltype-page')!;
+    const cs = getComputedStyle(first.shadowRoot!.querySelector('.margin-cell[data-box="top-center"]')!);
+    return { size: cs.fontSize, family: cs.fontFamily };
+  });
+  assert.equal(out.size, '12px', JSON.stringify(out));
+  assert.match(out.family, /serif/i, JSON.stringify(out));
+  assert.doesNotMatch(out.family, /sans-serif/i, JSON.stringify(out));
+  await page.context().close();
+});
