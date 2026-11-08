@@ -8,7 +8,7 @@
  *
  * **`run()` may be called again on the frame it presented** (*the run resumes from an entry*, build one, 2026-10-08). The first call takes the intake — the blocks, fixed boxes and running elements, and the geometry table — and keeps it in this module; a later call hands the run the lists it took instead of re-reading `document.body.children`, which by then holds the root and nothing else, and measures the sources where they stand, parked or slotted, with the dressing sheet out of the cascade. The Ledger it returns is byte-equal to the first call's in both modes within one realm and one viewport. Without `resumeAt` the call is a whole run, measured and presented from page one (build two adds the other: see `run`); the editing tools patch their frame and call it with `resumeAt` since build four (`patch`, `box`, `addressOf` below).
  *
- * **The rim is wired here** (`rim.js`, *late truth is an edit*, 2026-10-13; *a box announces its own size*, 2026-10-21): it is handed the top-level boxes, the root's `isPresented`, the table of heights the last run measured (`previous`, beside the warm start's values) and a way to know the runs have ended, and its signals come back to {@link answerLateTruth}. A box's size is answered as an element is, one resume at the box, or, where it was heard through a piece a page draws it with, one resume at the address the earliest such page begins at (the root's `startOf`, *a fragment announces its own size*, 2026-10-22), three per box until the next whole run whichever of its pieces spoke; a piece's expected height is its first reading, so the root's `onPieces` hands the rim each piece from the frame it is built in; a call of `run()` counts as under way from the moment it is made, so a host that patches a box and runs in the same task is judged after its run and never answered twice. A size a stylesheet caused is a changed condition, and its resume is refused and runs whole, as every resume under moved conditions does; a size a diagram's own `<style>` caused is not, since a sheet inside an `<svg>` is the diagram's and not the document's (*the conditions are the sheets of the document*, 2026-10-22).
+ * **The rim is wired here** (`rim.js`, *late truth is an edit*, 2026-10-13; *a box announces its own size*, 2026-10-21): it is handed the top-level boxes, the root's `isPresented`, the table of heights the last run measured (`previous`, beside the warm start's values), whether some page is not built yet, and a way to know the runs have ended, and its signals come back to {@link answerLateTruth}. A box's size is answered as an element is, one resume at the box, or, where it was heard through a piece a page draws it with, one resume at the address the earliest such page begins at (the root's `startOf`, *a fragment announces its own size*, 2026-10-22), three per box until the next whole run whichever of its pieces spoke; a piece's expected height is its first reading, so the root's `onPieces` hands the rim each piece from the frame it is built in; a call of `run()` counts as under way from the moment it is made, so a host that patches a box and runs in the same task is judged after its run and never answered twice. A size a stylesheet caused is a changed condition, and its resume is refused and runs whole, as every resume under moved conditions does; a size a diagram's own `<style>` caused is not, since a sheet inside an `<svg>` is the diagram's and not the document's (*the conditions are the sheets of the document*, 2026-10-22).
  *
  * The first call is made by the shell's bootstrap. `run()` is called by the shell's bootstrap after the compiler's own client stages (mermaid pre-render), because a diagram that has not drawn yet has the wrong height and every cut downstream of it would be adjudicated against a lie.
  *
@@ -16,7 +16,7 @@
  */
 
 import { paginate, topLevelBlocks, topLevelBoxes, fixedBoxes, runningBoxes, runningIdentOf, describeConditions } from '../src/driver.ts';
-import { assertRenderConditions, awaitFonts, awaitImages } from '../src/measure.ts';
+import { assertRenderConditions, awaitFonts } from '../src/measure.ts';
 import { pathOf } from '../src/positions.ts';
 import { readGeometryTable, sheetReach } from '../src/capture.ts';
 import { composeForPresentation } from '../src/compose-dom.ts';
@@ -372,7 +372,7 @@ async function takeIntake(relaxDpr: boolean) {
   void document.body.offsetHeight;
   await document.fonts.ready;
   await takeFacsimile(); // a presenter is a condition of every copy: registered before the first one, with every size known
-  await awaitImages(document); // the stand-in for the first measure (the driver asks again and finds nothing pending); done here so the rim, started below, hears only pictures that become pending later
+  // No image is awaited (ruled 2026-11-08): the driver makes the lazy ones eager, and the rim started below hears every picture's first load as well as a later one, since it listens in the capture phase on each top-level box (`rim.js`), and resumes only where the arrival changed the box.
   const table = readGeometryTable(document);
   await awaitFonts(document, table.furnitureFaces); // before the rim exists: a face only the margin boxes use is otherwise requested after the cuts, and its `loadingdone` would be heard as a late condition
   const blocks = topLevelBlocks(document);
@@ -402,7 +402,7 @@ async function takeIntake(relaxDpr: boolean) {
       presented = null;
     }
   };
-  rim = watchLateTruth({ document, fonts, originals: boxes, onSignal: answerLateTruth, presented: (box) => root.isPresented(box), pageHolding: (piece) => root.pageHolding(piece), measured: (box) => previous?.result.heights?.get(box), idle: quiet, busy: () => !!(working || calls.size || (live && !live.gate)) });
+  rim = watchLateTruth({ document, fonts, originals: boxes, onSignal: answerLateTruth, presented: (box) => root.isPresented(box), pageHolding: (piece) => root.pageHolding(piece), measured: (box) => previous?.result.heights?.get(box), idle: quiet, busy: () => !!(working || calls.size || (live && !live.gate)), unbuilt: () => { const b = root.built(); return b.built < b.pages; } });
 }
 
 /** The selector of the elements the facsimile presents, and the module itself once the document held one. Loaded here and never earlier: a document without a PDF pays nothing, and pdf.js is not fetched. */
