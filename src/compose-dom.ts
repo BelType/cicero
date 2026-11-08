@@ -11,6 +11,7 @@
  */
 
 import { compose, HYPHENATE_LIMIT_LINES } from './compositor.ts';
+import { HYPHENATE_LIMIT_LINES_PROP } from './gcpm-encoding.ts';
 import { addWord, AWAY, BREAK, FILL, hasWord } from './data-beltype.ts';
 import { createMeasureContext } from './measure.ts';
 import { indexBlocks, pageIntervals, presentationWidths } from './positions.ts';
@@ -186,6 +187,16 @@ export function hyphenCharOf(style: { hyphenateCharacter?: string; }): string {
   const q = raw[0];
   if (q !== '"' && q !== "'") return raw;
   return raw.slice(1, -1).replace(/\\(.)/g, '$1');
+}
+
+/**
+ * css-text-4 §6.3.5's `hyphenate-limit-lines`, read from the custom property the host rewrote it into (Chromium drops the property itself): `no-limit` is `null`, an integer is the limit, and an absent or unreadable value is the engine's own {@link HYPHENATE_LIMIT_LINES}.
+ */
+export function limitLinesOf(style: CSSStyleDeclaration): number|null {
+  const raw = style.getPropertyValue(HYPHENATE_LIMIT_LINES_PROP).trim();
+  if (raw === 'no-limit') return null;
+  const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n >= 1 ? n : HYPHENATE_LIMIT_LINES;
 }
 
 /**
@@ -403,12 +414,13 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
       const indent = parseFloat(sourceStyle.textIndent) || 0;
       const hyphenChar = hyphenCharOf(sourceStyle);
       const limits = limitCharsOf(sourceStyle);
+      const limitLines = limitLinesOf(sourceStyle);
       const breakAnywhere = ['anywhere', 'break-word'].includes(sourceStyle.overflowWrap);
       const paragraph = paragraphKey({
         path: (pathToSource.get(source) as number[]),
         markup: shapeOf(source.outerHTML),
         width: key,
-        inputs: [align, indent, hyphensMode, langAttr ?? null, hyphenChar, limits.total, limits.before, limits.after, breakAnywhere, sourceStyle.wordBreak, sourceStyle.lineBreak, ...WIDTH_INPUTS.map((name) => sourceStyle[name]), ancestryOf(source)]
+        inputs: [align, indent, hyphensMode, langAttr ?? null, hyphenChar, limits.total, limits.before, limits.after, limitLines, breakAnywhere, sourceStyle.wordBreak, sourceStyle.lineBreak, ...WIDTH_INPUTS.map((name) => sourceStyle[name]), ancestryOf(source)]
       });
       const hit = lookup(cache, paragraph);
       if (hit) {
@@ -430,6 +442,7 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
         // The three css-text-4 properties the line already had and this module was not reading (2026-09-07). All three are inherited, so the block's own computed style is the whole answer.
         hyphenChar,
         limits,
+        limitLines,
         breakAnywhere
       });
     }
@@ -473,7 +486,7 @@ export function composeDocument(doc: Document, blocks: Element[], ctx: any, cach
             indent: r === 0 ? job.indent : 0,
             align: job.align,
             breakAnywhere: job.breakAnywhere,
-            limitLines: HYPHENATE_LIMIT_LINES
+            limitLines: job.limitLines
           });
           record.runs.push({ start: runs[r].start, ...result });
           record.lineCount += result.lineCount;

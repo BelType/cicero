@@ -48,11 +48,11 @@ const PARA = "L\u2019Assessora della Difesa dell\u2019Ambiente riferisce che En.
 const LIMIT = 3;
 
 /** The longest run of hyphenated line ends the composed mode set in the paragraph: every line it chose ends on one of its breaks, and a break that shows a hyphen stands after the hyphen it wrote. */
-async function longestRun(width: number) {
-  const key = `delibera-${width}`;
+async function longestRun(width: number, extra = '') {
+  const key = `delibera-${width}-${extra.length}`;
   docs.set(key, `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>case</title>${ciceroEngine.headHtml('/')}<style>
 @page { size: A4; margin: 20mm; }
-html { font: 11pt/1.5 sans-serif; hyphens: auto; } body { margin: 0; } p { margin: 0; text-align: justify; width: ${width}mm; }
+html { font: 11pt/1.5 sans-serif; hyphens: auto; } body { margin: 0; } p { margin: 0; text-align: justify; width: ${width}mm; } ${extra}
 </style></head><body><p>${PARA}</p></body></html>`);
   const page = await (await browser.newContext()).newPage();
   page.on('pageerror', (e) => assert.fail(`page error: ${e.message}`));
@@ -75,4 +75,15 @@ test(`the composed mode ends no more than ${LIMIT} lines in a row on a hyphen (C
     seen[width] = best;
   }
   assert.ok(Object.values(seen).every((n) => n <= LIMIT), `longest run by measure: ${JSON.stringify(seen)}`);
+});
+
+test('an author\'s hyphenate-limit-lines of 1 ends at most one line in a row on a hyphen, and no-limit lifts the engine\'s own three (cicero-hyphenate-limit-lines-not-read)', async () => {
+  const one: Record<number, number> = {};
+  let free = 0;
+  for (let width = 150; width <= 158; width += 2) {
+    one[width] = (await longestRun(width, 'p { hyphenate-limit-lines: 1; }')).best;
+    free = Math.max(free, (await longestRun(width, 'p { hyphenate-limit-lines: no-limit; }')).best);
+  }
+  assert.ok(Object.values(one).every((n) => n <= 1), `longest run by measure under a limit of 1: ${JSON.stringify(one)}`);
+  assert.ok(free > 1, `without a limit the paragraph stacks hyphens (${free}), so the case can tell the two apart`);
 });
