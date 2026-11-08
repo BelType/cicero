@@ -19,10 +19,10 @@
  */
 
 import { applyRecordsUnder, hyphenCharOf } from './compose-dom.ts';
-import { addWord, ADJOIN, ARTIFACT, AWAY, END, ENGINE_MARKS, hasAnyWord, hasWord, removeWord, SHELL, SPLIT, START, WRAPPED } from './data-beltype.ts';
+import { addWord, ADJOIN, ARTIFACT, AWAY, BREAK, END, ENGINE_MARKS, hasAnyWord, hasWord, removeWord, SHELL, SPLIT, START, WRAPPED } from './data-beltype.ts';
 import { pairsOf } from './document-state.ts';
 import { divides, elAtIn, flowsOf } from './positions.ts';
-import { BREAKING_SPACE, clonesDecoration, cutRanges, emptyText, inDisplayOrder, leaveOut, replaceChars, isEngineText, mayBeAutoHyphenated, isFixedBox, isInlineBox, isLineBreak, copyOf, shellOf, noteText, READS_ITS_CHILDREN, sourceOf, sourceStyle } from './word-space.ts';
+import { BREAKING_SPACE, clonesDecoration, cutRanges, emptyText, inDisplayOrder, leaveOut, replaceChars, isEngineText, mayBeAutoHyphenated, noteEngineText, splitTextAt, isFixedBox, isInlineBox, isLineBreak, copyOf, shellOf, noteText, READS_ITS_CHILDREN, sourceOf, sourceStyle } from './word-space.ts';
 import type { CompositionRecord } from './compose-dom.ts';
 import type { ResumePath } from './ledger.ts';
 import type { Address, ResumeNode } from './positions.ts';
@@ -533,6 +533,7 @@ function consumeTrailingWords(clone: Element, n: number, char: number = 0, hollo
   for (const [node, ranges] of perNode) cutRanges(node, ranges);
 
   // The hyphen is written at the cut (*the hyphen is written at the cut*, 2026-10-06). A soft hyphen the browser broke the line at is drawn there; one at the end of a fragment's last line is not, because nothing breaks after it. So the last kept character, where it is a soft hyphen, becomes the hyphenation character the browser drew — the box's own `hyphenate-character`, else U+2010 (css-text-4 §6.3.2) — and the empty string, which the property allows, removes it. A replacement: the word keeps its length, and the Compositor's own break, whose hyphen is already written and whose soft hyphen stands after it, cuts before the soft hyphen and never meets this.
+  let autoHyphen: { node: Text; end: number; char: string; } | null = null;
   if (char > 0 && words[n].text[char - 1] === '\u00AD') {
     const soft = charRanges(words[n], char - 1, char).find((r) => !r.engine);
     if (soft) {
@@ -544,7 +545,7 @@ function consumeTrailingWords(clone: Element, n: number, char: number = 0, hollo
     const last = charRanges(words[n], char - 1, char);
     const kept = last.find((r) => !r.engine);
     const style = kept && sourceStyle((kept.node.parentElement as Element));
-    if (kept && style && !last.some((r) => r.engine) && mayBeAutoHyphenated(words[n].text[char - 1], words[n].text[char], style.hyphens)) replaceChars(kept.node, kept.end, kept.end, hyphenCharOf(style));
+    if (kept && style && !last.some((r) => r.engine) && mayBeAutoHyphenated(words[n].text[char - 1], words[n].text[char], style.hyphens)) autoHyphen = { node: kept.node, end: kept.end, char: hyphenCharOf(style) };
   }
 
   leaveOutAfter(clone, keepNode);
@@ -566,6 +567,20 @@ function consumeTrailingWords(clone: Element, n: number, char: number = 0, hollo
     }
   })(clone);
   for (const el of spent) putAway(el, hollow);
+
+  // Written last, after the leave-out and the structural pass that would take an element and a text with no source for spent: the hyphen the browser drew stands where the Compositor's stands, a text node of its own, the engine's, before a break mark (*the hyphen is written at the cut*; the printer finds the hyphen by that shape and the letters before it in the source's own run).
+  if (autoHyphen && autoHyphen.char) {
+    const { node, end } = autoHyphen;
+    const parent = node.parentNode as Node;
+    const doc = (node.parentElement as Element).ownerDocument;
+    const before = end < node.data.length ? splitTextAt(node, end) : node.nextSibling;
+    const written = doc.createTextNode(autoHyphen.char);
+    noteEngineText(written);
+    const br = doc.createElement('br');
+    addWord(br, BREAK);
+    parent.insertBefore(written, before);
+    parent.insertBefore(br, before);
+  }
 
   for (let el = (inner as Element | null); el && el !== clone; el = el.parentElement) truncateTrailingDecoration(el);
   return inner;
