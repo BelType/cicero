@@ -79,6 +79,16 @@ export function setSourceWords(map: WeakMap<Element,string[]>) {
   WORDS_OF = map;
 }
 
+/** Give a source a word for the copies this run makes from now on; the source itself is not written (C5). */
+export function addSourceWord(source: Element, word: string) {
+  const list = WORDS_OF.get(source);
+  if (!list) WORDS_OF.set(source, [word]);
+  else if (!list.includes(word)) list.push(word);
+}
+
+/** Does the run's record give this source the word? */
+export const sourceHasWord = (source: Element, word: string) => !!WORDS_OF.get(source)?.includes(word);
+
 /** Write the words a source carries onto a copy of it — added to whatever the copy inherited from the source's own attribute, never replacing it. */
 function dressCopy(clone: Element, source: Element) {
   const words = WORDS_OF.get(source);

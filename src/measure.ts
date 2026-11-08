@@ -23,7 +23,9 @@ const NEUTRALIZE_ID = '__beltype-neutralize';
  *
  * A vertical or sideways root is refused by name too (Codeberg issue 12): every read in this engine is horizontal, the lines by vertical overlap, the cut by a y, the page area by its height, so under `writing-mode: sideways-lr` on the root the text of a positioned paragraph fell below the clip and was never resumed, and the printer's tiling invariant refused what the engine should have. Vertical writing is outside the beta, and a refusal that says so at intake is cheaper than one three tools later.
  *
- * @throws Error — bare and deliberate (`src/` may not import BelType's error types): a device pixel ratio other than 1 without `relaxDpr`, a document root whose line-height is not explicit (*render-identical conditions*, I5), or a document root whose writing mode is not `horizontal-tb`.
+ * A right-to-left root or body (`direction: rtl`) is refused by name as well, as out of scope (SPEC II.1, item 6); a vertical box below the root is refused by `readScope` (`src/scope.ts`).
+ *
+ * @throws Error — bare and deliberate (`src/` may not import BelType's error types): a device pixel ratio other than 1 without `relaxDpr`, a document root whose line-height is not explicit (*render-identical conditions*, I5), a document root whose writing mode is not `horizontal-tb`, or a root or body that computes `direction: rtl`.
  */
 export function assertRenderConditions(doc: Document, { relaxDpr = false }: { relaxDpr?: boolean; } = {}) {
   const win = (doc.defaultView as Window & typeof globalThis);
@@ -34,6 +36,10 @@ export function assertRenderConditions(doc: Document, { relaxDpr = false }: { re
   const lh = root.lineHeight;
   if (!/^-?[\d.]+px$/.test(lh)) {
     throw new Error(`I5 (DPR ruling): explicit line-height required, document root computes '${lh}'`);
+  }
+  const rtl = [root, doc.body ? win.getComputedStyle(doc.body) : null].find((st) => st?.direction === 'rtl');
+  if (rtl) {
+    throw new Error(`right-to-left text is outside this engine's scope: the document computes direction 'rtl' on its ${rtl === root ? 'root' : 'body'}, and every read here is left to right (the line's start edge, the hanging of a margin, the page's left and right). Write the document ltr, or print it with another engine.`);
   }
   if (root.writingMode && root.writingMode !== 'horizontal-tb') {
     throw new Error(`a vertical or sideways root is outside this engine's beta: the document root computes writing-mode '${root.writingMode}', and every read here is horizontal (the line by vertical overlap, the cut by a y). Write the document horizontal-tb, or print it with another engine.`);

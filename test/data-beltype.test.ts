@@ -21,7 +21,7 @@ function bearer(value: any) {
 }
 
 test('the table: every word once — the head\'s three, the engine\'s, the stamp, and the keys', () => {
-  assert.deepEqual([...FLAGS].sort(), [CICERO_INTERFACE, CICERO_PROVISION, TRANSFORM, 'adjoin', 'artifact', 'away', 'break', 'end', 'fill', 'fixed', 'fragment', 'host', 'shell', 'split', 'start', 'wrapped'].sort());
+  assert.deepEqual([...FLAGS].sort(), [CICERO_INTERFACE, CICERO_PROVISION, TRANSFORM, 'adjoin', 'artifact', 'away', 'break', 'end', 'fill', 'fixed', 'fragment', 'host', 'one-column', 'shell', 'split', 'start', 'wrapped'].sort());
   assert.deepEqual([...KEYS].sort(), ['has', 'pos', 'slice']);
   assert.equal(REGISTRY.find((e) => e.name === 'pos')!.status, 'in use', 'core writes `pos:` since step 2');
   assert.equal(REGISTRY.find((e) => e.name === 'pos')!.writer, 'belt');
