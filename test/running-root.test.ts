@@ -17,7 +17,7 @@ const runningPosition = byShape(runningPositionTyped);
 /** `tag#id`, with children: the little of an element the intake reads. */
 function el(spec: any, ...children: any[]): any {
   const [, tag, id = ''] = /^(\w+)(?:#([\w-]+))?$/.exec(spec)!;
-  const e = { tagName: tag.toUpperCase(), id, children, parentElement: null as any, get nextElementSibling() { const s = e.parentElement?.children ?? []; return s[s.indexOf(e) + 1] ?? null; } };
+  const e = { tagName: tag.toUpperCase(), id, children, parentElement: null as any, attrs: new Map<string, string>(), getAttribute: (k: string) => e.attrs.get(k) ?? null, get nextElementSibling() { const s = e.parentElement?.children ?? []; return s[s.indexOf(e) + 1] ?? null; } };
   for (const c of children) c.parentElement = e;
   return e;
 }
@@ -52,4 +52,16 @@ test('a running element`s place is the base of its block plus the words before t
   const index = { bases: [0, 12], wordsBefore: (e: any) => (e.id === 'b' ? 3 : 0) };
   assert.equal(runningPosition({ block: 1, next: null }, index), 12, 'nothing follows it in its block: the block`s first word');
   assert.equal(runningPosition({ block: 1, next: { id: 'b' } }, index), 15);
+});
+
+test('the top-level blocks pass over the tags that never render and over an element carrying the host word', () => {
+  const { doc, body } = documentOf();
+  const probe = el('iframe#probe');
+  probe.attrs.set('data-beltype', 'host');
+  const marked = el('div#marked');
+  marked.attrs.set('data-beltype', 'pos:3 host');
+  const machinery = [probe, marked, ...['template', 'link', 'meta', 'base', 'title', 'head', 'noscript', 'style', 'script'].map((tag) => el(tag)), el('div#__beltype-probe')];
+  body.children.push(...machinery);
+  for (const m of machinery) m.parentElement = body;
+  assert.deepEqual(topLevelBlocks(doc).map((e: any) => e.id), ['own']);
 });

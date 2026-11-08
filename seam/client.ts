@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import { paginate, topLevelBlocks, fixedBoxes, runningBoxes, describeConditions } from '../src/driver.ts';
+import { paginate, topLevelBlocks, topLevelBoxes, fixedBoxes, runningBoxes, describeConditions } from '../src/driver.ts';
 import { assertRenderConditions, awaitFonts, awaitImages } from '../src/measure.ts';
 import { pathOf } from '../src/positions.ts';
 import { readGeometryTable } from '../src/capture.ts';
@@ -348,8 +348,7 @@ async function takeIntake(relaxDpr: boolean) {
   const blocks = topLevelBlocks(document);
   const fixed = fixedBoxes(document);
   const running = runningBoxes(document);
-  // The document's top-level boxes in its own order, taken before the root exists and before the appending below destroys the order: the same filter `topLevelBoxes` (driver.js) applies, which is not exported, and a second copy of this one line is cheaper than a change to `src/`.
-  const boxes = [...document.body.children].filter((el) => !el.id.startsWith('__beltype') && !['STYLE', 'SCRIPT'].includes(el.tagName));
+  const boxes = topLevelBoxes(document); // the document's top-level boxes in its own order, taken before the root exists and before the appending below destroys the order, through the driver's one filter
   const moved = [...blocks, ...fixed, ...running.map((r) => r.el)].map((el) => ([el, el.parentNode, el.nextSibling] as const));
   const lifted = new Set([...fixed, ...running.map((r) => r.el)].map((el) => boxes.find((box) => box !== el && box.contains(el))).filter((box) => box !== undefined));
   const root = (document.createElement('beltype-root') as BeltypeRoot);
