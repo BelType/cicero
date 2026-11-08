@@ -418,6 +418,30 @@ export class BeltypeRoot extends HTMLElement {
   }
 
   /**
+   * Draw again the chrome of every standing page that shows the running element at `at`, with nothing cut and nothing built (*the run resumes from an entry*, amended 2026-11-08): the seam's client replaced that element and the run's list now names the new one.
+   *
+   * @remarks A running element's edit is a chrome event: it is out of the flow, so no cut reads it, and which element a page shows is the page's `closes.running`, a fact about positions that did not move. So each page whose `closes.running` names the place lets go of its running-element clones and has its chrome drawn as a kept page whose chrome moved has it drawn in {@link present}, the bands measured again because a margin box sizes from what it says; its content, its key and every other page are left as they are.
+   * @param at - the element's place in `running`.
+   * @param running - the run's list, the new element in its place.
+   * @param marginBoxesFor - as {@link present} takes it.
+   * @returns how many pages were drawn again.
+   */
+  redrawRunning(at: number, running: { el: Element; }[], marginBoxesFor: (cond: { name: string; first: boolean; parity: string; blank: boolean; }) => object): number {
+    let drawn = 0;
+    for (const record of this.#records) {
+      const pg = record.ctx.pages[record.k];
+      if (!Object.values(pg.closes.running ?? {}).some((which) => Object.values(which as object).includes(at))) continue;
+      for (const node of record.nodes) if (!record.assigned.includes(node)) node.remove();
+      record.nodes = record.nodes.filter((node) => record.assigned.includes(node));
+      this.#collect = record.nodes;
+      this.#chrome(record.page, pg, this.#marginPlan(pg, record.ctx.account, marginBoxesFor), running);
+      this.#collect = null;
+      drawn++;
+    }
+    return drawn;
+  }
+
+  /**
    * GCPM §1.2's `element()`, delivered — a clone of the running element per page, forwarded into the margin cell through a slot.
    *
    * **One clone per page, and it is forced rather than chosen**, exactly as a fixed box's is: a light-DOM element can be assigned to one slot only, so a single element cannot be on two pages. The clones are decision products under *decisions land only as fragment hints or per-page literals* (C5); the source stays unassigned and unrendered in the light DOM, which is also what satisfies §1.2.1's *"does not display there"*. Every clone is `aria-hidden`, the first page's too: a running head is furniture on every page, and an artifact is never read (`.claude/decisions/cicero/an-artifact-is-never-read.md`).

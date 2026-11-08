@@ -329,6 +329,7 @@ Modules: `seam/index.js`, `seam/client.js`, `seam/rim.js`, `seam/facsimile.js`, 
 2. A run adopts the document into `<beltype-root>`, paginates as far as it is asked and presents what it cut (see *the-pages-are-cut-as-far-as-they-are-asked*).
 3. `run()` may be called again on the frame it presented; the intake is kept, and the Ledger is byte-equal to the first call's within one realm and viewport (see *the-run-resumes-from-an-entry*).
 4. `patch` refuses a replacement for a fixed box only where the fixed box was lifted from that block or the replacement holds one (see *a-fixed-box-refuses-only-its-own-block*).
+5. A running element's edit is a chrome event. `patch` at a top-level running element, or at a box inside one, puts the replacement in the running element's place in the run's list, draws again the margin boxes of every standing page that shows it, cuts nothing, and answers `{ chrome: true }`, which a host tells from an address by its `chrome` member. It refuses where the top-level box no longer names the same running element, and while a sheet holds a `:has()` or a container query. A running element nested in a block is refused as item 4's lifted block is (see *the-run-resumes-from-an-entry*, amended 2026-11-08).
 
 ### XI.3 The rim
 
@@ -371,7 +372,7 @@ Of the members below, `run`, `settled` and `table` exist from load, and `last` a
 2. `until` is a page count or a source element, the page that holds its first word. The call stops there with its place kept, and a later call with a further `until`, or none, goes on (see *the-pages-are-cut-as-far-as-they-are-asked*).
 3. Until the call that completes the document, `counter(pages)` is blank and a page number not yet reached is reserved at its width (see *the-pages-are-cut-as-far-as-they-are-asked*).
 4. `composed` chooses the composed mode; default `false` (see *the-composed-mode-reaches-the-operator*).
-5. `resumeAt` is the address of the box edited since the last call, as `addressOf` spells it. The call reuses the prior Ledger and recuts only the pages that differ (see *the-run-resumes-from-an-entry*).
+5. `resumeAt` is the address of the box edited since the last call, as `addressOf` spells it. The call reuses the prior Ledger and recuts only the pages that differ (see *the-run-resumes-from-an-entry*). `resumeAt: { chrome: true }`, `patch`'s answer for a running element (XI.2.5), is answered at once in the last call's mode: nothing is cut, a run stopped at a page keeps its place, and `resumed` is `{ from: 1, to: 0, shift: 0, converged: true, kept: pages }` (see *the-run-resumes-from-an-entry*, amended 2026-11-08).
 6. A resume falls back to a whole run, silently and correctly, when the last call ran in the other mode, under other conditions, or over a different number of top-level blocks (see *the-run-resumes-from-an-entry*).
 7. `layer` names the cascade layer for the document's own sheets, and a name that is not a layer name throws a `TypeError`. No record owns it (see Article X.9).
 8. The result is `{ pages, ms, composed, complete, resumed, why, composition }`. `resumed` is `{ from, to, shift, converged, kept }` or `null`, and `why` is a sentence exactly when `resumed` is `null`. `composition` is `{ blocks, hits, misses, laid }` in the composed mode and `null` otherwise (see *the-run-resumes-from-an-entry*).
@@ -487,6 +488,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | XIII.4, XIII.5 | The rim joins the faces as `./rim`; `./internal/*` is stated as `src/` only, which it always was. | *late-truth-is-an-edit* |
 | 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
 | 2026-11-07 | IV.11, VI.1.11 | Both items now cite their record, *a-divided-cell-aligns-within-each-piece*, written from the ruling of 2026-11-07. | *a-divided-cell-aligns-within-each-piece* |
+| 2026-11-08 | XI.2.5, XII.1.5 | A running element's edit is a chrome event: `patch` redraws the margin boxes that show it and answers `{ chrome: true }`, and `run` answers that at once. | *the-run-resumes-from-an-entry*, amended 2026-11-08 |
 | 2026-11-07 | VIII.1.7 | The sibling counter scope stays by the book: the replay follows CSS 2.1 §12.4.1 where Chromium's print does not, stated with the measured divergence. | *a-sibling-counter-scope-stays-by-the-book* |
 
 ## 18. Known open at ratification
