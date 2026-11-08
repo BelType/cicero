@@ -430,7 +430,7 @@ The handle carries further members that this article does not make API. They are
 
 ### XIII.2 `./facsimile`
 
-1. The facsimile face exports `SOURCE` (`'object[type="application/pdf"]'`), `TAG` (`'beltype-facsimile'`), `locate(source)`, `make(source)` and `install(doc, present)` (see *a-copy-may-be-presented*).
+1. The facsimile face exports `SOURCE` (`'object[type="application/pdf"]'`), `TAG` (`'beltype-facsimile'`), `locate(source)`, `make(source, missingAlt?)` and `install(doc, present, { missingAlt? })`, where `missingAlt` is `'refuse'` by default or `'warn'` for an editor that shows a PDF embed with no fallback alt and leaves the print to refuse it (see *a-copy-may-be-presented*).
 2. `install` reads every embedded page's size and registers the presenter through the `present` it is handed; `make` is synchronous and starts no work (see *a-copy-may-be-presented*).
 
 ### XIII.3 `./fragmentation`
