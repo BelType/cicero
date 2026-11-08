@@ -115,6 +115,13 @@ for (const [name, body] of [
   });
 }
 
+// A `ul` whose items display a counter (`list-style-type: decimal`) is numbered by the same `list-item` counter an `ol` is, so a cut that divides it must continue the count (cicero-ul-numbered-restarts, 2026-11-08).
+for (const composed of [false, true]) test(`a ul with a numeric list-style-type divided by a page cut numbers its items as Chromium prints them${composed ? ', composed' : ''}`, async () => {
+  const out = await both(`ul-decimal${composed ? '-composed' : ''}`, `${CSS} ul { list-style-type: decimal; }`, `${lines(8)}<ul>${items(10)}</ul>`, MARKER, composed);
+  assert.ok(out.chromium.length > 1 && out.chromium[1].length > 0, `the oracle crosses a page: ${JSON.stringify(out.chromium)}`);
+  assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
+});
+
 /** What `.x::after` and the margin box print, apart from the markers. */
 const AFTER = /#-?\d+\./g;
 const HEAD = /n-?\d+\./g;

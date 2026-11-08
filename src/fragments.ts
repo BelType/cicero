@@ -806,19 +806,21 @@ export function listOrdinals(ol: Element): Map<Element,number> {
 }
 
 /**
- * Every `<ol>` a cut divides is numbered from the first item its piece keeps: the piece's copy carries a `start` attribute of that item's ordinal, so the browser's own marker counts on from the source's numbering. Without it a continued list numbered from 1 again on every page, and the first piece of a `reversed` list counted down from the items it kept (measured 2026-11-07 against Chromium's print, `test/browser/list-continuation.browser.ts`). Read from the source, so it holds whichever cut ran first.
+ * Every `<ol>` (or numbered `<ul>` or `<menu>`) a cut divides is numbered from the first item its piece keeps: the piece's copy carries a `start` attribute of that item's ordinal, so the browser's own marker counts on from the source's numbering. Without it a continued list numbered from 1 again on every page, and the first piece of a `reversed` list counted down from the items it kept (measured 2026-11-07 against Chromium's print, `test/browser/list-continuation.browser.ts`). Read from the source, so it holds whichever cut ran first.
  */
 function numberDividedLists(root: Element, cut: Address|null, source: Element|null, cloneOf: Map<Element,Element>|null) {
   if (!divides(cut) || !source || !cloneOf) return;
   const target = elAtIn(source, (cut as Address).path);
   for (let a = target?.parentElement ?? null; a; a = a === source ? null : a.parentElement) {
-    if (!/^OL$/i.test(a.tagName)) continue;
+    if (!/^(?:OL|UL|MENU)$/i.test(a.tagName)) continue;
     const copy = cloneOf.get(a);
     if (!copy) continue;
     for (const [li, n] of listOrdinals(a)) {
       const c = cloneOf.get(li);
       if (!c || !root.contains(c) || hasWord(c, AWAY)) continue;
-      copy.setAttribute('start', String(n));
+      // HTML's `start` belongs to `<ol>` alone, and Chromium's marker ignores a `counter-reset` of `list-item` (both measured 2026-11-08), so a `ul` or `menu` continues by the first kept item's own `value`.
+      if (/^OL$/i.test(a.tagName)) copy.setAttribute('start', String(n));
+      else c.setAttribute('value', String(n));
       break;
     }
   }
