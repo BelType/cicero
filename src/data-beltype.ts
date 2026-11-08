@@ -11,7 +11,7 @@
  *
  * **No key may end with another key** (`pos:` and `xpos:` cannot both exist), because "every element carrying a key" is selected by substring and a substring cannot anchor to the start of a word. {@link assertNoKeySuffix} checks it once, at load.
  *
- * **One rule, one registry.** The registry is a table of facts, each declared once — its name, its kind, what it is computed from, who writes it and, for a value, the custom property a generated sheet delivers it into — so that a later step adds entries and not a second mechanism. It holds the `has:` family, the line stamp `pos:`, `fragment`, the piece words `split`/`start`/`end`/`slice:N`, `fixed`, the engine-created elements' `shell`/`break`/`fill`, the three words the zeroing needs (`wrapped`, `adjoin`, `away`) and `artifact` (*the piece words*, 2026-10-11; see CHANGELOG 2026-10-11); `hollow` is a later step and is not written here.
+ * **One rule, one registry.** The registry is a table of facts, each declared once — its name, its kind, what it is computed from, who writes it and, for a value, the custom property a generated sheet delivers it into — so that a later step adds entries and not a second mechanism. It holds the `has:` family, the line stamp `pos:`, `fragment`, the piece words `split`/`start`/`end`/`slice:N`, `fixed`, the engine-created elements' `shell`/`break`/`fill`, the three words the zeroing needs (`wrapped`, `adjoin`, `away`), `artifact` (*the piece words*, 2026-10-11; see CHANGELOG 2026-10-11) and the one word a host writes on an element of its own, `host` (ruled 2026-11-08); `hollow` is a later step and is not written here.
  *
  * @packageDocumentation
  */
@@ -59,6 +59,7 @@ export const REGISTRY: ReadonlyArray<Readonly<Entry>> = Object.freeze(([
   { name: 'wrapped', kind: 'flag', status: 'in use', writer: 'engine', from: 'original', facing: 'engine', meaning: 'the box wraps each fragment whole (`box-decoration-break: clone`), so border and padding stay at a cut; decided by the engine because a selector cannot test the property' },
   { name: 'adjoin', kind: 'flag', status: 'in use', writer: 'engine', from: 'cut', facing: 'engine', meaning: 'the first-child chain after a cut BETWEEN boxes: its block-start margin adjoins the cut and is truncated, and the box is not divided' },
   { name: 'away', kind: 'flag', status: 'in use', writer: 'engine', from: 'cut', facing: 'engine', meaning: 'a box put away on this page (`display: none`): kept as an element so structural selectors read as in the source' },
+  { name: 'host', kind: 'flag', status: 'in use', writer: 'host', from: 'host', facing: 'engine', meaning: 'the host\'s word on an element of its own machinery that stands among the document\'s boxes (a hidden `<iframe>`, a probe); the intake passes over it, so it gets no address and moves none (ruled 2026-11-08)' },
   { name: 'artifact', kind: 'flag', status: 'in use', writer: 'engine', from: 'cut', facing: 'host', meaning: 'a copy the engine repeats that is not the one a reader reads: a running element\'s copy in a margin box, a fixed box\'s copy on every page after the first, and a table\'s repeated header or footer group; PDF\'s own word for pagination furniture, and nothing else. Every artifact is also aria-hidden' }
 ] as Entry[]).map((e) => Object.freeze(e)));
 
@@ -72,6 +73,9 @@ export const KEYS: ReadonlySet<string> = new Set(REGISTRY.filter((e) => e.kind =
 export const TRANSFORM = 'transform';
 export const CICERO_PROVISION = 'cicero-provision';
 export const CICERO_INTERFACE = 'cicero-interface';
+
+/** The word a host puts on an element of its own machinery that stands among the document's boxes, so the intake passes over it (`topLevelBoxes`, `driver.js`). A host that holds the document in an element of its own names that element with the `root` option first. */
+export const HOST = 'host';
 
 /** The words step 2 writes, named once: the engine, the editing tools, Caster and the essay spell them through these and never as a literal of their own. */
 export const FRAGMENT = 'fragment';

@@ -217,6 +217,7 @@ Modules: `src/fragments.js`, `src/data-beltype.js`, `src/dressing.js`, `src/has-
 2. Every writer reads, modifies and writes; words are written on copies only (see *one-attribute-has-words*).
 3. Every mark the engine writes is a word in the registry's table, and the table declares each word once (see *the-piece-words*).
 4. `artifact` means PDF's artifact and nothing else, and every artifact is `aria-hidden` (see *an-artifact-is-never-read*).
+5. `host` is the one word a host writes on an element of its own: its machinery standing among the document's boxes, which the intake passes over, as it passes over engine scaffolding and the tags that never render (`TEMPLATE`, `LINK`, `META`, `BASE`, `TITLE`, `HEAD`, `NOSCRIPT`, beside `STYLE` and `SCRIPT`). A host that holds the document in an element of its own names it with the `root` option first (ruled 2026-11-08).
 
 ### VI.3 Dressing
 
@@ -488,6 +489,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-07 | I.1.8, I.2.1, VI.1.9 | The word space follows CSS 2.1 §17.2's display order inside a table, and a path counts a table's children in it; a group that does not repeat is shown where its words fall. | *the-word-space-follows-the-table-display-order* |
 | 2026-11-07 | IV.11, VI.1.11 | Both items now cite their record, *a-divided-cell-aligns-within-each-piece*, written from the ruling of 2026-11-07. | *a-divided-cell-aligns-within-each-piece* |
 | 2026-11-07 | VIII.1.7 | The sibling counter scope stays by the book: the replay follows CSS 2.1 §12.4.1 where Chromium's print does not, stated with the measured divergence. | *a-sibling-counter-scope-stays-by-the-book* |
+| 2026-11-08 | VI.2.5 | The `host` word joins the registry, and the intake passes over it and over the tags that never render, through one filter. | — (ruled 2026-11-08; no record yet) |
 
 ## 18. Known open at ratification
 

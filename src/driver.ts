@@ -26,7 +26,7 @@ import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, trunca
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
 import { documentOpsOf, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
-import { ARTIFACT, hasWord } from './data-beltype.ts';
+import { ARTIFACT, HOST, hasWord } from './data-beltype.ts';
 import { blockChildrenOf, footerBeforeRows, inDisplayOrder, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
 import { changedPairs, settleReads } from './reads.ts';
 import { converge, holderPage, namesNoPlace, priorKeys, restartPage } from './resume.ts';
@@ -422,13 +422,16 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
   };
 }
 
+/** The tags that never render, so the intake passes over them wherever a host leaves one among the document's boxes: `TEMPLATE`, whose content is inert; `LINK`, `META`, `BASE`, `TITLE` and `HEAD`, metadata the HTML parser may leave in the body and the UA sheet hides; and `NOSCRIPT`, which renders only when scripts are off, and the engine is a script. A closed list, beside `STYLE` and `SCRIPT`, which were passed over before it (ruled 2026-11-08). */
+const NEVER_RENDERED = new Set(['STYLE', 'SCRIPT', 'TEMPLATE', 'LINK', 'META', 'BASE', 'TITLE', 'HEAD', 'NOSCRIPT']);
+
 /**
- * The element children of `root` (the body, unless a host names another) minus engine scaffolding — every top-level box the document declares, in or out of the flow. The two functions below divide it.
+ * The element children of `root` (the body, unless a host names another) minus what is not the document's: engine scaffolding (an `id` starting `__beltype`), the tags that never render ({@link NEVER_RENDERED}), and any element carrying the host word ({@link HOST}), a host's own machinery standing among the boxes (ruled 2026-11-08). Every top-level box the document declares, in or out of the flow. The two functions below divide it. **This is the one filter**: the client's intake (`seam/client.js`) calls it too, so a box this passes over has no address anywhere. A host that holds the document in an element of its own still names it with `root` first.
  *
  * @param root - the element the boxes stand in.
  */
-function topLevelBoxes(doc: Document, root: Element = doc.body) {
-  return [...root.children].filter((el) => !el.id.startsWith('__beltype') && !['STYLE', 'SCRIPT'].includes(el.tagName));
+export function topLevelBoxes(doc: Document, root: Element = doc.body) {
+  return [...root.children].filter((el) => !el.id.startsWith('__beltype') && !NEVER_RENDERED.has(el.tagName) && !hasWord(el, HOST));
 }
 
 /**

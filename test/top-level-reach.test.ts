@@ -21,6 +21,7 @@ function el(spec: any, ...children: any[]): any {
   const e = {
     tagName: tag.toUpperCase(), id, classes: cls.split('.').filter(Boolean), children, parentElement: null as any,
     matches: ( sel: string) => matches(e, sel),
+    getAttribute: () => null,
     get nextElementSibling() { const s = e.parentElement?.children ?? []; return s[s.indexOf(e) + 1] ?? null; }
   };
   for (const c of children) c.parentElement = e;

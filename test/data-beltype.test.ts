@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ATTRIBUTE, REGISTRY, FLAGS, KEYS, TRANSFORM, CICERO_PROVISION, CICERO_INTERFACE, ARTIFACT,
+  ATTRIBUTE, REGISTRY, FLAGS, KEYS, TRANSFORM, CICERO_PROVISION, CICERO_INTERFACE, ARTIFACT, HOST,
   assertNoKeySuffix, keyEndingWithAnother, words, wordOf, hasWord, addWord, removeWord, hasAnyWord, isEngineMark, setValue, removeKey,
   ENGINE_MARKS, POS_SELECTOR, posOf, setPos, stripPos, withoutPos,
   encodeHasUnion, authorSelectorOf, bareHasCount, isHasRegistryRule, encodeHasArgument, decodeHasArgument, hasWordFor
@@ -21,7 +21,7 @@ function bearer(value: any) {
 }
 
 test('the table: every word once — the head\'s three, the engine\'s, the stamp, and the keys', () => {
-  assert.deepEqual([...FLAGS].sort(), [CICERO_INTERFACE, CICERO_PROVISION, TRANSFORM, 'adjoin', 'artifact', 'away', 'break', 'end', 'fill', 'fixed', 'fragment', 'shell', 'split', 'start', 'wrapped'].sort());
+  assert.deepEqual([...FLAGS].sort(), [CICERO_INTERFACE, CICERO_PROVISION, TRANSFORM, 'adjoin', 'artifact', 'away', 'break', 'end', 'fill', 'fixed', 'fragment', 'host', 'shell', 'split', 'start', 'wrapped'].sort());
   assert.deepEqual([...KEYS].sort(), ['has', 'pos', 'slice']);
   assert.equal(REGISTRY.find((e) => e.name === 'pos')!.status, 'in use', 'core writes `pos:` since step 2');
   assert.equal(REGISTRY.find((e) => e.name === 'pos')!.writer, 'belt');
@@ -39,6 +39,13 @@ test('the artifact word: a flag in use, written by the engine, and a copy keeps 
   addWord(copy, ARTIFACT);
   assert.equal(copy.attrs.get(ATTRIBUTE), 'pos:12 fragment artifact', 'the furniture word is added, not written over the copy\'s others');
   assert.equal(hasWord(copy, ARTIFACT), true);
+});
+
+test('the host word: a flag in use, written by a host on its own machinery, and never an engine mark', () => {
+  const entry = REGISTRY.find((e) => e.name === HOST);
+  assert.equal(HOST, 'host');
+  assert.deepEqual([entry?.kind, entry?.status, entry?.writer], ['flag', 'in use', 'host']);
+  assert.equal(ENGINE_MARKS.has(HOST), false);
 });
 
 test('the engine\'s own marks are a named set: a divided box, a fixed copy and the three elements it creates — not a fragment alone, which a composed block\'s clone also is', () => {
