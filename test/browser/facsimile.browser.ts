@@ -109,3 +109,22 @@ test('4. under the default, a source with an alt is copied as ever', async () =>
   await page.close();
   assert.deepEqual(copy, { label: 'a page', role: 'img' });
 });
+
+test('5. under warn, a source with no alt is told once per URL, however many times install runs or copies the document holds', async () => {
+  const page = await browser.newPage();
+  const warnings: string[] = [];
+  page.on('console', (m) => { if (m.type() === 'warning') warnings.push(m.text()); });
+  await page.goto(`${origin}/doc`);
+  await page.evaluate(async () => {
+    // A second copy of the first embed, as a host's trial and law copies hold one, then install twice, as a host installs per slice.
+    const first = document.querySelector('object') as Element;
+    first.parentNode?.insertBefore(first.cloneNode(true), first);
+    const facsimile = await import('/_beltype/cicero/seam/facsimile.js' as string);
+    await facsimile.install(document, () => {}, { missingAlt: 'warn' });
+    await facsimile.install(document, () => {}, { missingAlt: 'warn' });
+  });
+  await page.close();
+  const told = warnings.filter((w) => w.includes('has no fallback'));
+  assert.equal(told.length, 2, told.join('\n'));
+  assert.ok(told[0]?.includes('data="/a.pdf"') && told[1]?.includes('data="/b.pdf#page=1"'), told.join('\n'));
+});

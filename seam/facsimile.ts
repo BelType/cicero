@@ -234,7 +234,9 @@ export async function install(doc: Document, present: (selector: string,make: (s
   }
   const reads: Promise<unknown>[] = [];
   for (const source of doc.querySelectorAll(SOURCE)) {
-    if (altOf(source, missingAlt) === null) console.warn(`BelType/Cicero: <object type="application/pdf" data="${source.getAttribute('data')}"> has no fallback <img alt="…">: the page it embeds is a figure with no alternative text, which the editor draws and the print will refuse. Write the fallback inside the object: <object …><img src="…" alt="what the page shows"></object>.`);
+    // Once per source URL, as `told` keys a drawing failure: a host whose document holds two copies of one embed, or that installs again per slice, is told once.
+    const altKey = `alt:${source.getAttribute('data')}`;
+    if (altOf(source, missingAlt) === null && !told.has(altKey)) { told.add(altKey); console.warn(`BelType/Cicero: <object type="application/pdf" data="${source.getAttribute('data')}"> has no fallback <img alt="…">: the page it embeds is a figure with no alternative text, which the editor draws and the print will refuse. Write the fallback inside the object: <object …><img src="…" alt="what the page shows"></object>.`); }
     const { url, page } = locate(source);
     reads.push(readSize(url, page).catch((error) => {
       const key = keyOf(url, page);
