@@ -349,25 +349,29 @@ function targetOf(doc: Document, fragment: string, originals: Element[]|null): E
   return null;
 }
 
-/** The engine's one delivery sheet per document, replaced at every delivery and withdrawn when a paginate finds nothing to deliver. */
-const SHEETS = new WeakMap<any, any>();
+/** The engine's one delivery sheet per scope, replaced at every delivery and withdrawn when a paginate finds nothing to deliver. A scope is any object the host holds for one view of the document (the document itself where none is named), so two hosts in one document keep a sheet each (fix/scope-per-view, 2026-11-08). */
+const SHEETS = new WeakMap<object, CSSStyleSheet>();
 
-/** Deliver a table of values: one constructed sheet, adopted once, its text replaced. */
-export function deliver(doc: Document, values: Values) {
-  let sheet = SHEETS.get(doc);
+/** Every sheet the engine made, whatever its scope: what {@link isDeliverySheet} asks. */
+const OWN = new WeakSet<object>();
+
+/** Deliver a table of values: one constructed sheet per scope, adopted once, its text replaced. The rules still reach every element of `doc` that matches, scope or none: the scope keeps the sheets apart, not the elements. */
+export function deliver(doc: Document, values: Values, scope: object = doc) {
+  let sheet = SHEETS.get(scope);
   if (!sheet) {
     sheet = new ((doc.defaultView as Window & typeof globalThis).CSSStyleSheet)();
-    SHEETS.set(doc, sheet);
+    SHEETS.set(scope, sheet);
+    OWN.add(sheet);
   }
   sheet.replaceSync(deliverySheetText(values));
   if (!doc.adoptedStyleSheets.includes(sheet)) doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
 }
 
-/** The engine's one hiding sheet per document: the rule that paints a reservation invisible while the pages are still being cut (*the pages are cut as far as they are asked*, 2026-10-12). */
-const HIDERS = new WeakMap<any, any>();
+/** The engine's one hiding sheet per scope: the rule that paints a reservation invisible while the pages are still being cut (*the pages are cut as far as they are asked*, 2026-10-12). */
+const HIDERS = new WeakMap<object, CSSStyleSheet>();
 
 /** Is this adopted sheet one of the engine's own — the delivery sheet (the values a run delivered, rewritten every run) or the sheet that hides a reservation until its true number is delivered? */
-export const isDeliverySheet = (doc: Document, sheet: CSSStyleSheet) => SHEETS.get(doc) === sheet || HIDERS.get(doc) === sheet;
+export const isDeliverySheet = (doc: Document, sheet: CSSStyleSheet) => OWN.has(sheet);
 
 /**
  * The hiding sheet's text: one rule per distinct address the reserved page reads are keyed by, naming the pseudo-elements that read them, scoped to the presented document (`beltype-root`, or the scope a host that is not the root names). Pure, so the shape is pinned without a browser.
@@ -391,31 +395,33 @@ export function hideSheetText(sites: Pick<Site,'key'|'pseudos'>[], scope: string
 /**
  * Paint the reservations invisible: the page numbers the cuts so far do not know yet (*the pages are cut as far as they are asked*, Egildo's ruling 1 of 2026-10-12, on the note's recommendation). A document shown before it is complete must not show `0` where a page number will stand.
  *
- * @param scope - as {@link hideSheetText}.
+ * @param selector - as {@link hideSheetText}'s `scope`.
+ * @param scope - the host's token for this view, as {@link deliver}'s.
  */
-export function hideReservations(doc: Document, sites: Pick<Site,'key'|'pseudos'>[], scope: string | undefined = undefined) {
-  const text = hideSheetText(sites, scope);
+export function hideReservations(doc: Document, sites: Pick<Site,'key'|'pseudos'>[], selector: string | undefined = undefined, scope: object = doc) {
+  const text = hideSheetText(sites, selector);
   if (!text) return;
-  let sheet = HIDERS.get(doc);
+  let sheet = HIDERS.get(scope);
   if (!sheet) {
     sheet = new ((doc.defaultView as Window & typeof globalThis).CSSStyleSheet)();
-    HIDERS.set(doc, sheet);
+    HIDERS.set(scope, sheet);
+    OWN.add(sheet);
   }
   sheet.replaceSync(text);
   if (!doc.adoptedStyleSheets.includes(sheet)) doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
 }
 
 /** Take the hiding sheet off: the true numbers are delivered, or there is nothing left to hide. */
-export function showReservations(doc: Document) {
-  const sheet = HIDERS.get(doc);
+export function showReservations(doc: Document, scope: object = doc) {
+  const sheet = HIDERS.get(scope);
   if (sheet && doc.adoptedStyleSheets.includes(sheet)) doc.adoptedStyleSheets = doc.adoptedStyleSheets.filter((s) => s !== sheet);
 }
 
 /** Take the delivery sheet off the document, where one was adopted — a second paginate of a document that no longer declares a read leaves nothing behind. */
-export function withdraw(doc: Document) {
-  const sheet = SHEETS.get(doc);
+export function withdraw(doc: Document, scope: object = doc) {
+  const sheet = SHEETS.get(scope);
   if (sheet && doc.adoptedStyleSheets.includes(sheet)) doc.adoptedStyleSheets = doc.adoptedStyleSheets.filter((s) => s !== sheet);
-  showReservations(doc);
+  showReservations(doc, scope);
 }
 
 /**
@@ -558,14 +564,14 @@ function boxAddress(site: { el: Element; }, index: ReturnType<typeof indexBlocks
  *
  * **A layout sent round again resumes from the one before it** (*delivery resumes from the moved page*, 2026-10-21). A delivered value that moves a line is an edit at its site's page, so `run` is handed `resume`, the layout just checked and the addresses of the boxes whose lines moved, and the driver restarts one page before the first of them, re-cuts, and stops where it converges past the last, exactly as it resumes from a host's edit. The result's `resumed` and `why` stay the call's: two resumes compose into one from the prior the host handed (`resume.js`' `composeResumed`), a whole layout anywhere in the loop makes `resumed` null, and each resumed layout leaves a `cicero:reads-run` measure naming the pages it cut again.
  *
- * @param how - `run` lays the document out once, whole or resumed (`because`: the references whose page number moved a line of their own in the run before, when this is not the first; `facts`: the page values a flow site reads, per page, as the run before decided them, or null for the reservation; it returns `laidFacts` beside `account` when the page values it was laid out under are not the ones it was handed); `blocksOf` names the top-level blocks; `originals` the intake's top-level boxes, where the document has been presented (see {@link findSites}); `warm` and `warmFacts` the tables the previous run's layout was cut under, for a run that resumes; `hide` that pages are shown before the run is complete (*the pages are cut as far as they are asked*), so the reservations still standing are painted invisible until the true numbers are delivered, under `<beltype-root>` for `true` and under the selector a string names for a host that is not the root; `keep` the memo's door, through which the site search, the position index and the counter walk take the parts of the boxes no edit replaced (*a resumed run keeps its reads*, 2026-10-22). A `run` that answers `complete: false` laid out only part of the document (a view's chain that stopped short): the loop ends there, without checking or delivering page values, so the reservations stay hidden and the values it returns are the ones that layout was cut under; the driver's own run is always complete.
+ * @param how - `run` lays the document out once, whole or resumed (`because`: the references whose page number moved a line of their own in the run before, when this is not the first; `facts`: the page values a flow site reads, per page, as the run before decided them, or null for the reservation; it returns `laidFacts` beside `account` when the page values it was laid out under are not the ones it was handed); `blocksOf` names the top-level blocks; `originals` the intake's top-level boxes, where the document has been presented (see {@link findSites}); `warm` and `warmFacts` the tables the previous run's layout was cut under, for a run that resumes; `hide` that pages are shown before the run is complete (*the pages are cut as far as they are asked*), so the reservations still standing are painted invisible until the true numbers are delivered, under `<beltype-root>` for `true` and under the selector a string names for a host that is not the root; `scope` an object the host holds for this view (the document where absent), which keeps this view's delivery and hiding sheets apart from another view's in the same document; `keep` the memo's door, through which the site search, the position index and the counter walk take the parts of the boxes no edit replaced (*a resumed run keeps its reads*, 2026-10-22). A `run` that answers `complete: false` laid out only part of the document (a view's chain that stopped short): the loop ends there, without checking or delivering page values, so the reservations stay hidden and the values it returns are the ones that layout was cut under; the driver's own run is always complete.
  */
-export async function settleReads<R extends { account: any[], index: ReturnType<typeof indexBlocks>, resumed?: Resumed | null, why?: string | null, laidFacts?: PagePublish[] | null, complete?: boolean }>(doc: Document, { run, blocksOf, originals = null, warm = null, warmFacts = null, hide = false, keep = null }: { run: (laid: Laid) => Promise<R>; blocksOf: () => Element[]; originals?: Element[]|null; warm?: Values|null; warmFacts?: PagePublish[]|null; hide?: boolean|string; keep?: Keep|null; }): Promise<R&{ resumed: Resumed|null; why: string|null; delivered: Values|null; facts: PagePublish[]|null; reads: { references: number; pageSites: number; runs: number; unsettled: string[]; }|null; }> {
+export async function settleReads<R extends { account: any[], index: ReturnType<typeof indexBlocks>, resumed?: Resumed | null, why?: string | null, laidFacts?: PagePublish[] | null, complete?: boolean }>(doc: Document, { run, blocksOf, originals = null, warm = null, warmFacts = null, hide = false, keep = null, scope = doc }: { run: (laid: Laid) => Promise<R>; blocksOf: () => Element[]; originals?: Element[]|null; warm?: Values|null; warmFacts?: PagePublish[]|null; hide?: boolean|string; keep?: Keep|null; scope?: object; }): Promise<R&{ resumed: Resumed|null; why: string|null; delivered: Values|null; facts: PagePublish[]|null; reads: { references: number; pageSites: number; runs: number; unsettled: string[]; }|null; }> {
   let t = performance.now(); // the site search is the reads' own cost and is inside their measure (*a resumed run keeps its reads*, 2026-10-22)
   const found = findSites(doc, originals, keep);
   const pageSites = findPageSites(doc, originals, keep);
   if (!found && !pageSites) {
-    withdraw(doc);
+    withdraw(doc, scope);
     const once = await run({ attempt: 0, delivered: null, facts: null, sites: null, index: null });
     return { ...once, resumed: once.resumed ?? null, why: once.why ?? null, delivered: null, facts: null, reads: null };
   }
@@ -580,9 +586,9 @@ export async function settleReads<R extends { account: any[], index: ReturnType<
   const fixed = staticValues(sites, { doc, blocks, index, keep });
   const paged = sites.filter((s) => s.target && isPageRead(s.read));
   let delivered = reservations(sites, warm);
-  if (found) deliver(doc, merged(fixed.values, delivered));
-  else withdraw(doc);
-  if (hide) hideReservations(doc, [...paged.filter((s) => delivered.get(s.key ?? '')?.get(s.prop) === cssString(RESERVATION)), ...(pageSites ? totalSites(doc) : [])], hide === true ? undefined : hide);
+  if (found) deliver(doc, merged(fixed.values, delivered), scope);
+  else withdraw(doc, scope);
+  if (hide) hideReservations(doc, [...paged.filter((s) => delivered.get(s.key ?? '')?.get(s.prop) === cssString(RESERVATION)), ...(pageSites ? totalSites(doc) : [])], hide === true ? undefined : hide, scope);
   performance.measure('cicero:reads', { start: t, end: (t = performance.now()), detail: { references: sites.length, pageSites: pageSites?.length ?? 0 } });
 
   let runs = 0;
@@ -619,7 +625,7 @@ export async function settleReads<R extends { account: any[], index: ReturnType<
       facts = laidFacts;
       break;
     }
-    showReservations(doc); // the run is complete: what was reserved is delivered true on the next lines, or was true already
+    showReservations(doc, scope); // the run is complete: what was reserved is delivered true on the next lines, or was true already
     const truth = pageValues(paged, result);
     unplaced = truth.unplaced;
     const changed = new Set(changedPairs(delivered, truth.values));
@@ -635,7 +641,7 @@ export async function settleReads<R extends { account: any[], index: ReturnType<
     const touched = paged.filter((s) => changed.has(`${s.key}|${s.prop}`));
     const before = linesOfSites(doc, touched, result, blocks);
     const beforePage = linesOfSites(doc, shifted, result, blocks, (page) => factOf(laidFacts, page));
-    if (found) deliver(doc, merged(fixed.values, truth.values));
+    if (found) deliver(doc, merged(fixed.values, truth.values), scope);
     delivered = truth.values;
     facts = truthFacts;
     const after = linesOfSites(doc, touched, result, blocks);
