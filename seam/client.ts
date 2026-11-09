@@ -271,9 +271,27 @@ async function quiet() {
   while (working || calls.size || (live && !live.gate)) await Promise.race([working, ...calls, live?.finished].filter(Boolean)).catch(() => {});
 }
 
-/** Resolves when the rim has nothing pending and no run is under way (a run stopped at a page is at rest). The door a venue test and a host that wants to know it is looking at the settled document call. */
+/**
+ * Resolves when the document will not be cut again unless something is done to it: no call of `run()` is unanswered, no run is under way (a run stopped at a page is at rest), the rim has nothing it is answering or judging, `document.fonts` has nothing loading and every picture of the document's boxes has arrived (CHANGELOG, Unreleased). The door a venue test, a host that wants to know it is looking at the settled document and a printer that reads the presented pages call.
+ *
+ * @remarks `run()` resolving is not this. A face a page's margin boxes ask for is requested when the presentation is laid out, which is after the last run began, so it arrives after the run's answer, is heard as a late fact (`loadingdone`) and cuts the document again under whoever read the pages in between: measured 2026-11-08 on the essay's `margin-boxes/content-001`, a data-URL face first requested by the presented margin boxes, heard 33 ms into the first run and cutting again 3 ms later, and Caster refusing 'the pages were replaced while they were being printed' one print in three. So the wait is a loop: lay out, so every face the pages ask for is asked for; await the faces and the pictures; await a frame, so what they caused is heard; and look again, leaving only when a whole pass found nothing under way. A released client is settled.
+ */
 async function settled() {
-  while (working || (live && !live.gate)) await (working ?? (live as Session).finished);
+  for (;;) {
+    await quiet();
+    if (released) return;
+    void document.documentElement.offsetHeight; // the layout that requests the faces the presented pages ask for
+    await document.fonts.ready;
+    await picturesArrived();
+    await frame();
+    if (released || !(working || calls.size || (live && !live.gate) || rim?.judging() || document.fonts.status === 'loading')) return;
+  }
+}
+
+/** Resolves when every `<img>` of the document's top-level boxes that was still loading has loaded or failed. */
+async function picturesArrived() {
+  const pending = (presented?.boxes ?? []).flatMap((box) => [...box.querySelectorAll('img')]).filter((img) => !img.complete);
+  await Promise.all(pending.map((img) => new Promise<void>((resolve) => { img.addEventListener('load', () => resolve(), { once: true }); img.addEventListener('error', () => resolve(), { once: true }); })));
 }
 
 /** The run that stopped at a page, if there is one (*the pages are cut as far as they are asked*, 2026-10-12): the driver is waiting inside its page loop with its place, its measure context and its Ledger kept, and the pages it has cut are on screen. `run()` with no `resumeAt` on the same mode goes on from here; anything else lets it go. */

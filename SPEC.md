@@ -360,7 +360,7 @@ Of the members below, `run`, `settled` and `table` exist from load, and `last` a
 | `ledger` | `Entry[]` | The account the last call cut. |
 | `pageOf` | `(el, charOffset = 0) → number \| null \| 'not-yet'` | The page bearing a source place. |
 | `addressOf` | `(el, word = 0) → Address \| null` | A source place, spelled as `resumeAt` takes it. |
-| `settled` | `() → Promise<void>` | Resolves when nothing is under way. |
+| `settled` | `() → Promise<void>` | Resolves when the document will not be cut again unless something is done to it. |
 | `built` | `() → { pages, built }` | How many pages exist and how many have content. |
 | `buildPage` | `(k) → boolean` | Builds page `k` now. |
 | `buildAll` | `() → Promise<number>` | Builds every page. |
@@ -402,7 +402,7 @@ Of the members below, `run`, `settled` and `table` exist from load, and `last` a
 
 ### XII.5 `settled` and `table`
 
-1. `settled()` resolves when no run is under way and the rim has nothing pending; a run stopped at a page is at rest (see *late-truth-is-an-edit*).
+1. `settled()` resolves when the document will not be cut again unless something is done to it: no call of `run()` is unanswered and no run is under way (a run stopped at a page is at rest), the rim has no size or picture it has heard and not judged and no signal it is answering, `document.fonts` has nothing loading, and every picture of the document's boxes has loaded or failed. It looks again after a frame and leaves only when a whole pass found nothing under way, so a face the presented pages first ask for, which arrives after `run()` has answered, is waited for together with the run it causes. `run()` resolving is not this: a host that reads the presented pages (a printer) awaits `settled()` first. A released client is settled (see *late-truth-is-an-edit*).
 2. `table` is the geometry the intake captured from the author's `@page` rules, margin boxes and their `content` included, and `null` before an intake. A second host in the same document takes it in place of its own reading, since the root clears the margin boxes' `content` (see *the-second-channel-a-named-page-cannot-close*).
 
 ### XII.6 Members outside this article
