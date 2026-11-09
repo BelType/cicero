@@ -1291,10 +1291,14 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     let container: ReturnType<MeasureContext['measure']>;
     let pageStart: number;
     let spentLead: number;
+    /** The place the last pour stood at when the check failed: a doubled bound that names it again is the same feed. */
+    let short: Element | null = null;
     for (;;) {
       pours++;
       // The place first, then the feed cloned to it (*the clone is hollow outside the interval*, 2026-09-27): neither the Cast-off's place nor the forced event needs anything but the cursor and the index.
-      const place = castOff.bound(cursor, words);
+      let place = castOff.bound(cursor, words);
+      // A doubled bound whose place is the one the last pour stopped above the edge at, its words landing inside the same long paragraph or the same box the bound never cuts inside, would pour the same feed again: it is doubled on without pouring (critic2-long-paragraph-quadratic, 2026-11-09).
+      while (place && place.el === short) place = castOff.bound(cursor, (words = (words as number) * 2));
       const forcingCuts = !!forcedEvent && !rowForced && (!place || !cutAfter(forcedEvent.cut, place.cut, posOfCut));
       bounded = !forcingCuts && !!place;
       ({ items, cloneOfSource } = buildFeed(forcingCuts ? forcedEvent : bounded ? place : null, forcingCuts ? 'the grab' : 'the Cast-off'));
@@ -1329,6 +1333,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
         }
       }
       if (!bounded || reachesBelowTheEdge({ report, sourceOf, pageStart, contentHeight: conditions.contentH })) break;
+      short = (place as NonNullable<typeof place>).el;
       // @ts-expect-error `words` is a number wherever the feed is bounded, and a feed that is not bounded broke out above
       words *= 2;
     }
