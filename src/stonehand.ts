@@ -538,7 +538,8 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
     // The place it names is before the box's first in-flow child, past the gap (*the cut divides its ancestors*, 2026-09-29): the page before carries the box's border, its padding and whatever stands in the gap — an empty float, the clearance under it — and the page after resumes the box divided, its first child whole. So the position is the child's outer top, which is the content edge plus the gap; it used to be the box's top plus its border, which put the padding on the next page and offered a break point §4.1 does not provide (`packages/essay/cases/71-the-box-that-begins-a-page`).
     const startGap = box.blockChildren.length ? report.gapAt({ box, edge: 'start' }) : 0;
     const firstInFlow = startGap > eps ? box.blockChildren.find((c) => !parallelBox(c)) : undefined;
-    if (firstInFlow && !copy(firstInFlow)) {
+    // A box that opens the page offers no start gap: the page would hold its block-start decoration and nothing else, and the next page would offer the same gap again wherever the box clones its decoration, so the cut is no progress (css-break-3 §4.4 drops an avoid that leaves only this, and Chromium's print never takes it: a row taller than the page under `break-inside: avoid` left a blank first page, and WPT's `table-fragmentation-001c` refused, assessment 2026-11-07, `outer-row-taller-than-page-avoid`).
+    if (firstInFlow && !copy(firstInFlow) && box.rect.top > pageStart + eps) {
       const prevSibling = si > 0 ? siblings[si - 1] : null;
       const bs = (win as Window).getComputedStyle(box.el);
       candidates.push({
