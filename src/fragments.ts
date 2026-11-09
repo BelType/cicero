@@ -867,6 +867,8 @@ function shellAt(clone: Element, target: Element, px: NonNullable<Address['px']>
       el.style.boxSizing = 'border-box';
       el.style.height = `${Math.max(0, px.remaining)}px`;
       el.style.minHeight = '0';
+      // Its block-end padding is spent with the rest (`block-end-padding-taller-than-page`, assessment 2026-11-07): the shell has no content, so its padding paints exactly as the content box it gives way to, and the border box is the remainder alone. A padding taller than the page area otherwise held every shell at its own height, the remainder never shrank, and the walk refused. A box that clones its decoration wears its padding on every fragment, so it keeps it.
+      if (!clonesDecoration(el)) el.style.setProperty('padding-bottom', '0', 'important');
       return clone;
     }
     // The painted shell: a slice wrapper takes the box's place in flow at exactly the leftover height and clips there; the box keeps its natural size — an image must never be resized into the remainder — and a negative top margin pulls the already-shown part above the clip.
