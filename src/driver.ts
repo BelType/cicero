@@ -24,7 +24,7 @@ import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, regis
 import { snapshotOfStyle } from './forcing-memo.ts';
 import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, truncateFrom } from './fragments.ts';
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
-import { documentOpsOf, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
+import { documentOpsOf, withRunning, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
 import { ARTIFACT, HOST, hasWord } from './data-beltype.ts';
 import { blockChildrenOf, footerBeforeRows, inDisplayOrder, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
@@ -612,6 +612,8 @@ export function paginate(doc: Document, opts: { composed?: boolean; compositionC
   const boxes = opts.originals ?? topLevelBoxes(doc);
   const hasMarks = answerHas(doc, boxes, keep);
   performance.measure('cicero:has-words', { start: t0, end: performance.now(), detail: { boxes: boxes.length, marked: hasMarks.size, ...(memo ? { memo: memo.tally.has ?? null } : {}) } });
+  // Before the reads' counter walk, whose log the run takes: the reason is paginateOnce's, where the call stays for a caller that runs once.
+  registerGcpmProperties(doc.defaultView);
   return settleReads(doc, { run: (laid) => paginateOnce(doc, opts, laid, { boxes, hasMarks, memo }), blocksOf: () => opts.blocks ?? topLevelBlocks(doc), originals: opts.originals ?? opts.blocks ?? null, warm: opts.prior && opts.dirtyAt ? opts.prior.delivered : null, warmFacts: opts.prior && opts.dirtyAt ? opts.prior.facts ?? null : null, hide: !!opts.pace, keep });
 }
 
@@ -729,11 +731,14 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
    *
    * The ancestors are `html` and `body` — every top-level block is a body child — and they are recorded before the document's first word, which is what puts a `body { counter-reset }` in force on page one.
    */
-  const documentOps = documentOpsOf(blocks, index, {
+  const ancestors = [doc.documentElement, doc.body].filter(Boolean);
+  const runningAt = running.map((r) => ({ name: r.name, pos: runningPosition(r, index) }));
+  // The reads' walk, where they took one, is this walk under their marks: a mark ends what an operation at its depth would end, and adds nothing else (`reads.ts`' `settleReads`).
+  const documentOps = laid.ops ? withRunning(laid.ops, runningAt) : documentOpsOf(blocks, index, {
     styleOf: (el) => win.getComputedStyle(el),
     pseudoStyleOf: sheetsCountInPseudos(doc) ? (el, pseudo) => win.getComputedStyle(el, pseudo) : null,
-    ancestors: [doc.documentElement, doc.body].filter(Boolean),
-    running: running.map((r) => ({ name: r.name, pos: runningPosition(r, index) })),
+    ancestors,
+    running: runningAt,
     keep: memo?.keep
   });
   // The same walk's second reading (*the host rewrites what the parser drops*, 2026-09-14): every named-string assignment the document makes, with the position it sits at. Evaluated here, where the source is still in its real ancestor chain — `content()` is the element's own text and would come back right from an unassigned slottable, but `counter()` inside a content list would not, and neither would anything inherited.
@@ -876,6 +881,14 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     return ops;
   };
 
+  /**
+   * The depth in the counter log's terms of the place a cut names: the element its path reaches, below the ancestors, or one level further in where the cut falls inside it, among its children (a `word` or a `px`).
+   *
+   * @remarks
+   * A place inside an element is taken at its children's depth, so an instance a grandchild opened before the cut is ended there even where the cut falls inside the child that holds it: a counter reset on an inline element nested in another inside a paragraph a page divides. No case claims it.
+   */
+  const depthOfCut = (cut: Address) => ancestors.length + cut.path.length - 1 + (cut.word != null || cut.px != null ? 1 : 0);
+
   /** The conditions of page `pageIndex`, which begins at `cut` (projected to `pos`) — {@link conditionsFor} with the cursor made a parameter, so a resumed run can write the conditions of a page it keeps from the address that page began at (*the run resumes from an entry*, build two, 2026-10-08). */
   const conditionsAt = (pageIndex: number, cut: Address, pos: number, { blank = false, carried = null }: { blank?: boolean; carried?: Cursor['carried']; } = {}) => {
     const name = nameAt(cut);
@@ -885,7 +898,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     // The run's count, an author's reset of the page counter counted on from the page it begins on, and each page's own `@page` counter rules (`document-state.js`'s `pageNumberAt`). Entry `i` closes page `i`, so page `i` begins where entry `i - 1` ended, under the conditions it closes.
     const pageNumber = pageNumberAt(documentOps, pageIndex, pos, { pages: (i) => ({ start: i === 0 ? 0 : account[i - 1].pos ?? 0, blank: account[i].blank === true, counter: pageCounterOf(i, account[i].closes) }), blank, counter: geo.pageCounter, away });
     // The document's counters as they stand at this page's first word — strictly before it, which is §6.1's *spans the page break* in the flat position space (`document-state.js`) — less what the flows carried onto this page have still to show, which stands before that word and is on this page or after it (beltype#43). The page's own two are not among them: they are the host's, and `pageNumber` carries the reset.
-    const counters = withoutPageCounters(counterStateAt(documentOps, pos, away));
+    const counters = withoutPageCounters(counterStateAt(documentOps, pos, away, depthOfCut(cut)));
     return Object.freeze({ ...geo, name, pageNumber, parity, blank, counters, dpr: win.devicePixelRatio });
   };
 

@@ -13,7 +13,7 @@
  *
  * **A position is the flat word index** (`positions.js`), and an operation applies when its position is strictly before the one asked about — and not inside a remainder a carried flow has still to show, which stands before the page's first word in document order and is on that page or after it (beltype#43; `positions.js`' `remaindersOf`). That is §6.1's *"the deepest element in the normal flow that spans the page break"* said in this engine's own space: an element whose first word is the page's first word begins on the new page and does not span the break, so its own operation is not yet in force, while an element that spans the break started before that word and is included. The ancestors above the top-level blocks sit at position **−1** — they open before the document's first word and span every break there is — which is what makes the first page's answer fall out of the same comparison rather than needing a case of its own.
  *
- * **What is not read, each a real gap and each showing as a counter reading low.** css-lists-3's `reversed()` counters (an author's `counter-reset: reversed(name)`), a top-level `position: fixed` box, which is not among the flow blocks the position index is built over; and a scope that ended before the position asked about with no operation logged between its end and the position, since the replay closes a scope only when an operation at or above its depth arrives: a `counter(list-item)` read on a page past a list whose last item holds a list reads the inner list's count (3 where Chromium prints 2, measured 2026-11-07), and an author's nested reset is read the same way. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. A list's and a list item's implicit `list-item` operations are read since 2026-11-07 (`implicitListOps`), so a `counter(list-item)` read on a page a list continued onto or past it counts the items before it. A `::before`'s and an `::after`'s counters are read since 2026-11-07, where a sheet sets one (`pseudoStyleOf`). **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is.
+ * **What is not read, each a real gap and each showing as a counter reading low.** css-lists-3's `reversed()` counters (an author's `counter-reset: reversed(name)`), and a top-level `position: fixed` box, which is not among the flow blocks the position index is built over. `display: none` elements are skipped, which is CSS 2.1's own rule rather than an omission. A list's and a list item's implicit `list-item` operations are read since 2026-11-07 (`implicitListOps`), so a `counter(list-item)` read on a page a list continued onto or past it counts the items before it. A `::before`'s and an `::after`'s counters are read since 2026-11-07, where a sheet sets one (`pseudoStyleOf`). A scope that ended before the page with no operation logged between its end and the page's first word is closed since 2026-11-09, by the depth of the page's opening place (`counterStateAt`'s `depth`): until then a `counter(list-item)` read on a page past a list whose last item holds a list read the inner list's count, 3 where Chromium prints 2, and an author's nested reset the same. **And `content(before)`, `content(after)` and `content(first-letter)` are read as `content()`** — a stated limit rather than a discovered one: a pseudo-element's own string is generated content this walk does not see, and answering the element's text is the nearest honest answer there is.
  *
  * @packageDocumentation
  */
@@ -336,8 +336,17 @@ export function documentOpsOf(blocks: ArrayLike<Element>, index: { bases: number
       : read();
     for (const op of part.ops) ops.push({ ...op, pos: start + op.pos, depth: base + op.depth });
   }
+  return withRunning(ops, running);
+}
+
+/**
+ * A log with the document's running elements laid in, each at the position the flow stood at where it was written: {@link documentOpsOf}'s `running`, for a log walked without them.
+ *
+ * @remarks
+ * A running element has no word of its own, so it joins the log before every operation past its position: the log stays in position order, which the replay's early stop needs. Its depth is infinite, so it ends no counter scope.
+ */
+export function withRunning(ops: Op[], running: ReadonlyArray<{ name: string; pos: number; }>): Op[] {
   if (!running.length) return ops;
-  // A running element has no word of its own, so it joins the log at the position the flow stood at, before every operation past it: the log stays in position order, which the replay's early stop needs. Its depth is infinite, so it ends no counter scope.
   const merged: Op[] = [];
   let r = 0;
   for (const op of ops) {
@@ -358,10 +367,11 @@ const runningOp = (r: { name: string; pos: number; }, at: number): Op => ({ rese
  *
  * @param pos - the flat word position asked about — for a page, its first word.
  * @param away - the remainders the page's opening cut carries in (`positions.js`' `remaindersOf`): an operation before `pos` inside one of them is on this page or a later one, not on a page before it, and is not yet in force (beltype#43). The replay still runs in document order.
+ * @param depth - the depth in the log's terms of the place `pos` names (`driver.ts`' `depthOfCut`): every instance created deeper is ended there, as an operation at that depth would end it, so a scope that ended before the page with nothing logged between is closed (cicero-counter-scope-stays-open-at-page, 2026-11-09). Absent, the replay keeps what the last operation before `pos` left open.
  * @returns per counter name, the values of every instance in scope, outermost first. Plain data, so it crosses a `page.evaluate` boundary in the account's `closes` like every other condition.
  */
-export function counterStateAt(ops: ReturnType<typeof documentOpsOf>, pos: number, away: ReadonlyArray<{ from: number; to: number; }> = []): Record<string,number[]> {
-  return replay(ops, { until: pos, away });
+export function counterStateAt(ops: ReturnType<typeof documentOpsOf>, pos: number, away: ReadonlyArray<{ from: number; to: number; }> = [], depth = Infinity): Record<string,number[]> {
+  return replay(ops, { until: pos, away, depth });
 }
 
 /** What the page context's own rules do to the page counter on one page: the `page` value of the winning `counter-reset`, `counter-increment` and `counter-set` of the `@page` rules that apply to it, `null` where the winning declaration names no `page` (`capture.ts`'s `pageFor`). */
@@ -432,7 +442,7 @@ export function withoutPageCounters(state: Record<string,number[]>): Record<stri
 }
 
 /** One replay, two readers. `counterStateAt` stops at a position and returns the state there; `stringAssignmentsOf` runs the log out and is handed the state at each element that assigns a named string. Written once because the scope arithmetic is the delicate part and two copies of it would agree only until one of them was fixed. */
-function replay(ops: ReadonlyArray<Op>, { until = Infinity, onOp = null, away = ([] as ReadonlyArray<{ from: number, to: number }>) }: { until?: number; onOp?: ((op: Op,counters: Record<string,number[]>) => void)|null; away?: ReadonlyArray<{ from: number; to: number; }>; } = {}): Record<string,number[]> {
+function replay(ops: ReadonlyArray<Op>, { until = Infinity, onOp = null, away = ([] as ReadonlyArray<{ from: number, to: number }>), depth = Infinity }: { until?: number; onOp?: ((op: Op,counters: Record<string,number[]>) => void)|null; away?: ReadonlyArray<{ from: number; to: number; }>; depth?: number; } = {}): Record<string,number[]> {
   /**
    * @type name → [{ depth, value }], innermost last.
    */
@@ -466,6 +476,8 @@ function replay(ops: ReadonlyArray<Op>, { until = Infinity, onOp = null, away = 
     // after the element's own counter operations, which is GCPM's *at the point when the content box of the element is first created*, and CSS 2.1 §12.4's order for a `target-counter()` too.
     if (onOp && (op.strings || op.mark)) onOp(op, snapshot());
   }
+  // The place asked about is entered as an element at `depth` would be: what was created deeper has had its parent left behind.
+  for (const stack of scopes.values()) while (stack.length && stack[stack.length - 1].depth > depth) stack.pop();
   return snapshot();
 }
 

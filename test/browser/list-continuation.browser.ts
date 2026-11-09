@@ -130,7 +130,9 @@ for (const [name, body] of [
   ['a list', `${lines(2)}<ol>${items(6)}</ol>${lines(6)}<p class="x">after</p>`],
   ['a list with start', `${lines(2)}<ol start="5">${items(6)}</ol>${lines(6)}<p class="x">after</p>`],
   ['a reversed list with start', `${lines(2)}<ol reversed start="30">${items(6)}</ol>${lines(6)}<p class="x">after</p>`],
-  ['a list holding an inner list', `${lines(2)}<ol><li>item o<ol>${items(3)}</ol></li>${items(2)}</ol>${lines(6)}<p class="x">after</p>`]
+  ['a list holding an inner list', `${lines(2)}<ol><li>item o<ol>${items(3)}</ol></li>${items(2)}</ol>${lines(6)}<p class="x">after</p>`],
+  // The inner list's scope ends with the last item, and nothing the walk logs stands between that end and the next page (cicero-counter-scope-stays-open-at-page, 2026-11-09).
+  ['a list whose last item holds an inner list', `${lines(2)}<ol>${items(1)}<li>item o<ol>${items(3)}</ol></li></ol>${lines(6)}<p class="x">after</p>`]
 ] as const) {
   test(`counter(list-item) read after ${name}, on the page past it, is the count Chromium prints`, async () => {
     const out = await both(`after-${name.replace(/\W+/g, '-')}`, `${CSS} .x::after { content: " #" counter(list-item) "." }`, body, AFTER);
@@ -138,6 +140,15 @@ for (const [name, body] of [
     assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
   });
 }
+
+// The same scope for an author's counter: an inner reset whose element ends with its parent, before the page, leaves the outer instance in force there (cicero-counter-scope-stays-open-at-page, 2026-11-09).
+test('an author counter read on the page past a nested reset that ended before it is the count Chromium prints', async () => {
+  const css = `${CSS} body { counter-reset: c } .n { counter-reset: c } .i { counter-increment: c } .x::after { content: " #" counter(c) "." }`;
+  const body = `${lines(2)}<div><p class="i">one</p><div class="n"><p class="i">a</p><p class="i">b</p><p class="i">c</p></div></div>${lines(7)}<p class="x">after</p>`;
+  const out = await both('after-nested-author-reset', css, body, AFTER);
+  assert.ok(out.chromium.length > 1 && out.chromium[1].length > 0, `the oracle crosses a page: ${JSON.stringify(out.chromium)}`);
+  assert.deepEqual(out.cicero, out.chromium, `Cicero ${JSON.stringify(out.cicero)}, Chromium ${JSON.stringify(out.chromium)}`);
+});
 
 /** Chromium's print shows no document counter in a margin box (0 for every name, measured 2026-11-07), so the reference is Cicero's own reading of a counter the author increments on each item by hand: `list-item` must read as that one does. */
 for (const [name, body] of [

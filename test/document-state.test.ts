@@ -101,6 +101,21 @@ test('a reset`s scope reaches its FOLLOWING SIBLINGS, and ends when the walk lea
   assert.deepEqual(counterValues(counterStateAt(walk([block2], [0, 9], b2), 5), 'c'), [1], 'one instance, reset by nothing and implicitly created at the root — the section`s scope ended with the section`s parent');
 });
 
+test('a nested scope that ended before the position, with nothing logged between, is closed at the depth of the position asked about', () => {
+  // <list reset=c><h inc/><item><inner reset=c><h inc/><h inc/></inner></item></list><p/> — the next page opens at <p>, a top-level block that logs nothing (cicero-counter-scope-stays-open-at-page, 2026-11-09).
+  const outerH = el({ counterIncrement: 'c 1' });
+  const innerH = [el({ counterIncrement: 'c 1' }), el({ counterIncrement: 'c 1' })];
+  const inner = el({ counterReset: 'c 0' }, innerH);
+  const item = el({}, [inner]);
+  const list = el({ counterReset: 'c 0' }, [outerH, item]);
+  const p = el({});
+  const before = new Map([[list, 0], [outerH, 0], [item, 1], [inner, 1], [innerH[0], 1], [innerH[1], 2]]);
+  const ops = walk([list, p], [0, 3, 4], before);
+  assert.deepEqual(counterValues(counterStateAt(ops, 3, [], 0), 'c'), [1], 'a page opening at a top-level block stands outside the inner list: only the outer instance is in scope');
+  assert.deepEqual(counterValues(counterStateAt(ops, 2, [], 3), 'c'), [1, 1], 'a page opening at the inner list`s second item is inside both scopes');
+  assert.deepEqual(counterValues(counterStateAt(ops, 3), 'c'), [1, 2], 'with no depth the replay keeps what the last operation left open, as it always did');
+});
+
 test('counter-set acts on the innermost instance, and counter-reset takes the number the author wrote', () => {
   const a = el({ counterReset: 'n 5' });
   const b = el({ counterIncrement: 'n 3' });

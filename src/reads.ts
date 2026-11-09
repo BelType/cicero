@@ -61,6 +61,8 @@ export type Laid = {
   sites: Site[] | null;
   /** the position index the loop already built. */
   index: ReturnType<typeof indexBlocks> | null;
+  /** the counter log the loop already walked, under the marks of its counter references and without running elements, or null where it walked none. */
+  ops?: ReturnType<typeof documentOpsOf> | null;
   /** the references whose page number moved a line of their own in the layout before. */
   because?: string[];
   /** on a layout after the first: the layout before it, as the run returned it, and the addresses of the boxes whose lines the delivered values moved, which the run resumes from as from an edit (*delivery resumes from the moved page*, 2026-10-21). */
@@ -434,14 +436,15 @@ export function withdraw(doc: Document, scope: object = doc) {
  * @param context - `index`: the position index over these blocks, where the caller has built it (the run's own is the same walk); `keep`: the memo's door, through which the counter walk takes the parts of the blocks no edit replaced (`document-state.js`' `documentOpsOf`).
  * @returns `unread`: references to a target the counter walk never reaches (inside a `display: none` subtree or a fixed box), which show nothing.
  */
-export function staticValues(sites: Site[], { doc, blocks, index = null, keep = null }: { doc: Document; blocks: Element[]; index?: ReturnType<typeof indexBlocks>|null; keep?: Keep|null; }): { values: Values; unread: Site[]; } {
+export function staticValues(sites: Site[], { doc, blocks, index = null, keep = null }: { doc: Document; blocks: Element[]; index?: ReturnType<typeof indexBlocks>|null; keep?: Keep|null; }): { values: Values; unread: Site[]; ops: ReturnType<typeof documentOpsOf>|null; } {
   const values: Values = new Map<any, any>();
   const unread = [];
   const counted = sites.filter((s) => s.target && (s.read.fn === 'counter' || s.read.fn === 'counters') && !isPageRead(s.read));
   let states = new Map<any, any>();
+  let ops: ReturnType<typeof documentOpsOf>|null = null;
   if (counted.length) {
     const win = (doc.defaultView as Window);
-    const ops = documentOpsOf(blocks, index ?? indexBlocks(blocks), {
+    ops = documentOpsOf(blocks, index ?? indexBlocks(blocks), {
       styleOf: (el) => win.getComputedStyle(el),
       pseudoStyleOf: sheetsCountInPseudos(doc) ? (el, pseudo) => win.getComputedStyle(el, pseudo) : null,
       ancestors: [doc.documentElement, doc.body].filter(Boolean),
@@ -462,7 +465,7 @@ export function staticValues(sites: Site[], { doc, blocks, index = null, keep = 
     if (s.read.fn === 'counters') { put(values, s.key, s.prop, cssString(countersText(state, s.read))); continue; }
     put(values, s.key, s.prop, cssString(formatCounter(counterValue(state, s.read.counter), s.read.style)));
   }
-  return { values, unread };
+  return { values, unread, ops };
 }
 
 /**
@@ -585,7 +588,7 @@ export async function settleReads<R extends { account: any[], index: ReturnType<
   const blocks = blocksOf();
   // A text target counts only inside the blocks, as every other target does through the position index and the counter walk: an element outside them (a host's own) is no target, and the reference shows nothing.
   for (const s of sites) if (s.target && s.read.fn === 'text' && !blocks.some((b) => b.contains(s.target))) s.target = null;
-  // One walk of the words, shared with the run (*the run resumes from an entry*, build two: 60 ms of every manual run was this walk, done twice). The counter log is not shared, and the reason is worth a line: it is read here before the run registers the GCPM properties, and an unregistered `string-set` inherits, so a log taken now would assign every heading's string to its descendants too.
+  // One walk of the words, shared with the run (*the run resumes from an entry*, build two: 60 ms of every manual run was this walk, done twice), and one counter walk where a counter reference needs it: the run takes this log and lays its running elements in (`document-state.ts`' `withRunning`). It is read under the GCPM properties' registration, which `paginate` makes before the reads, since an unregistered `string-set` inherits and a log taken before it would assign every heading's string to its descendants too. Measured 2026-11-09 on a 190-section document with one `target-counter()` of a figure: the run's `cicero:document-ops` went from 79 to 82 ms to under 1 ms, the reads' measure unchanged at 163 to 177 ms.
   const index = indexBlocks(blocks, undefined, undefined, keep);
   const fixed = staticValues(sites, { doc, blocks, index, keep });
   const paged = sites.filter((s) => s.target && isPageRead(s.read));
@@ -613,7 +616,7 @@ export async function settleReads<R extends { account: any[], index: ReturnType<
     laidUnder = merged(fixed.values, delivered);
     laidFacts = facts;
     const started = performance.now();
-    result = await run({ attempt: runs, delivered: found ? laidUnder : null, facts: laidFacts, sites: found, index, because: because.map(name), resume });
+    result = await run({ attempt: runs, delivered: found ? laidUnder : null, facts: laidFacts, sites: found, index, ops: fixed.ops, because: because.map(name), resume });
     laidFacts = result.laidFacts ?? laidFacts; // the page values the layout was cut under are the run's to say; a run that says none was cut under the ones it was handed
     if (runs === 0) {
       resumed = result.resumed ?? null;
