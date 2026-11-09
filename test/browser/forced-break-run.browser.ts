@@ -107,3 +107,23 @@ test('a second run, reading through the forcing memo, puts the break before the 
 test('break-after: right before a run costs the blank page and puts the run on the right', async () => {
   assert.deepEqual(await pagesOf('parity', '<div><p style="break-after:right">a</p>run of text<p>b</p></div>'), ['a', '', 'run of text b']);
 });
+
+test('break-after before a run inside a table cell falls before the run', async () => {
+  assert.deepEqual(await pagesOf('cell', '<table><tr><td><p style="break-after:page">a</p>run of text<p>b</p></td></tr></table>'), ['a', 'run of text b']);
+});
+
+test('break-after before a run inside a flex item falls before the run', async () => {
+  assert.deepEqual(await pagesOf('flex-item', '<div style="display:flex"><div><p style="break-after:page">a</p>run of text<p>b</p></div></div>'), ['a', 'run of text b']);
+});
+
+test('break-after before a run inside a table cell beside another cell falls before the run, and the neighbour stays on its page', async () => {
+  assert.deepEqual(await pagesOf('cell-row', '<table><tr><td><p style="break-after:page">a</p>run of text<p>b</p></td><td>z</td></tr></table>'), ['a z', 'run of text b']);
+});
+
+test('break-after before a run inside a flex item beside another item falls before the run, and the neighbour stays on its page', async () => {
+  assert.deepEqual(await pagesOf('flex-row', '<div style="display:flex"><div><p style="break-after:page">a</p>run of text<p>b</p></div><div>z</div></div>'), ['a z', 'run of text b']);
+});
+
+test('break-after before a run that is an anonymous flex item of a column falls before the run', async () => {
+  assert.deepEqual(await pagesOf('flex-column', '<div style="display:flex;flex-direction:column"><p style="break-after:page">a</p>run of text<p>b</p></div>'), ['a', 'run of text b']);
+});
