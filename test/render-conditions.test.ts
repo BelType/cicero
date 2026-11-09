@@ -15,3 +15,11 @@ test('a horizontal root with an explicit line-height at unit DPR passes, and the
   assert.throws(() => assertRenderConditions(doc({ lineHeight: '24px', writingMode: 'sideways-lr' })), /writing-mode 'sideways-lr'/, 'Codeberg issue 12: refused at intake, not by the printer');
   assert.throws(() => assertRenderConditions(doc({ lineHeight: '24px', writingMode: 'vertical-rl' })), /writing-mode 'vertical-rl'/);
 });
+
+test('a right-to-left root or body is refused by name, as out of scope', () => {
+  assert.throws(() => assertRenderConditions(doc({ lineHeight: '24px', direction: 'rtl' })), /right-to-left.*outside this engine's scope.*root/);
+  const body = (computed: Record<string, string>): any => ({ defaultView: { devicePixelRatio: 1, getComputedStyle: (el: any) => (el === bodyEl ? { lineHeight: '24px', direction: 'rtl' } : computed) }, documentElement: {}, body: bodyEl });
+  const bodyEl = {};
+  assert.throws(() => assertRenderConditions(body({ lineHeight: '24px', direction: 'ltr' })), /direction 'rtl' on its body/);
+  assertRenderConditions(doc({ lineHeight: '24px', direction: 'ltr' }));
+});

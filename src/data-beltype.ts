@@ -60,6 +60,7 @@ export const REGISTRY: ReadonlyArray<Readonly<Entry>> = Object.freeze(([
   { name: 'adjoin', kind: 'flag', status: 'in use', writer: 'engine', from: 'cut', facing: 'engine', meaning: 'the first-child chain after a cut BETWEEN boxes: its block-start margin adjoins the cut and is truncated, and the box is not divided' },
   { name: 'away', kind: 'flag', status: 'in use', writer: 'engine', from: 'cut', facing: 'engine', meaning: 'a box put away on this page (`display: none`): kept as an element so structural selectors read as in the source' },
   { name: 'host', kind: 'flag', status: 'in use', writer: 'host', from: 'host', facing: 'engine', meaning: 'the host\'s word on an element of its own machinery that stands among the document\'s boxes (a hidden `<iframe>`, a probe); the intake passes over it, so it gets no address and moves none (ruled 2026-11-08)' },
+  { name: 'one-column', kind: 'flag', status: 'in use', writer: 'engine', from: 'original', facing: 'engine', meaning: 'a multi-column box too tall for any page, laid out as one column on its copies because the engine does not yet divide columns (the console names the element)' },
   { name: 'artifact', kind: 'flag', status: 'in use', writer: 'engine', from: 'cut', facing: 'host', meaning: 'a copy the engine repeats that is not the one a reader reads: a running element\'s copy in a margin box, a fixed box\'s copy on every page after the first, and a table\'s repeated header or footer group; PDF\'s own word for pagination furniture, and nothing else. Every artifact is also aria-hidden' }
 ] as Entry[]).map((e) => Object.freeze(e)));
 
@@ -89,6 +90,7 @@ export const FILL = 'fill';
 export const WRAPPED = 'wrapped';
 export const ADJOIN = 'adjoin';
 export const AWAY = 'away';
+export const ONE_COLUMN = 'one-column';
 /** PDF's own name for pagination furniture: a copy the engine repeats that a reader does not read (the registry entry says which). */
 export const ARTIFACT = 'artifact';
 
@@ -341,6 +343,7 @@ const RESUMED_BOX = `${RESUMED}:not(${w(SHELL)})`;
  * - A resumed piece gives up the margin that adjoins the break, and the indent (the box is not beginning); and, unless the box wraps each fragment whole (`wrapped`, css-break-3 §5.4's `clone`), its border, its padding and its corners' rounding at that edge: a slice is the box cut through, so the cut edge is square (Chromium's print, measured 2026-11-07).
  * - A resumed piece's counter operations already happened where the box began (`counter-reset`, `counter-increment` and `counter-set` are `none` on it): the page's start delivers the counters as they stood (`chase.js`'s `setCounters`), and a clone that fired them again would count the box twice.
  * - A cut-off piece gives up the margin before the break, and unless `wrapped` its border, padding and rounding there.
+ * - `one-column`: a multi-column box too tall for any page is laid out as one column, since the engine does not divide columns yet (`src/scope.ts`).
  * - `adjoin`: the box a bare-path cut resumes at, and the first-child chain through which its margin collapses, give up the margin that adjoins the break (css-break-3 §5.2) and nothing else — they are not divided.
  */
 export const WORDS_RULES = `
@@ -351,6 +354,7 @@ export const WORDS_RULES = `
   ${CUT_OFF} { margin-bottom: 0 !important; }
   ${CUT_OFF}:not(${w(WRAPPED)}) { border-bottom-width: 0 !important; padding-bottom: 0 !important; border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
   ${w(ADJOIN)} { margin-top: 0 !important; }
+  ${w(ONE_COLUMN)} { column-count: auto !important; column-width: auto !important; }
 }
 `;
 

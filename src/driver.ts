@@ -30,6 +30,7 @@ import { ARTIFACT, HOST, hasWord } from './data-beltype.ts';
 import { blockChildrenOf, footerBeforeRows, inDisplayOrder, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
 import { changedPairs, settleReads } from './reads.ts';
 import { converge, holderPage, namesNoPlace, priorKeys, restartPage } from './resume.ts';
+import { readScope, foldTallColumns } from './scope.ts';
 import { answerHas, boxesWhoseWordsMoved } from './has-words.ts';
 import type { HasMarks } from './has-words.ts';
 import type { ForcingMemo, Keep } from './forcing-memo.ts';
@@ -657,6 +658,8 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   await awaitFonts(doc, table.furnitureFaces); // the faces page furniture names, requested now and not when the first margin box is presented (the table is read after the first wait, so its lengths are measured as they always were)
   const win = (doc.defaultView as Window & typeof globalThis);
   const blocks = intakeBlocks ?? topLevelBlocks(doc);
+  // What is out of scope is refused here, and a multi-column box too tall for a page becomes one column on its copies (`src/scope.ts`).
+  foldTallColumns(doc, readScope(win, blocks), table.pageFor({ first: true }));
   // The running elements and where each was written, handed back with the blocks by a host that took them at intake, for the same reason: by now the body holds the root and nothing else.
   const running = intakeRunning ?? runningBoxes(doc, memo?.keep);
   /** Whether a box outside an interval may be hollow (*the clone is hollow outside the interval*, 2026-09-27; *one attribute has words*, 2026-10-10). It may, unless a stylesheet the document wears has a `:has(` that nothing answers for: the host rewrites every `:has()` it can into a union that a `has:` word on the copy satisfies (`has-words.js`), and only an argument reading user state (`:hover`, `:checked`, `:focus-within`, `:target`, …) is left alone, with a console line from the rewrite naming the rule. Then every feed is built deep, as before, and the console says so once per run. `root.js` asks the same question of the same sheets when it presents. */

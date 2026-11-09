@@ -12,8 +12,8 @@
  * @packageDocumentation
  */
 
-import { isAtom, READS_ITS_CHILDREN } from './word-space.ts';
-import { ARTIFACT, hasWord } from './data-beltype.ts';
+import { isAtom, READS_ITS_CHILDREN, sourceHasWord } from './word-space.ts';
+import { ARTIFACT, ONE_COLUMN, hasWord } from './data-beltype.ts';
 
 import type { Box, MeasureReport, Px } from './gauge.ts';
 import type { CutClass, Violates } from './ledger.ts';
@@ -165,12 +165,12 @@ export function isMonolith(el: Element, style: CSSStyleDeclaration, live: Elemen
 }
 
 /**
- * **A fourth ground, and a temporary one: what the engine does not yet divide, where dividing it loses words** (*every branch gets a place*, 2026-09-21). Two arrangements lay content side by side in ways a row of sibling boxes does not describe, and each lost words at a cut until it was held whole (`packages/essay/probes/conservation.js`): a multi-column container, whose columns are fragmentainers of their own; and an inline-level block container, which is an atom of a line, with paragraphs inside it that the procession used to see. Held as a monolith each moves whole, or is sliced by the edge with its remainder painted — css-break-3's own remedy. **The remedy has a price, measured the same day, and it is why the list is this short**: a slice through text leaves the line the edge crosses half on each page, and the print's text layer reads it on both. That is better than words on no page and worse than anything else, so a grid with sized tracks or placed items — which divides without losing a word and merely opens its next page on the spent track's blank — was tried here and taken out again. Each entry leaves this list when it has a design of its own.
+ * **A fourth ground, and a temporary one: what the engine does not yet divide, where dividing it loses words** (*every branch gets a place*, 2026-09-21). Two arrangements lay content side by side in ways a row of sibling boxes does not describe, and each lost words at a cut until it was held whole (`packages/essay/probes/conservation.js`): a multi-column container, whose columns are fragmentainers of their own; and an inline-level block container, which is an atom of a line, with paragraphs inside it that the procession used to see. Held as a monolith each moves whole, or is sliced by the edge with its remainder painted — css-break-3's own remedy. **The remedy has a price, measured the same day, and it is why the list is this short**: a slice through text leaves the line the edge crosses half on each page, and the print's text layer reads it on both. A multi-column box taller than a page no longer reaches this list: it is laid out as one column (`src/scope.ts`), and the slice is left to a box that is a monolith for another reason. That is better than words on no page and worse than anything else, so a grid with sized tracks or placed items — which divides without losing a word and merely opens its next page on the spent track's blank — was tried here and taken out again. Each entry leaves this list when it has a design of its own.
  *
  * `live` is the element a measured clone stands for, kept in the signature for the day a ground needs to ask the element rather than its computed style — a grid's declared tracks are such a question: `grid-template-rows` resolves to the used tracks, implicit ones included, and only `computedStyleMap()` tells a declared list from none (measured in Chromium).
  */
 export function notYetDivided(style: CSSStyleDeclaration, live: Element): 'multicol'|'inline block container'|null {
-  if ((style.columnCount ?? 'auto') !== 'auto' || (style.columnWidth ?? 'auto') !== 'auto') return 'multicol';
+  if (((style.columnCount ?? 'auto') !== 'auto' || (style.columnWidth ?? 'auto') !== 'auto') && !sourceHasWord(live, ONE_COLUMN)) return 'multicol'; // a source the run laid out as one column (`src/scope.ts`) is an ordinary block, though its own style still says columns
   if (/^inline-(block|flex|grid|table)$/.test(style.display ?? '')) return 'inline block container';
   return null;
 }
