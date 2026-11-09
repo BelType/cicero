@@ -336,8 +336,17 @@ export function documentOpsOf(blocks: ArrayLike<Element>, index: { bases: number
       : read();
     for (const op of part.ops) ops.push({ ...op, pos: start + op.pos, depth: base + op.depth });
   }
+  return withRunning(ops, running);
+}
+
+/**
+ * A log with the document's running elements laid in, each at the position the flow stood at where it was written: {@link documentOpsOf}'s `running`, for a log walked without them.
+ *
+ * @remarks
+ * A running element has no word of its own, so it joins the log before every operation past its position: the log stays in position order, which the replay's early stop needs. Its depth is infinite, so it ends no counter scope.
+ */
+export function withRunning(ops: Op[], running: ReadonlyArray<{ name: string; pos: number; }>): Op[] {
   if (!running.length) return ops;
-  // A running element has no word of its own, so it joins the log at the position the flow stood at, before every operation past it: the log stays in position order, which the replay's early stop needs. Its depth is infinite, so it ends no counter scope.
   const merged: Op[] = [];
   let r = 0;
   for (const op of ops) {

@@ -14,6 +14,7 @@ const settleReads = byShape(settleReadsTyped);
 class Sheet {
   text = '';
   writes = 0;
+  cssRules: any[] = [];
   replaceSync(text: string) { this.text = text; this.writes++; }
 }
 
@@ -122,4 +123,23 @@ test('two identical settles write the delivery sheet once and log nothing (`read
   assert.equal(doc.adoptedStyleSheets.length, 1);
   assert.equal(doc.adoptedStyleSheets[0].writes, 1, 'the second settle found the same text and wrote nothing');
   assert.deepEqual(logged, [], 'a settle with nothing unsettled says nothing');
+});
+
+test('a counter reference hands the run the counter log its walk took, so the run walks once; a text reference hands none (`cicero-counter-walk-twice-per-load`)', async () => {
+  const counterRead = encodeRead({ fn: 'counter', attr: 'href', url: null, counter: 'fig', style: 'decimal' });
+  const handed = async (prop: string) => {
+    const link = el('a', { href: '#f' }, [text('see')]);
+    const figure = el('figure', { id: 'f' }, [text('Figure')]);
+    const block = el('p', {}, [link]);
+    const section = el('section', {}, [figure]);
+    const doc: any = documentOf(prop, [block, section]);
+    doc.defaultView.getComputedStyle = (e: any) => (e === figure ? { counterIncrement: 'fig 1' } : {});
+    let ops: any = undefined;
+    const result = await settle(doc, { blocksOf: () => [block, section], originals: [block, section], run: async (laid: any) => { ops = laid.ops; return { index: laid.index, account: [] }; } });
+    return { ops, result };
+  };
+  const counted = await handed(counterRead);
+  assert.equal(counted.result.delivered.get('[href="#f"]').get(counterRead), cssString('1'), 'the reference reads the figure`s own increment');
+  assert.ok(counted.ops?.some((op: any) => op.increment.some(([name]: [string, number]) => name === 'fig')), `the run is handed the log: ${counted.ops?.length} ops, ${JSON.stringify(counted.ops?.map((op: any) => op.increment))}`);
+  assert.equal((await handed(textRead)).ops, null, 'no counter reference, no walk to hand on');
 });

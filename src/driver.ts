@@ -24,7 +24,7 @@ import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, regis
 import { snapshotOfStyle } from './forcing-memo.ts';
 import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, truncateFrom } from './fragments.ts';
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
-import { documentOpsOf, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
+import { documentOpsOf, withRunning, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
 import { ARTIFACT, HOST, hasWord } from './data-beltype.ts';
 import { blockChildrenOf, footerBeforeRows, inDisplayOrder, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
@@ -612,6 +612,8 @@ export function paginate(doc: Document, opts: { composed?: boolean; compositionC
   const boxes = opts.originals ?? topLevelBoxes(doc);
   const hasMarks = answerHas(doc, boxes, keep);
   performance.measure('cicero:has-words', { start: t0, end: performance.now(), detail: { boxes: boxes.length, marked: hasMarks.size, ...(memo ? { memo: memo.tally.has ?? null } : {}) } });
+  // Before the reads' counter walk, whose log the run takes: the reason is paginateOnce's, where the call stays for a caller that runs once.
+  registerGcpmProperties(doc.defaultView);
   return settleReads(doc, { run: (laid) => paginateOnce(doc, opts, laid, { boxes, hasMarks, memo }), blocksOf: () => opts.blocks ?? topLevelBlocks(doc), originals: opts.originals ?? opts.blocks ?? null, warm: opts.prior && opts.dirtyAt ? opts.prior.delivered : null, warmFacts: opts.prior && opts.dirtyAt ? opts.prior.facts ?? null : null, hide: !!opts.pace, keep });
 }
 
@@ -730,11 +732,13 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
    * The ancestors are `html` and `body` — every top-level block is a body child — and they are recorded before the document's first word, which is what puts a `body { counter-reset }` in force on page one.
    */
   const ancestors = [doc.documentElement, doc.body].filter(Boolean);
-  const documentOps = documentOpsOf(blocks, index, {
+  const runningAt = running.map((r) => ({ name: r.name, pos: runningPosition(r, index) }));
+  // The reads' walk, where they took one, is this walk under their marks: a mark ends what an operation at its depth would end, and adds nothing else (`reads.ts`' `settleReads`).
+  const documentOps = laid.ops ? withRunning(laid.ops, runningAt) : documentOpsOf(blocks, index, {
     styleOf: (el) => win.getComputedStyle(el),
     pseudoStyleOf: sheetsCountInPseudos(doc) ? (el, pseudo) => win.getComputedStyle(el, pseudo) : null,
     ancestors,
-    running: running.map((r) => ({ name: r.name, pos: runningPosition(r, index) })),
+    running: runningAt,
     keep: memo?.keep
   });
   // The same walk's second reading (*the host rewrites what the parser drops*, 2026-09-14): every named-string assignment the document makes, with the position it sits at. Evaluated here, where the source is still in its real ancestor chain — `content()` is the element's own text and would come back right from an unassigned slottable, but `counter()` inside a content list would not, and neither would anything inherited.
