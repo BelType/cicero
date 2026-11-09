@@ -110,3 +110,13 @@ test('a block-end padding taller than the page area is spent across pages, and t
   assert.deepEqual(ours.flat(), ['Hello', 'after']);
   assert.ok(ours.length >= 3, `the padding spans the pages: ${ours.length}`);
 });
+
+test('an <object> whose data fails is measured at its fallback, and a fallback picture taller than the page is cut as Chromium cuts it', async () => {
+  const tall = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="700"><rect width="100" height="700" fill="teal"/></svg>')}`;
+  const body = `<p>before</p><object data="/nope.png" style="display: block"><img style="display: block" src="${tall}" width="100" height="700" alt="a tall picture"></object><p>after</p>`;
+  const theirs = await chromiumPrint(body);
+  const ours = await ciceroPages('object-fallback', body);
+  assert.ok(Array.isArray(ours), `refused: ${(ours as { refused: string }).refused}`);
+  assert.equal(ours.length, theirs.length, `pages: ${JSON.stringify(ours)} against ${JSON.stringify(theirs)}`);
+  assert.deepEqual(ours.flat(), ['before', 'after'], JSON.stringify(ours) + JSON.stringify(theirs));
+});

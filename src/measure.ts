@@ -123,10 +123,30 @@ export async function awaitImages(scope: Document|Element|Element[]): Promise<nu
 export async function awaitCloneImages(container: HTMLElement): Promise<boolean> {
   let unsettled = false;
   for (const img of container.querySelectorAll('img')) if (!img.complete) { unsettled = true; break; }
-  if (!unsettled) return false;
-  await awaitImages(container);
+  const objects = objectsFetching(container);
+  if (!unsettled && !objects.length) return false;
+  await Promise.all([unsettled ? awaitImages(container) : null, ...objects]);
   void container.offsetHeight;
   return true;
+}
+
+/**
+ * The clones' `<object>` elements that fetch their `data`, each as a promise of its `load` or `error`. A copy of an `<object>` fetches its data again and is 0 by 0 until the fetch answers, and only then does it show its resource or its fallback content (measured 2026-11-09: a copy of an object whose data fails measured 0 px in the turn it was mounted, 150 px at its `error` and 700 px, its fallback's height, one task later). Measured early, an object whose fallback is taller than the page was cut as nothing and presented clipped on one page (`cicero-object-fallback-throws`, assessment 2026-11-07). An object has no `complete`, so every fetching copy is awaited, and one that never answers is given up after two seconds rather than holding the run.
+ */
+function objectsFetching(container: HTMLElement): Promise<unknown>[] {
+  const win = container.ownerDocument.defaultView as Window;
+  const out: Promise<unknown>[] = [];
+  for (const o of container.querySelectorAll('object[data]')) {
+    if (o.getAttribute('is') || win.getComputedStyle(o).display === 'none') continue; // a presenter's element and a hidden one are measured by nobody's fetch
+    out.push(new Promise((resolve) => {
+      // The fallback is laid out a task after `error` fires (measured: 150 px, the default object size, at the event; 700 px a `setTimeout(0)` later), so the promise settles one task after the event.
+      const later = () => setTimeout(resolve, 0);
+      o.addEventListener('load', later, { once: true });
+      o.addEventListener('error', later, { once: true });
+      setTimeout(resolve, 2000); // ponytail: a fixed ceiling for a fetch that never answers; the rim hears nothing of an object, so a later answer is not re-cut
+    }));
+  }
+  return out;
 }
 
 /** What a page publishes on its host, as a measure container wears it: the page counters reset (`page N pages T`) and the named strings' custom properties (*the page carries its conditions*, 2026-10-21). */
