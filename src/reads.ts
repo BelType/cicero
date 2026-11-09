@@ -352,6 +352,10 @@ function targetOf(doc: Document, fragment: string, originals: Element[]|null): E
 /** The engine's one delivery sheet per scope, replaced at every delivery and withdrawn when a paginate finds nothing to deliver. A scope is any object the host holds for one view of the document (the document itself where none is named), so two hosts in one document keep a sheet each (fix/scope-per-view, 2026-11-08). */
 const SHEETS = new WeakMap<object, CSSStyleSheet>();
 
+/** The text each engine sheet last carried: a sheet whose text is unchanged is not rewritten, since `replaceSync` restyles the document whether or not anything differs (*the reads loop writes only what changed*, CHANGELOG Unreleased). */
+const SHEET_TEXT = new WeakMap<any, string>();
+const write = (sheet: any, text: string) => { if (SHEET_TEXT.get(sheet) !== text) { sheet.replaceSync(text); SHEET_TEXT.set(sheet, text); } };
+
 /** Every sheet the engine made, whatever its scope: what {@link isDeliverySheet} asks. */
 const OWN = new WeakSet<object>();
 
@@ -363,7 +367,7 @@ export function deliver(doc: Document, values: Values, scope: object = doc) {
     SHEETS.set(scope, sheet);
     OWN.add(sheet);
   }
-  sheet.replaceSync(deliverySheetText(values));
+  write(sheet, deliverySheetText(values));
   if (!doc.adoptedStyleSheets.includes(sheet)) doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
 }
 
@@ -407,7 +411,7 @@ export function hideReservations(doc: Document, sites: Pick<Site,'key'|'pseudos'
     HIDERS.set(scope, sheet);
     OWN.add(sheet);
   }
-  sheet.replaceSync(text);
+  write(sheet, text);
   if (!doc.adoptedStyleSheets.includes(sheet)) doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
 }
 
@@ -662,6 +666,6 @@ export async function settleReads<R extends { account: any[], index: ReturnType<
   if (unplaced.length) console.warn(`BelType/Cicero: ${named(unplaced)} — this target is outside the flow (a running element, a fixed box), so it lands on no page and the reference shows nothing.`);
   if (moved.length) console.warn(`BelType/Cicero: after ${runs} runs the page numbers of ${named(moved)} still move their own lines — the last true values stand, on a layout measured with the values before them.`);
   const pageReads = sites.filter((s) => isPageRead(s.read)).length;
-  console.info(`BelType/Cicero: ${sites.length} reference(s) read (${pageReads} page, ${sites.length - pageReads} counter or text) and ${pageSites?.length ?? 0} site(s) reading their own page; the pages settled in ${runs} run${runs === 1 ? '' : 's'}.`);
+  if (moved.length) console.info(`BelType/Cicero: ${sites.length} reference(s) read (${pageReads} page, ${sites.length - pageReads} counter or text) and ${pageSites?.length ?? 0} site(s) reading their own page; the pages settled in ${runs} run${runs === 1 ? '' : 's'}.`);
   return { ...result, resumed, why, delivered: found ? (moved.length ? laidUnder : merged(fixed.values, delivered)) : null, facts: moved.length ? laidFacts : facts, reads: { references: sites.length, pageSites: pageSites?.length ?? 0, runs, unsettled: moved.map(name) } };
 }

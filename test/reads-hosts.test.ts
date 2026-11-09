@@ -13,7 +13,8 @@ const settleReads = byShape(settleReadsTyped);
 /** A constructed sheet's double: it keeps the text it is given. */
 class Sheet {
   text = '';
-  replaceSync(text: string) { this.text = text; }
+  writes = 0;
+  replaceSync(text: string) { this.text = text; this.writes++; }
 }
 
 /** An element double: what the loop's walks read of a tree, and nothing more. Selectors are tag names. */
@@ -102,4 +103,23 @@ test('a run that answers complete: false keeps the reservations hidden and the w
   const hider = doc.adoptedStyleSheets.find((s: any) => /visibility: hidden/.test(s.text));
   assert.ok(hider, 'the reservation is still painted invisible: its target is not cut yet');
   assert.equal(result.delivered.get('[href="#later"]').get(pageRead), cssString(RESERVATION), 'and the table kept for the next run is the one it was laid out under');
+});
+
+test('two identical settles write the delivery sheet once and log nothing (`reads-loop-writes-each-keystroke`)', async () => {
+  const link = el('a', { href: '#intro' }, [text('see')]);
+  const target = el('h2', { id: 'intro' }, [text('Introduction')]);
+  const block = el('p', {}, [link]);
+  const section = el('section', {}, [target]);
+  const doc = documentOf(textRead, [block, section]);
+  const logged: string[] = [];
+  const { info, warn } = console;
+  console.info = console.warn = (m: string) => { logged.push(m); };
+  try {
+    for (let i = 0; i < 2; i++) await settleReads(doc, { run: async (laid: any) => ({ index: laid.index, account: [] }), blocksOf: () => [block, section], originals: [block, section] });
+  } finally {
+    Object.assign(console, { info, warn });
+  }
+  assert.equal(doc.adoptedStyleSheets.length, 1);
+  assert.equal(doc.adoptedStyleSheets[0].writes, 1, 'the second settle found the same text and wrote nothing');
+  assert.deepEqual(logged, [], 'a settle with nothing unsettled says nothing');
 });

@@ -443,6 +443,37 @@ export function isFixedBox(el: Element): boolean {
   return fixed;
 }
 
+const OUTSIDE = new WeakMap<any, boolean>();
+
+/**
+ * Is this child a float standing wholly in its parent's padding or border, a hanging number (Codeberg issue 7)? Such a float shortens none of the parent's line boxes, so it is no part of the text being set: the composed mode skips it, in the child check and in the word walk, and leaves it where the browser put it. Any other float still makes the parent a block of floats and refuses.
+ *
+ * @remarks
+ * Asked through the registered source and kept per source, as {@link isFixedBox} is, for the same reasons: a clone detached from the document has no rect, and the source's layout does not move within a run. An unregistered, disconnected element answers false.
+ */
+export function isOutsideMarker(el: Element): boolean {
+  const live = SOURCE_OF.get(el) ?? el;
+  const win = live.ownerDocument?.defaultView;
+  const parent = live.parentElement;
+  if (!win || !parent || live.isConnected !== true) return false;
+  let outside = OUTSIDE.get(live);
+  if (outside === undefined) {
+    outside = false;
+    if (win.getComputedStyle(live).float !== 'none') {
+      const ps = win.getComputedStyle(parent);
+      const p = parent.getBoundingClientRect();
+      const f = live.getBoundingClientRect();
+      const left = p.left + parseFloat(ps.borderLeftWidth) + parseFloat(ps.paddingLeft);
+      const right = p.right - parseFloat(ps.borderRightWidth) - parseFloat(ps.paddingRight);
+      const top = p.top + parseFloat(ps.borderTopWidth) + parseFloat(ps.paddingTop);
+      const bottom = p.bottom - parseFloat(ps.borderBottomWidth) - parseFloat(ps.paddingBottom);
+      outside = !(f.left < right && f.right > left && f.top < bottom && f.bottom > top);
+    }
+    OUTSIDE.set(live, outside);
+  }
+  return outside;
+}
+
 /** Does this box hold a `position: fixed` box anywhere inside it? The question `root.js` asks to know whether a block may be presented as its original or must be presented as a stripped clone — asked through `isFixedBox`, so the two can never disagree about which boxes count. */
 export function holdsFixedBox(el: Element): boolean {
   for (const child of el.children) {

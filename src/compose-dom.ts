@@ -16,7 +16,7 @@ import { addWord, AWAY, BREAK, FILL, hasWord } from './data-beltype.ts';
 import { createMeasureContext } from './measure.ts';
 import { indexBlocks, pageIntervals, presentationWidths } from './positions.ts';
 import { hyphenationOffsets, languageFor, resolveLimits } from './hyphenate.ts';
-import { BREAKING_SPACE, measuringCopyOf, HTML_NS, isAtom, isFixedBox, isInlineBox, isInlineLevel, noteEngineText, rangeOf, sourceOf, splitTextAt, UNSPACED_SCRIPT } from './word-space.ts';
+import { BREAKING_SPACE, measuringCopyOf, HTML_NS, isAtom, isFixedBox, isInlineBox, isInlineLevel, isOutsideMarker, noteEngineText, rangeOf, sourceOf, splitTextAt, UNSPACED_SCRIPT } from './word-space.ts';
 import { attributesOf, blockKey, CompositionCache, lookup, paragraphKey, remember, shapeOf } from './composition-key.ts';
 import type { Hints, Measure, RunPosition } from './compositor.ts';
 import type { HyphenateLimits, Language } from './hyphenate.ts';
@@ -64,7 +64,7 @@ export function isComposable(el: Element) {
   if (!PARAGRAPH_DISPLAY.has(cs.display) || cs.whiteSpace !== 'normal') return false;
   for (const child of el.children) {
     if (child.tagName === 'BR') continue;
-    if (!isInlineBox(child)) return false;
+    if (!isInlineBox(child) && !isOutsideMarker(child)) return false;
   }
   for (let a = el.parentElement; a; a = a.parentElement) if (isAtom(a)) return false;
   if (inColumns(el)) return false;
@@ -131,6 +131,8 @@ export function collectWords(el: Element): { words: Word[]; runs: { start: numbe
           }
           i = j;
         }
+      } else if (child.nodeType === 1 && isOutsideMarker(child as Element)) {
+        // a hanging number: out of the text being set
       } else if (child.nodeType === 1 && (child as Element).tagName === 'BR') {
         current = null;
         if (words.length && runStarts[runStarts.length - 1] !== words.length) runStarts.push(words.length);
