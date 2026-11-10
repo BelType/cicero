@@ -50,6 +50,7 @@ async function pagesOf(name: string, body: string, runs = 1, bodyStyle = ''): Pr
   await page.waitForFunction(() => (window as any).__beltypeCicero?.run);
   const out = await page.evaluate(async (runs) => {
     for (let i = 0; i < runs; i++) await (window as any).__beltypeCicero.run();
+    const left = document.querySelectorAll('#__beltype-measure').length;
     const pages = [...document.querySelector('beltype-root')!.shadowRoot!.querySelectorAll('beltype-page')];
     // A page's content is the root's light children assigned to the slot it adopted; a part kept hollow outside the interval is not displayed, so only visible text counts.
     return pages.map((p) => [...(p.querySelector(':scope > slot') as HTMLSlotElement).assignedNodes()].flatMap((el) => {
@@ -57,7 +58,7 @@ async function pagesOf(name: string, body: string, runs = 1, bodyStyle = ''): Pr
       const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.parentElement?.checkVisibility()) words.push(n.nodeValue ?? '');
       return words;
-    }).join(' ').split(/\s+/).filter(Boolean).join(' '));
+    }).join(' ').split(/\s+/).filter(Boolean).join(' ')).concat(left ? [`${left} measure containers left in the document`] : []);
   }, runs);
   await page.context().close();
   return out;
@@ -94,4 +95,11 @@ test('a name on an inline-block does not apply (page-name-inline-block-003)', as
 
 test('an inline box standing in the body is in an anonymous block named by the body, so the block after it switches (page-name-canvas-001, with words)', async () => {
   assert.deepEqual(await pagesOf('inline-run', '<span style="page:b">x</span><div style="page:b">b</div>', 1, 'page:a'), ['x', 'b']);
+});
+
+test('each named page keeps its own margins, and a context put away at a width change leaves nothing in the flow (page-name-margin-001, -002)', async () => {
+  const style = '<style>@page a { margin: 0 } @page b { margin: 30px } @page c { margin: 60px }</style>';
+  assert.deepEqual(await pagesOf('margins-1', `${style}<div style="page:a">a</div><div style="page:b">b</div><div style="page:c">c</div>`), ['a', 'b', 'c']);
+  const style2 = '<style>@page a { margin: 60px } @page { margin: 0 }</style>';
+  assert.deepEqual(await pagesOf('margins-2', `${style2}<div>a</div><div style="page:a">b</div>`), ['a', 'b']);
 });

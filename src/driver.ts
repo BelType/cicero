@@ -1296,6 +1296,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     const conditions = conditionsFor(account.length);
     const recreated = ctx === null || conditions.contentW !== ctxWidth;
     if (recreated) {
+      ctx?.dispose(); // each context seats a container of its own (since 2026-11-06), and one left standing is laid out in the document and printed
       ctx = createMeasureContext(doc, conditions.contentW);
       ctxWidth = conditions.contentW;
     }
