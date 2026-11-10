@@ -95,14 +95,31 @@ test('the index keeps the walk\'s refusals and its names-only question', () => {
     box('Q', { page: 'wide' }),
     box('R', { page: 'wide', breakBefore: 'page' })
   );
-  // Nothing inside the float and nothing on the absolutely positioned box forces; the float's own break-after is not read either. The first event is the named page.
-  const named = index.find(at([0]), '');
+  // Nothing inside the float and nothing on the absolutely positioned box forces; the float's own break-after does (css-break-3 §3.1's should), pending into P. The next event is the named page.
+  assert.deepEqual(answer(index.find(at([0]), '')), ['P', [0, 2], null]);
+  const named = index.find(at([0, 2]), '');
   assert.deepEqual(answer(named), ['Q', [1], null]);
   assert.equal(named.namedSwitch, true);
   // Asked under the new name, the switch is gone and R's forced break-before is next; asked for names alone, R is not an event at all. All three answers are the old walk's.
   assert.deepEqual(answer(index.find(at([1]), 'wide')), ['R', [2], null]);
   assert.equal(index.find(at([1]), 'wide').namedSwitch, false);
   assert.equal(index.find(at([1]), 'wide', { namesOnly: true }), null);
+});
+
+/** css-page-3 §8.1's start and end page values, DOM-free: a name break stands where the end page value before a class A break point and the start page value after it differ, read among boxes the `page` property applies to (the WPT `css-page/page-name-*` shapes). */
+const breaks = (index: any) => { const out: string[] = []; let at = at0; for (let f = index.find(at, ''); f; f = index.find(at, '')) { out.push(f.el.id); at = f.cut; } return out; };
+const at0 = { path: [0], word: null, px: null };
+
+test('a start page value propagates from the deepest first child, and an end page value from the last (page-name-propagated-001, -002)', () => {
+  assert.deepEqual(breaks(indexOver(box('A', { page: 'a' }), box('B', { page: 'b' }, box('C', { page: 'c' }, box('D', { page: 'a' }))))), []);
+  assert.deepEqual(breaks(indexOver(box('A', { page: 'a' }), box('B', { page: 'b' }, box('E', { page: 'e' }, box('F', { page: 'a' })), box('C', { page: 'c' })), box('D', { page: 'd' }))), ['C', 'D']);
+});
+
+test('a name on a flex item, a float or an inline-block forces nothing; inside a flex item the block flow switches again (page-name-flex-001, -004, float-001, inline-block-003)', () => {
+  assert.deepEqual(breaks(indexOver(box('A'), box('F', { display: 'flex' }, box('B', { page: 'b' }), box('C', { page: 'c' })), box('D'))), []);
+  assert.deepEqual(breaks(indexOver(box('A'), box('F', { display: 'flex' }, box('I', {}, box('B', { page: 'a' }), box('C', { page: 'b' }))), box('D'))), ['C']);
+  assert.deepEqual(breaks(indexOver(box('A', { page: 'a', float: 'left' }), box('B', { page: 'b' }))), []);
+  assert.deepEqual(breaks(indexOver(box('A', { page: 'a', display: 'inline-block' }), box('B', { page: 'b', display: 'inline-block' }))), []);
 });
 
 /** The Cast-off's arithmetic, DOM-free (*the Cast-off bounds the feed*, 2026-09-26): the number read off the account, and the place it names on the grab's own list. The tree is the decision record's worked example — a section of two paragraphs, a three-row table and two more paragraphs, forty words a paragraph and twenty a row. What the feed then does, and the check that pours it again, is geometry, and is proved next door in `packages/essay`. */

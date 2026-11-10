@@ -27,7 +27,7 @@ import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inR
 import { documentOpsOf, withRunning, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
 import { ARTIFACT, HOST, hasWord } from './data-beltype.ts';
-import { blockChildrenOf, footerBeforeRows, inDisplayOrder, isFixedBox, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
+import { blockChildrenOf, footerBeforeRows, inDisplayOrder, isFixedBox, isInlineLevel, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
 import { changedPairs, settleReads } from './reads.ts';
 import { converge, holderPage, namesNoPlace, priorKeys, restartPage } from './resume.ts';
 import { readScope, foldTallColumns } from './scope.ts';
@@ -48,12 +48,12 @@ export type ForcingEvent = {
   b: number;
   el: Element;
   cut: Address;
-  /** Its effective page name. */
-  name: string;
+  /** A class A break point stands in front of it where the end page value before and its start page value differ (css-page-3 §8.1), so a page break is forced there and the page after it takes its start page value. */
+  nameBreak: boolean;
   /** Its `break-before` is forced. */
   before: boolean;
   beforeParity: 'left' | 'right' | null;
-  /** Its `break-after` is forced, read only of an in-flow box. */
+  /** Its `break-after` is forced, read of an in-flow box and of a float (css-break-3 §3.1). */
   after: boolean;
   afterParity: 'left' | 'right' | null;
   /** The index just past its subtree. */
@@ -168,10 +168,39 @@ export function gapAbove(box: Box, report: ReturnType<typeof takeReport>, win: W
   return gap;
 }
 
+/** The displays besides a block container's whose children stand at class A break points: a table's row groups and a row group's rows (css-break-3 §4.1). */
+const ROWS_HOLDER = /^(inline-)?table$|^table-(row-group|header-group|footer-group)$/;
+
+/** Does a box of this display lay its children out at class A break points, a block container's in-flow block-level children or a table's rows (css-break-3 §4.1)? A flex or grid container does not: css-page-3 §8.1 gives `page` to no flex or grid item. */
+const laysClassA = (display: string) => holdsAnonymousBlocks(display) || ROWS_HOLDER.test(display);
+
 /**
- * The effective page name of the deepest in-flow block that begins where a box does (css-page-3 §8.1): down the box's first in-flow block child while no run of words stands before that child, then `effectivePageName` from the box found. A first in-flow block child begins exactly where its parent does (§3.1.1's own coincidence), so the deepest box that starts the page is the end of the first-child chain.
+ * Does the `page` property apply to a box (css-page-3 §8.1, *"boxes that create class A break points"*)? An in-flow block-level box whose parent lays its children at class A break points (css-break-3 §4.1), and a table's row group or row.
  *
- * @remarks The driver's `nameAt` asks this of a cut that resumes at a box whole, with the position index's word counts for `runBefore`; a host with no index passes its own reading of the same question (*the engine knows no view*). Two reads are the host's: how a box's style is asked, and whether a run stands before a child.
+ * @remarks
+ * css-break-3 §4.1 counts *"a float and an immediately-adjacent in-flow or floated box"* among class A points too; the WPT tests `css-page/page-name-float-001` and `-002` have a name on a float force nothing, as Chromium prints them, and the engine follows the tests. A flex item, a grid item, a table cell and an inline-level box are not boxes it applies to (`page-name-flex-*`, `page-name-inline-block-003`).
+ *
+ * @param parent - the parent box's style, or null where the box stands in the body and nothing reads it.
+ */
+export function pageApplies(st: CSSStyleDeclaration, parent: CSSStyleDeclaration|null): boolean {
+  if (isOutOfFlow(st)) return false;
+  const display = st.display ?? '';
+  if (isInlineLevel(display) || /^table-(cell|column|column-group|caption)$/.test(display)) return false;
+  return laysClassA(parent?.display ?? 'block');
+}
+
+/**
+ * The used page name of the box at `el` (css-page-3 §8.1): `effectivePageName` where the property applies to it, else its parent's. A box it does not apply to takes no name of its own; an inline box standing among blocks is in an anonymous block box, which the property applies to, named as its parent is.
+ */
+export function usedPageName(el: Element, styleOf: (el: Element) => CSSStyleDeclaration): string {
+  const parent = el.parentElement;
+  return !parent || pageApplies(styleOf(el), styleOf(parent)) ? effectivePageName(el) : effectivePageName(parent);
+}
+
+/**
+ * The start page value of a box (css-page-3 §8.1): *"the value (if any) propagated from its first … child box, else the used value on the box itself"*, where *"a child propagates its own start … page value if and only if the page property applies to it"*. So down the first in-flow child while it is a box the property applies to ({@link pageApplies}) and no run of words stands before it, then {@link usedPageName} from the box found. The driver's `nameAt` names a page by it, and the forcing index compares it against the end page value before it.
+ *
+ * @remarks The driver's `nameAt` asks this of a cut that resumes at a box whole, with the position index's word counts for `runBefore`; a host with no index passes its own reading of the same question (*the engine knows no view*). Two reads are the host's: how a box's style is asked, and whether a run stands before a child. A run before the child is the box's first child box, an anonymous block box, which carries the box's own used value.
  *
  * @param el - The box the page begins in.
  * @param reads.runBefore - Whether a line of words stands before `child` in `parent`, which is the page's first content and the container's.
@@ -179,11 +208,13 @@ export function gapAbove(box: Box, report: ReturnType<typeof takeReport>, win: W
  */
 export function pageNameDownFrom(el: Element, { styleOf, runBefore, blockChildren = blockChildrenOf }: { styleOf: (el: Element) => CSSStyleDeclaration; runBefore: (parent: Element,child: Element) => boolean; blockChildren?: typeof blockChildrenOf; }): string {
   for (;;) {
+    const st = styleOf(el);
+    if (isOutOfFlow(st) || !laysClassA(st.display ?? '')) break; // a page a float begins is named by the float's place in the flow, never by its interior
     const next = blockChildren(el).find((c) => !isOutOfFlow(styleOf(c)));
-    if (!next || runBefore(el, next)) break;
+    if (!next || runBefore(el, next) || !pageApplies(styleOf(next), st)) break;
     el = next;
   }
-  return effectivePageName(el);
+  return usedPageName(el, styleOf);
 }
 
 /**
@@ -297,7 +328,7 @@ export const combineParity = (earlier: 'left'|'right'|null, later: 'left'|'right
  *
  * This used to be a loop over consecutive feed items, and a feed item is a top-level block — so a command declared on a descendant was invisible, which is every heading in every BelType document since the belt began wrapping them in sections. The law (*no forced break lies inside an interval*, C1) always required this reading; the mechanism was narrower than the law. Descending closes it at word granularity, and §3.1.1's child→parent propagation falls out as a corollary rather than as walks: a `break-before` on a first in-flow child sits at the same word position as its container's start edge, and a `break-after` on a last in-flow child at the same position as its container's end, so the descent finds both where a promotion would have put them. `forcedBreakAfter` — the third of the rule's four walks, and the only forced one ever built — is deleted for exactly that reason.
  *
- * What the walk refuses to enter, each for its own citation: an absolutely positioned box (§3.1's must not — it neither carries forcing nor receives it, and §4.3's name switch is forcing under another name), a float's interior (§2.1 — a forced break inside a parallel flow does not affect the content outside it), and a monolith's interior (*the line box is the atom*, I3, and §4.1 in as many words: a forced break inside monolithic content must be ignored). A float's and a monolith's own commands are still read, which keeps case 14's declared §3.1 divergence exactly where the sixth round left it — except `break-after` on an out-of-flow box, which `forcedBreakAfter` never read either and which this walk goes on not reading rather than changing two things at once.
+ * What the walk refuses to enter, each for its own citation: an absolutely positioned box (§3.1's must not — it neither carries forcing nor receives it, and §4.3's name switch is forcing under another name), a float's interior (§2.1 — a forced break inside a parallel flow does not affect the content outside it), and a monolith's interior (*the line box is the atom*, I3, and §4.1 in as many words: a forced break inside monolithic content must be ignored). A float's and a monolith's own commands are still read: §3.1 says *"User agents should also apply these properties to floated boxes whose containing block is in the normal flow of the root fragmented element"*, so a float's forced `break-before` falls before its place in the flow and its forced `break-after` is pending into the box or run after it, never inside the float. A float the walk reaches has a containing block in that flow, since it never enters a float's or an absolutely positioned box's interior.
  *
  * `namesOnly` answers the composition region's version of the question. A name switch is the only forcing that changes the measure, so it is the only forcing a region must stop at: lines past a forced break are composed at the right width and merely unused.
  *
@@ -321,38 +352,74 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
   /**
    * @param [rowish]
    */
-  const visit = (el: Element, b: number, sealedBy: number, rowish: boolean = false) => {
+  /**
+   * css-page-3 §8.1's two values ride the walk: `visit` answers a box's start and end page values where it stands among its siblings at class A break points — a box the property applies to, or an inline box standing among blocks, which is an anonymous block box named as its parent is — and null for any other. Each sibling whose start value differs from the end value before it is a name break.
+   *
+   * @param [rowish]
+   * @param parentStyle - the parent's style, null in the body where nothing reads it.
+   * @param parentName - the parent's used page name, which an anonymous block box in it takes.
+   */
+  const visit = (el: Element, b: number, sealedBy: number, rowish: boolean, parentStyle: CSSStyleDeclaration|null, parentName: string): { start: string; end: string; }|null => {
     const st = styleOf(el);
-    if (isAbsolutelyPositioned(st)) return; // §3.1's must not: it neither carries forcing nor receives it, so it is not an event at all
+    if (isAbsolutelyPositioned(st)) return null; // §3.1's must not: it neither carries forcing nor receives it, so it is not an event at all
     const parallel = isOutOfFlow(st);
-    const e: ForcingEvent = { b, el, cut: cutOf(el, b), name: pageNameOf(el), before: isForced(st.breakBefore), beforeParity: parityOf(st.breakBefore), after: false, afterParity: null, end: 0, pos: posOf(el, b), inFlow: !parallel, sealedBy, rowish };
+    const applies = pageApplies(st, parentStyle);
+    const anonymous = !applies && !parallel && isInlineLevel(st.display ?? '') && laysClassA(parentStyle?.display ?? 'block');
+    const used = applies ? pageNameOf(el) : parentName;
+    const e: ForcingEvent = { b, el, cut: cutOf(el, b), nameBreak: false, before: isForced(st.breakBefore), beforeParity: parityOf(st.breakBefore), after: false, afterParity: null, end: 0, pos: posOf(el, b), inFlow: !parallel, sealedBy, rowish };
     const k = events.length;
     events.push(e);
     const inner = sealedBy >= 0 ? sealedBy : neverCutInside(el, st) ? k : -1;
+    let first: string|null = null;
+    let last: string|null = null;
     if (!parallel && !monolith(el, st)) {
       const kids = blockChildren(el);
-      const runs = !!extentOf && holdsAnonymousBlocks(st.display ?? '');
+      // A run of lines among block children is an anonymous block box, or in a flex or grid container an anonymous item (CSS Flexbox §4, CSS Grid §6), which a forced break before it reaches the same way.
+      const runs = !!extentOf && (holdsAnonymousBlocks(st.display ?? '') || /^(inline-)?(flex|grid)$/.test(st.display ?? ''));
       const row = rowish || SIDE_BY_SIDE.has(st.display ?? '');
+      const flow = laysClassA(st.display ?? '');
+      const own = pageNameOf(el);
+      // The siblings' sequence: each box's start against the end before it, a run of lines being an anonymous block box named as `el` is.
+      const meet = (at: number, start: string, end: string) => {
+        if (!flow) return;
+        if (last !== null && last !== start) events[at].nameBreak = true;
+        first ??= start;
+        last = end;
+      };
+      if (runs && kids.length > 0 && (extentOf as NonNullable<typeof extentOf>)(kids[0]).before > (extentOf as NonNullable<typeof extentOf>)(el).before) first = last = own;
       for (let i = 0; i < kids.length; i++) {
-        visit(kids[i], b, inner, row);
+        const at = events.length;
+        const met = visit(kids[i], b, inner, row, st, own);
+        if (met) meet(at, met.start, met.end);
         if (!runs) continue;
         // A run of lines after this child is an anonymous block box, and the box a forced `break-after` closing here is pending into: an event at its first word, in the word space of the box that holds it (*the anonymous box is in the procession*). Words standing between the child's end and the next child's start, or this box's end, are the run; none is no box.
-        const ext = extentOf as NonNullable<typeof extentOf>;
-        const own = ext(el);
-        const done = ext(kids[i]);
+        const extent = extentOf as NonNullable<typeof extentOf>;
+        const ext = extent(el);
+        const done = extent(kids[i]);
         const word = done.before + done.count;
         const next = kids[i + 1];
-        if ((next ? ext(next).before : own.before + own.count) <= word) continue;
-        events.push({ b, el, cut: cutOf(el, b, word - own.before), name: e.name, before: false, beforeParity: null, after: false, afterParity: null, end: events.length + 1, pos: e.pos + word - own.before, inFlow: true, sealedBy: inner, rowish: row, runAfter: kids[i] });
+        if ((next ? extent(next).before : ext.before + ext.count) <= word) continue;
+        events.push({ b, el, cut: cutOf(el, b, word - ext.before), nameBreak: false, before: false, beforeParity: null, after: false, afterParity: null, end: events.length + 1, pos: e.pos + word - ext.before, inFlow: true, sealedBy: inner, rowish: row, runAfter: kids[i] });
+        meet(events.length - 1, own, own);
       }
     }
-    e.after = !parallel && isForced(st.breakAfter); // a float's own break-after was never read, and still is not
+    e.after = isForced(st.breakAfter); // a float's too (§3.1's should): pending into what follows its place in the flow
     e.afterParity = parityOf(st.breakAfter);
     e.end = events.length;
+    if (!applies && !anonymous) return null;
+    return { start: applies ? first ?? used : used, end: applies ? last ?? used : used };
   };
+  const root = blocks[0]?.parentElement ?? null;
+  const rootStyle = root ? styleOf(root) : null;
+  const rootName = root ? pageNameOf(root) : '';
+  let before: string|null = null;
   for (let b = 0; b < blocks.length; b++) {
     blockStart.push(events.length);
-    visit(blocks[b], b, -1);
+    const at = events.length;
+    const met = visit(blocks[b], b, -1, false, rootStyle, rootName);
+    if (!met) continue;
+    if (before !== null && before !== met.start) events[at].nameBreak = true;
+    before = met.end;
   }
   const n = events.length;
   // What the walk carries as `pending` into event k from the boxes that close just in front of it: those whose subtree ends at k, deepest first — a larger index is a deeper box — so the outermost's parity is the one that stands.
@@ -364,12 +431,12 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
   const nextForced = new Array(n + 1).fill(n);
   for (let k = n - 1; k >= 0; k--) nextForced[k] = closing[k] || events[k].before ? k : nextForced[k + 1];
   const nextName = new Array(n + 1).fill(n);
-  for (let k = n - 2; k >= 0; k--) nextName[k] = events[k + 1].name !== events[k].name ? k + 1 : nextName[k + 1];
-  const hit = (k: number, pending: { parity: 'left'|'right'|null; }|null, name: string, namesOnly: boolean) => {
+  for (let k = n - 1; k >= 0; k--) nextName[k] = events[k].nameBreak ? k : nextName[k + 1];
+  const hit = (k: number, pending: { parity: 'left'|'right'|null; }|null, namesOnly: boolean) => {
     const e = events[k];
     const before = !namesOnly && e.before;
     // §4.3's combination at the one break point where two forced values meet: the `break-after` pending into the box, and the box's own `break-before`, the later element in the flow, whose parity wins where it has one. The address is a copy, so no page can reach into the index through it.
-    return { b: e.b, namedSwitch: e.name !== name, el: e.el, cut: { ...e.cut, path: [...e.cut.path] }, parity: combineParity(pending?.parity ?? null, before ? e.beforeParity : null), rowish: e.rowish, runAfter: e.runAfter };
+    return { b: e.b, namedSwitch: e.nameBreak, el: e.el, cut: { ...e.cut, path: [...e.cut.path] }, parity: combineParity(pending?.parity ?? null, before ? e.beforeParity : null), rowish: e.rowish, runAfter: e.runAfter };
   };
   /** The first event strictly after the cursor — a binary search, because a bare address never precedes the one before it in walk order — or `n` where there is none. */
   const firstAfter = ( cursorCut: Address) => {
@@ -386,17 +453,21 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
   };
   return {
     size: n,
-    /** The first forcing event strictly after `cursorCut` for a page named `name`, or null. */
-    find(cursorCut: Address, name: string, { namesOnly = false }: { namesOnly?: boolean; } = {}) {
+    /**
+     * The first forcing event strictly after `cursorCut`, or null.
+     *
+     * @param _name - the page's name, which a host still passes; a name break is the index's own, the end page value before a class A break point against the start page value after it (css-page-3 §8.1), and no longer a box's name against the page's.
+     */
+    find(cursorCut: Address, _name: string, { namesOnly = false }: { namesOnly?: boolean; } = {}) {
       const s = firstAfter(cursorCut);
       if (s >= n) return null;
       // Pending into s: the forced break-afters whose subtree closes exactly in front of it — never one that closed earlier, which was spent where it fell (*a box is not its first child*).
       const pending = namesOnly ? null : closing[s];
-      if (pending || events[s].name !== name || (!namesOnly && events[s].before)) return hit(s, pending, name, namesOnly);
+      if (pending || events[s].nameBreak || (!namesOnly && events[s].before)) return hit(s, pending, namesOnly);
       const k = s + 1;
       if (k >= n) return null;
-      const f = Math.min(events[k].name !== name ? k : nextName[k], namesOnly ? n : nextForced[k]);
-      return f < n ? hit(f, namesOnly ? null : closing[f], name, namesOnly) : null;
+      const f = Math.min(nextName[k], namesOnly ? n : nextForced[k]);
+      return f < n ? hit(f, namesOnly ? null : closing[f], namesOnly) : null;
     },
     /**
      * The Cast-off's place (*the Cast-off bounds the feed*, 2026-09-26): the first block boundary strictly after `cursorCut` whose word position is at least `pos`, where a feed may be cut without moving any box before it — or null, where no such place is left and the feed is the whole remainder.
@@ -765,7 +836,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   performance.measure('cicero:forcing-index', { start: t, end: (t = performance.now()), detail: { events: forcing.size, ...(memo ? { memoHits: memo.hits, memoMisses: memo.misses } : {}) } });
 
   /**
-   * The effective page name at an address: the deepest in-flow block that begins there, then css-page-3 §8.1's ancestor walk from it. A page may begin inside a block whose interior named a different page, so the cursor's block is not the thing to ask.
+   * The page name at an address: the start page value of the box that begins there (css-page-3 §8.1, `pageNameDownFrom`), or, where the page resumes inside a box, that box's used page name. A page may begin inside a block whose interior named a different page, so the cursor's block is not the thing to ask.
    *
    * A bare path resumes at a box whole, and a first in-flow block child begins exactly where its parent does (§3.1.1's own coincidence), so the deepest box that starts the page is the end of the first-child chain — which is where the old search for *the box containing word w* arrived, without the ambiguity a wordless first child gave it. A word or a pixel extent names a box the page resumes inside, and that box is itself the deepest; where the old search read the box after an end gap, it was naming the wrong side of a cut that resumes in the gap.
    */
@@ -773,8 +844,9 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     let el = boxAt(cut);
     if (!el) return '';
     // A line before a child is the page's first content, and it is the container's (*the anonymous box is in the procession*).
-    if (cut.word == null && cut.px == null) return pageNameDownFrom(el, { styleOf: (c) => win.getComputedStyle(c), runBefore: (parent, child) => index.wordsBefore(child) !== index.wordsBefore(parent) });
-    return effectivePageName(el);
+    const styleOf = (c: Element) => win.getComputedStyle(c);
+    if (cut.word == null && cut.px == null) return pageNameDownFrom(el, { styleOf, runBefore: (parent, child) => index.wordsBefore(child) !== index.wordsBefore(parent) });
+    return usedPageName(el, styleOf);
   };
 
   /**
@@ -1331,7 +1403,9 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
       pageStart = (truncateLead ? report.contentTop : 0) + spentLead;
       if (rowForced) {
         /** A forced break inside a box that lays its children side by side is not the grab's to cut at (*a parallel flow is a fragmentainer*, 2026-10-08; *a forced break inside a cell*, P37c): the cut falls in the item's flow and only the row's height crosses the wall, so the feed is not cut at the event — a word position cannot say a cell's place, and cutting there put away the neighbour cell with everything after the paragraph in document order. Whether the event is inside a row item is a fact of the layout, asked here of the report: the box stands inside an item of a row that is not itself inside another item's, and after a sibling in the item's procession (a break before an item's first block is the item's own start). Where it is not, the grab cuts as it always did. An event past the feed the Cast-off bounded is not this page's, and a longer pour may reach it. */
-        const clone = cloneOfSource.get((forcedEvent as NonNullable<typeof forcedEvent>).el);
+        // A run has no box: its event is asked through the block child it follows, after which it stands, so it is never its item's start.
+        const ev = forcedEvent as NonNullable<typeof forcedEvent>;
+        const clone = cloneOfSource.get(ev.runAfter ?? ev.el);
         const at = clone ? report.boxOf(clone) : null;
         rowEventIn = !!clone;
         if (clone) {
@@ -1339,7 +1413,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
           let nested = false;
           for (let a = at?.parent ?? null; a; a = a.parent) if (report.rowOf(a)) { if (item) nested = true; else item = a; }
           const sequence = at ? report.processionOf(at) : [];
-          if (!at || !item || nested || sequence.indexOf(at) < 1 || at.rect.top <= item.rect.top + 0.25) {
+          if (!at || !item || nested || (!ev.runAfter && (sequence.indexOf(at) < 1 || at.rect.top <= item.rect.top + 0.25))) {
             rowForced = false; // not a row's: the grab's, as before
             continue;
           }

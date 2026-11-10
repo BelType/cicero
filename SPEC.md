@@ -178,7 +178,7 @@ Modules: `src/driver.js`, `src/forcing-memo.js`.
 2. A walk that fails to advance the cursor is a defect, and the driver throws it (tablet, *the build cannot fail*, C2).
 3. A bounded feed holds every box that can stand on the page and the first in-flow box that cannot, and it cuts only where block layout is forward (see *the-cast-off-bounds-the-feed*).
 4. The feed is cloned from the cursor's block through the bound's block and no further, and a box outside the page's interval is cloned hollow (see *the-clone-is-hollow-outside-the-interval*).
-5. The grab asks once per page for the first forcing event strictly after the cursor, at any depth, at word granularity (see *the-grab-descends*).
+5. The grab asks once per page for the first forcing event strictly after the cursor, at any depth, at word granularity (see *the-grab-descends*). A float whose containing block is in the normal flow takes its own forced `break-before` and `break-after` at its place in the flow, as an in-flow box there would, and the page it begins is named by that place; an absolutely positioned box takes neither (css-break-3 §3.1).
 6. A box carries a pending `break-after` into an event only if its subtree closes exactly before that event (see *a-box-is-not-its-first-child*).
 7. A forced break inside a row item ends that item's fragment, and the row's neighbours are divided at the row's height (see *a-parallel-flow-is-a-fragmentainer*).
 8. A `position: fixed` box leaves the flow at zero footprint, at any depth (see *the-box-on-every-page*, *a-fixed-box-at-any-depth*).

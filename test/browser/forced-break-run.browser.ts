@@ -107,3 +107,54 @@ test('a second run, reading through the forcing memo, puts the break before the 
 test('break-after: right before a run costs the blank page and puts the run on the right', async () => {
   assert.deepEqual(await pagesOf('parity', '<div><p style="break-after:right">a</p>run of text<p>b</p></div>'), ['a', '', 'run of text b']);
 });
+
+test('break-after before a run inside a table cell falls before the run', async () => {
+  assert.deepEqual(await pagesOf('cell', '<table><tr><td><p style="break-after:page">a</p>run of text<p>b</p></td></tr></table>'), ['a', 'run of text b']);
+});
+
+test('break-after before a run inside a flex item falls before the run', async () => {
+  assert.deepEqual(await pagesOf('flex-item', '<div style="display:flex"><div><p style="break-after:page">a</p>run of text<p>b</p></div></div>'), ['a', 'run of text b']);
+});
+
+test('break-after before a run inside a table cell beside another cell falls before the run, and the neighbour stays on its page', async () => {
+  assert.deepEqual(await pagesOf('cell-row', '<table><tr><td><p style="break-after:page">a</p>run of text<p>b</p></td><td>z</td></tr></table>'), ['a z', 'run of text b']);
+});
+
+test('break-after before a run inside a flex item beside another item falls before the run, and the neighbour stays on its page', async () => {
+  assert.deepEqual(await pagesOf('flex-row', '<div style="display:flex"><div><p style="break-after:page">a</p>run of text<p>b</p></div><div>z</div></div>'), ['a z', 'run of text b']);
+});
+
+test('break-after before a run that is an anonymous flex item of a column falls before the run', async () => {
+  assert.deepEqual(await pagesOf('flex-column', '<div style="display:flex;flex-direction:column"><p style="break-after:page">a</p>run of text<p>b</p></div>'), ['a', 'run of text b']);
+});
+
+// css-break-3 §3.1: "User agents should also apply these properties to floated boxes whose containing block is in the normal flow of the root fragmented element. User agents must not apply these properties to absolutely-positioned boxes." The break falls before the float's place in the flow, never inside it.
+test('break-before on a float inside a paragraph begins a page, and the words before the float stay on the page before', async () => {
+  const pages = await pagesOf('float-before-inline', '<p>alpha beta gamma <span style="float:right;width:100px;break-before:page">plate</span> delta epsilon</p>');
+  assert.equal(pages.length, 2);
+  assert.equal(pages[0], 'alpha beta gamma');
+  assert.match(pages[1], /\bplate\b/);
+  assert.match(pages[1], /\bdelta epsilon\b/);
+});
+
+test('break-before on a float between blocks begins a page', async () => {
+  assert.deepEqual(await pagesOf('float-before', '<p>a</p><div style="float:right;width:100px;break-before:page">plate</div><p>b</p>'), ['a', 'plate b']);
+});
+
+test('break-after on a float between blocks ends its page', async () => {
+  assert.deepEqual(await pagesOf('float-after', '<p>a</p><div style="float:right;width:100px;break-after:page">plate</div><p>b</p>'), ['a plate', 'b']);
+});
+
+test('break-before on an absolutely positioned box forces nothing', async () => {
+  assert.deepEqual(await pagesOf('abspos-before', '<p>a</p><div style="position:absolute;top:0;right:0;width:20px;height:20px;break-before:page"></div><p>b</p>'), ['a b']);
+});
+
+test('break-before on a float inside a float forces nothing, its containing block being out of flow', async () => {
+  assert.deepEqual(await pagesOf('float-in-float', '<p>a</p><div style="float:left;width:150px"><div>x</div><div style="float:right;break-before:page">y</div></div><p>b</p>'), ['a x y b']);
+});
+
+test('a page a float with break-before begins is not named by the float (css-page-3 §8.1: the property does not apply to it)', async () => {
+  // Under `@page plate` the page area holds four lines and the six after the float spill to a third page; unnamed it holds ten.
+  const pages = await pagesOf('float-named', '<style>@page plate { margin: 100px 20px }</style><p>a</p><div style="float:right;width:100px;page:plate;break-before:page"><p style="margin:0">plate</p></div><p>l1<br>l2<br>l3<br>l4<br>l5<br>l6</p>');
+  assert.deepEqual(pages, ['a', 'plate l1 l2 l3 l4 l5 l6']);
+});
