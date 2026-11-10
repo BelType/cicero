@@ -95,8 +95,9 @@ test('the index keeps the walk\'s refusals and its names-only question', () => {
     box('Q', { page: 'wide' }),
     box('R', { page: 'wide', breakBefore: 'page' })
   );
-  // Nothing inside the float and nothing on the absolutely positioned box forces; the float's own break-after is not read either. The first event is the named page.
-  const named = index.find(at([0]), '');
+  // Nothing inside the float and nothing on the absolutely positioned box forces; the float's own break-after does (css-break-3 §3.1's should), pending into P. The next event is the named page.
+  assert.deepEqual(answer(index.find(at([0]), '')), ['P', [0, 2], null]);
+  const named = index.find(at([0, 2]), '');
   assert.deepEqual(answer(named), ['Q', [1], null]);
   assert.equal(named.namedSwitch, true);
   // Asked under the new name, the switch is gone and R's forced break-before is next; asked for names alone, R is not an event at all. All three answers are the old walk's.

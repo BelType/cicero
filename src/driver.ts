@@ -53,7 +53,7 @@ export type ForcingEvent = {
   /** Its `break-before` is forced. */
   before: boolean;
   beforeParity: 'left' | 'right' | null;
-  /** Its `break-after` is forced, read only of an in-flow box. */
+  /** Its `break-after` is forced, read of an in-flow box and of a float (css-break-3 §3.1). */
   after: boolean;
   afterParity: 'left' | 'right' | null;
   /** The index just past its subtree. */
@@ -209,7 +209,7 @@ export function usedPageName(el: Element, styleOf: (el: Element) => CSSStyleDecl
 export function pageNameDownFrom(el: Element, { styleOf, runBefore, blockChildren = blockChildrenOf }: { styleOf: (el: Element) => CSSStyleDeclaration; runBefore: (parent: Element,child: Element) => boolean; blockChildren?: typeof blockChildrenOf; }): string {
   for (;;) {
     const st = styleOf(el);
-    if (!laysClassA(st.display ?? '')) break;
+    if (isOutOfFlow(st) || !laysClassA(st.display ?? '')) break; // a page a float begins is named by the float's place in the flow, never by its interior
     const next = blockChildren(el).find((c) => !isOutOfFlow(styleOf(c)));
     if (!next || runBefore(el, next) || !pageApplies(styleOf(next), st)) break;
     el = next;
@@ -328,7 +328,7 @@ export const combineParity = (earlier: 'left'|'right'|null, later: 'left'|'right
  *
  * This used to be a loop over consecutive feed items, and a feed item is a top-level block — so a command declared on a descendant was invisible, which is every heading in every BelType document since the belt began wrapping them in sections. The law (*no forced break lies inside an interval*, C1) always required this reading; the mechanism was narrower than the law. Descending closes it at word granularity, and §3.1.1's child→parent propagation falls out as a corollary rather than as walks: a `break-before` on a first in-flow child sits at the same word position as its container's start edge, and a `break-after` on a last in-flow child at the same position as its container's end, so the descent finds both where a promotion would have put them. `forcedBreakAfter` — the third of the rule's four walks, and the only forced one ever built — is deleted for exactly that reason.
  *
- * What the walk refuses to enter, each for its own citation: an absolutely positioned box (§3.1's must not — it neither carries forcing nor receives it, and §4.3's name switch is forcing under another name), a float's interior (§2.1 — a forced break inside a parallel flow does not affect the content outside it), and a monolith's interior (*the line box is the atom*, I3, and §4.1 in as many words: a forced break inside monolithic content must be ignored). A float's and a monolith's own commands are still read, which keeps case 14's declared §3.1 divergence exactly where the sixth round left it — except `break-after` on an out-of-flow box, which `forcedBreakAfter` never read either and which this walk goes on not reading rather than changing two things at once.
+ * What the walk refuses to enter, each for its own citation: an absolutely positioned box (§3.1's must not — it neither carries forcing nor receives it, and §4.3's name switch is forcing under another name), a float's interior (§2.1 — a forced break inside a parallel flow does not affect the content outside it), and a monolith's interior (*the line box is the atom*, I3, and §4.1 in as many words: a forced break inside monolithic content must be ignored). A float's and a monolith's own commands are still read: §3.1 says *"User agents should also apply these properties to floated boxes whose containing block is in the normal flow of the root fragmented element"*, so a float's forced `break-before` falls before its place in the flow and its forced `break-after` is pending into the box or run after it, never inside the float. A float the walk reaches has a containing block in that flow, since it never enters a float's or an absolutely positioned box's interior.
  *
  * `namesOnly` answers the composition region's version of the question. A name switch is the only forcing that changes the measure, so it is the only forcing a region must stop at: lines past a forced break are composed at the right width and merely unused.
  *
@@ -403,7 +403,7 @@ export function forcingIndexOf(blocks: Element[], { styleOf, pageNameOf, cutOf, 
         meet(events.length - 1, own, own);
       }
     }
-    e.after = !parallel && isForced(st.breakAfter); // a float's own break-after was never read, and still is not
+    e.after = isForced(st.breakAfter); // a float's too (§3.1's should): pending into what follows its place in the flow
     e.afterParity = parityOf(st.breakAfter);
     e.end = events.length;
     if (!applies && !anonymous) return null;
