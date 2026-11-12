@@ -740,6 +740,8 @@ export function mutateToContinuation(clone: Element, { cut = null, remainderPx =
   const mine = itemsOf(flows ?? flowsOf(items), path, source, cloneOf);
   // The items of a divided row stand before the place this cut resumes at, and are not spent: each has a place of its own, applied below.
   const keep: Set<Node> = new Set(mine.map((m) => m.itemClone));
+  // A row a spanning cell's group reaches stands before the place too (the Gauge's rows: a `rowspan` makes the cells of every row it spans one row), and every cell in it is an item with a place of its own, so the row stays and its cells are cut below.
+  for (const m of mine) if (m.itemClone.parentElement && m.itemClone.parentElement !== clone && /^TR$/i.test(m.itemClone.parentElement.tagName)) keep.add(m.itemClone.parentElement);
   if (divides(cut)) {
     const target = targetOf((cut as Address), source, cloneOf);
     if (!target) return clone; // a path the tree no longer answers: present the box whole rather than consume it blind

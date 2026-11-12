@@ -417,7 +417,14 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
         else if (monolithic(item)) plan.push({ item, state: 'held', verdict: null }); // a monolith the height crosses resumes whole: the stated limit, as a float's (the item is the graphic, and nothing inside it is a place)
         else {
           const v = flowVerdict(w, item, h + lift, eps);
-          if (!v) return null; // content crosses the height and the item offers no place above it: it shows nothing here
+          if (!v) {
+            // Content crosses the height and the item offers no place above it: it shows nothing here. In the first table row of the group that withdraws the offer (case 91). In a later row of a group a `rowspan` makes, that row moves whole with every row after it, the boundary before it being the break in its column, and the spanning cell is still divided at the height, as Chromium prints it (the essay's case 92).
+            if (item.parent === row[0].parent) return null;
+            const from = row.findIndex((r) => r.parent === item.parent);
+            plan.splice(from);
+            for (const rest of row.slice(from)) plan.push({ item: rest, state: 'below', verdict: null });
+            break;
+          }
           plan.push({ item, state: 'divided', verdict: v });
         }
       }
@@ -443,7 +450,9 @@ function collect(w: ReturnType<typeof walkOf>, { boxes, limit, pageStart, eps, s
       const pair = siblings[si - 1];
       const anchor = last(siblings.slice(0, si).filter((b) => !parallelBox(b))) ?? null;
       // Before the rows of a continuation only the repeated header stands, and a copy is furniture (*an artifact is never read*): a boundary there takes nothing of the box, and would send the page back to where the box began.
-      if (anchor && !siblings.slice(0, si).every((b) => parallelBox(b) || copy(b))) {
+      // A table row a `rowspan` from above reaches is inside its group's row: the boundary before it would leave the spanning cell's remainder on no page, and the group's own cut is where that boundary is taken (`rowPlan`).
+      const spanned = box.blockChildren.some((c) => { const r = rowOf(c); return !!r && r[0].parent !== box; });
+      if (anchor && !spanned && !siblings.slice(0, si).every((b) => parallelBox(b) || copy(b))) {
         candidates.push({
           kind: 'A',
           cls: 'A',
