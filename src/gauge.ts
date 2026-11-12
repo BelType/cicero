@@ -259,6 +259,25 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
     const inFlow = box.blockChildren.filter((c) => !['absolute', 'fixed'].includes(win.getComputedStyle(c.el).position));
     for (const row of rowsAmong(inFlow)) for (const item of row) rowOfBox.set(item, row);
   }
+  /**
+   * A cell spanning rows (`rowspan`) stands beside the cells of every row it spans, so the cells of those rows are one row of parallel flows, in document order: a cut through the second spanned row divides the spanning cell and that row's cells, each at its own verdict, and leaves the rows above it spent and the rows below it whole, as Chromium prints it (CSS 2.1 §17.5.3; css-break-3 §2.1; the essay's case 92, *the cell that spans the cut*). A span stays inside its row group, as §17.2 says.
+   */
+  for (const box of boxes) {
+    const trs = box.blockChildren.filter((c) => !c.anonymous && win.getComputedStyle(c.el).display === 'table-row');
+    for (let i = 0; i < trs.length; i++) {
+      let end = i;
+      for (let j = i; j <= end; j++) {
+        for (const cell of trs[j].blockChildren) {
+          const span = (cell.el as HTMLTableCellElement).rowSpan ?? 1;
+          end = Math.min(trs.length - 1, Math.max(end, span === 0 ? trs.length - 1 : j + span - 1));
+        }
+      }
+      if (end === i) continue;
+      const row = trs.slice(i, end + 1).flatMap((tr) => tr.blockChildren.filter((c) => !['absolute', 'fixed'].includes(win.getComputedStyle(c.el).position)));
+      if (row.length > 1) for (const item of row) rowOfBox.set(item, row);
+      i = end;
+    }
+  }
 
   const topLevel = boxes.filter((b) => !b.parent);
   const contentTop = topLevel.length ? topLevel[0].rect.top : 0;
