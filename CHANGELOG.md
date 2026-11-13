@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.13 — 2026-11-13
 
 - **The fragmentation face carries `usedPageName` and `depthOfCut`.** A view names a page it resumes inside a box, and closes that page's counters, by the rules 0.1.12 gave the run: `usedPageName` was the driver module's and not the face's, and the depth `counterStateAt` takes was a closure of `paginateOnce`. `depthOfCut(cut, ancestors)` is that closure at module level, the count of elements the log records above the top-level blocks made a parameter (two for the run, `html` and `body`); the run computes what it computed. `test/faces.test.ts` holds both names and the arithmetic.
 
