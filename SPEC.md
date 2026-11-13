@@ -465,7 +465,7 @@ The handle carries further members that this article does not make API. They are
 | `stonehand` | `adjudicate`, `firstBelowTheEdge`, `fitsPage`, `isOutOfFlow`, `neverCutInside`, `processionBottoms`, `reachesBelowTheEdge` |
 | `gauge` | `takeReport` |
 | `measure` | `assertRenderConditions`, `awaitCloneImages`, `awaitFonts`, `createMeasureContext` |
-| `driver` | `forcingIndexOf`, `gapAbove`, `pageNameDownFrom`, `runningBoxes`, `runningPosition`, `topLevelBlocks` |
+| `driver` | `depthOfCut`, `forcingIndexOf`, `gapAbove`, `pageNameDownFrom`, `runningBoxes`, `runningPosition`, `topLevelBlocks`, `usedPageName` |
 | `forcing-memo` | `ForcingMemo`, and the type `Keep` |
 | `capture` | `effectivePageName`, `readGeometryTable`, `registerGcpmProperties`, `sheetReach`, `topLevelReach`, `transliterateContent` |
 | `gcpm-encoding` | `STRING_KEYWORDS`, `encodeStringProp` |

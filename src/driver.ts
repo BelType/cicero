@@ -198,6 +198,16 @@ export function usedPageName(el: Element, styleOf: (el: Element) => CSSStyleDecl
 }
 
 /**
+ * The depth in the counter log's terms of the place a cut names: the element its path reaches, below the ancestors, or one level further in where the cut falls inside it, among its children (a `word` or a `px`). What `counterStateAt` takes as its `depth`.
+ *
+ * @remarks
+ * A place inside an element is taken at its children's depth, so an instance a grandchild opened before the cut is ended there even where the cut falls inside the child that holds it: a counter reset on an inline element nested in another inside a paragraph a page divides. No case claims it. Exported for a host that reads the same log over its own addresses (*the engine knows no view*).
+ *
+ * @param ancestors - How many elements the log records above the top-level blocks (`documentOpsOf`'s `ancestors`), two for the driver: `html` and `body`.
+ */
+export const depthOfCut = (cut: Pick<Address, 'path' | 'word' | 'px'>, ancestors: number) => ancestors + cut.path.length - 1 + (cut.word != null || cut.px != null ? 1 : 0);
+
+/**
  * The start page value of a box (css-page-3 §8.1): *"the value (if any) propagated from its first … child box, else the used value on the box itself"*, where *"a child propagates its own start … page value if and only if the page property applies to it"*. So down the first in-flow child while it is a box the property applies to ({@link pageApplies}) and no run of words stands before it, then {@link usedPageName} from the box found. The driver's `nameAt` names a page by it, and the forcing index compares it against the end page value before it.
  *
  * @remarks The driver's `nameAt` asks this of a cut that resumes at a box whole, with the position index's word counts for `runBefore`; a host with no index passes its own reading of the same question (*the engine knows no view*). Two reads are the host's: how a box's style is asked, and whether a run stands before a child. A run before the child is the box's first child box, an anonymous block box, which carries the box's own used value.
@@ -953,14 +963,6 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     return ops;
   };
 
-  /**
-   * The depth in the counter log's terms of the place a cut names: the element its path reaches, below the ancestors, or one level further in where the cut falls inside it, among its children (a `word` or a `px`).
-   *
-   * @remarks
-   * A place inside an element is taken at its children's depth, so an instance a grandchild opened before the cut is ended there even where the cut falls inside the child that holds it: a counter reset on an inline element nested in another inside a paragraph a page divides. No case claims it.
-   */
-  const depthOfCut = (cut: Address) => ancestors.length + cut.path.length - 1 + (cut.word != null || cut.px != null ? 1 : 0);
-
   /** The conditions of page `pageIndex`, which begins at `cut` (projected to `pos`) — {@link conditionsFor} with the cursor made a parameter, so a resumed run can write the conditions of a page it keeps from the address that page began at (*the run resumes from an entry*, build two, 2026-10-08). */
   const conditionsAt = (pageIndex: number, cut: Address, pos: number, { blank = false, carried = null }: { blank?: boolean; carried?: Cursor['carried']; } = {}) => {
     const name = nameAt(cut);
@@ -970,7 +972,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
     // The run's count, an author's reset of the page counter counted on from the page it begins on, and each page's own `@page` counter rules (`document-state.js`'s `pageNumberAt`). Entry `i` closes page `i`, so page `i` begins where entry `i - 1` ended, under the conditions it closes.
     const pageNumber = pageNumberAt(documentOps, pageIndex, pos, { pages: (i) => ({ start: i === 0 ? 0 : account[i - 1].pos ?? 0, blank: account[i].blank === true, counter: pageCounterOf(i, account[i].closes) }), blank, counter: geo.pageCounter, away });
     // The document's counters as they stand at this page's first word — strictly before it, which is §6.1's *spans the page break* in the flat position space (`document-state.js`) — less what the flows carried onto this page have still to show, which stands before that word and is on this page or after it (beltype#43). The page's own two are not among them: they are the host's, and `pageNumber` carries the reset.
-    const counters = withoutPageCounters(counterStateAt(documentOps, pos, away, depthOfCut(cut)));
+    const counters = withoutPageCounters(counterStateAt(documentOps, pos, away, depthOfCut(cut, ancestors.length)));
     return Object.freeze({ ...geo, name, pageNumber, parity, blank, counters, dpr: win.devicePixelRatio });
   };
 
