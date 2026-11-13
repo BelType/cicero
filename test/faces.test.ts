@@ -32,6 +32,25 @@ test('the fragmentation face carries the leading-decoration door, and it is the 
   }
 });
 
+test('the fragmentation face carries the page\'s name and the cut\'s depth, and they are the driver\'s', async () => {
+  const face = await import('@beltype/cicero/fragmentation');
+  const driver = await import('@beltype/cicero/internal/driver');
+  assert.equal(face.usedPageName, driver.usedPageName);
+  assert.equal(face.depthOfCut, driver.depthOfCut);
+  // Below `html` and `body`: a bare path names the element it reaches, and a word or a pixel extent a place among its children.
+  assert.equal(face.depthOfCut({ path: [3], word: null, px: null }, 2), 2);
+  assert.equal(face.depthOfCut({ path: [3, 0, 1], word: null, px: null }, 2), 4);
+  assert.equal(face.depthOfCut({ path: [3, 0, 1], word: 5, px: null }, 2), 5);
+  assert.equal(face.depthOfCut({ path: [3], word: null, px: { remaining: 10, paint: null } }, 0), 1);
+  // An inline box among blocks takes no name of its own (css-page-3 §8.1): it is named as its parent is.
+  const styles = new Map<any, any>();
+  const el = (display: string, page: string, parentElement: any = null) => { const e = { parentElement, isConnected: true, ownerDocument: { defaultView: { getComputedStyle: (x: any) => styles.get(x) } } }; styles.set(e, { display, page, position: 'static', float: 'none', getPropertyValue: (n: string) => (n === 'page' ? page : '') }); return e as any; };
+  const section = el('block', 'chapter');
+  const styleOf = (e: any) => styles.get(e);
+  assert.equal(face.usedPageName(el('inline', 'aside', section), styleOf), 'chapter');
+  assert.equal(face.usedPageName(el('block', 'aside', section), styleOf), 'aside');
+});
+
 test('the rim face answers the module the engine\'s own client imports', async () => {
   const face = await import('@beltype/cicero/rim');
   // The client imports `./rim.js` beside it in `dist/seam/`, so the face must be that file and no copy: `knowLoadedFaces` and `bringsNewFace` share the engine's set of announced faces only through the same module instance.
