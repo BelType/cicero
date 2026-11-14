@@ -1,5 +1,5 @@
 /**
- * The scope the engine states: a right-to-left root and a vertical box are refused by name, a multi-column box too tall for a page is laid out as one column and reads every word once and in order, and one that fits keeps its columns. Run by `pnpm run test:browser` after `pnpm run build`; the server repeats `composed-refusals.browser.ts`.
+ * The scope the engine states: a right-to-left root and a vertical box are refused by name, text and an inline-level box standing directly in the body are refused by name, a multi-column box too tall for a page is laid out as one column and reads every word once and in order, and one that fits keeps its columns. Run by `pnpm run test:browser` after `pnpm run build`; the server repeats `composed-refusals.browser.ts`.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -103,5 +103,27 @@ test('rtl-and-vertical-writing: a right-to-left root and a vertical box below th
   doc('vertical', '.v { writing-mode: vertical-rl; }', '<p>text</p><div class="v"><p>vertical text</p></div>');
   ({ page } = await open('vertical'));
   await assert.rejects(page.evaluate(() => (window as any).__beltypeCicero.run()), /vertical writing is outside this engine's scope: <div class="v">/);
+  await page.context().close();
+});
+
+test('bare-body-content: text standing directly in the body is refused by its first words', async () => {
+  doc('bare-text', '', '<p>alpha one</p>BARE words here<p>omega two</p>');
+  const { page } = await open('bare-text');
+  await assert.rejects(page.evaluate(() => (window as any).__beltypeCicero.run()), /text directly in the document's body is outside this engine's intake: "BARE words here".*inside a block element/);
+  await page.context().close();
+});
+
+test('bare-body-content: an inline <svg> standing directly in the body is refused by its tag', async () => {
+  doc('bare-svg', '', '<p>alpha one</p><svg width="60" height="40"><rect width="60" height="40" fill="red"/></svg><p>omega two</p>');
+  const { page } = await open('bare-svg');
+  await assert.rejects(page.evaluate(() => (window as any).__beltypeCicero.run()), /an inline-level box directly in the document's body is outside this engine's intake: <svg> computes display 'inline'.*inside a block element/);
+  await page.context().close();
+});
+
+test('bare-body-content: whitespace, a comment, a hidden box, a line break and a block <svg> between the blocks are not refused, and every word is shown', async () => {
+  doc('bare-guard', 'svg { display: block; }', '\n  <p>alpha one</p>\n\t<!-- BARE comment -->  <div style="display:none">hidden</div><br><svg width="60" height="40"><rect width="60" height="40" fill="red"/></svg>\n<p>omega two</p>\n');
+  const { page } = await open('bare-guard');
+  await page.evaluate(async () => { const c = (window as any).__beltypeCicero; await c.run(); await c.settled(); });
+  assert.deepEqual(await shownWords(page), ['alpha', 'one', 'omega', 'two']);
   await page.context().close();
 });
