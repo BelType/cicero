@@ -90,11 +90,12 @@ test('a name on a float does not apply (page-name-float-001, -002)', async () =>
 });
 
 test('a name on an inline-block does not apply (page-name-inline-block-003)', async () => {
-  assert.deepEqual(await pagesOf('inline-block-3', '<div style="page:a;display:inline-block">a</div><div style="page:b;display:inline-block">b</div>'), ['a b']);
+  // One level down since 2026-11-14: an inline-level box directly in the body is refused by name (`scope.browser.ts`).
+  assert.deepEqual(await pagesOf('inline-block-3', '<div><div style="page:a;display:inline-block">a</div><div style="page:b;display:inline-block">b</div></div>'), ['a b']);
 });
 
-test('an inline box standing in the body is in an anonymous block named by the body, so the block after it switches (page-name-canvas-001, with words)', async () => {
-  assert.deepEqual(await pagesOf('inline-run', '<span style="page:b">x</span><div style="page:b">b</div>', 1, 'page:a'), ['x', 'b']);
+test('an inline box standing beside a block is in an anonymous block named by their container, so the block after it switches (page-name-canvas-001, with words, one level down since an inline-level box directly in the body is refused, 2026-11-14)', async () => {
+  assert.deepEqual(await pagesOf('inline-run', '<div style="page:a"><span style="page:b">x</span><div style="page:b">b</div></div>'), ['x', 'b']);
 });
 
 test('each named page keeps its own margins, and a context put away at a width change leaves nothing in the flow (page-name-margin-001, -002)', async () => {

@@ -30,7 +30,7 @@ import { ARTIFACT, HOST, hasWord } from './data-beltype.ts';
 import { blockChildrenOf, footerBeforeRows, inDisplayOrder, isFixedBox, isInlineLevel, SIDE_BY_SIDE, sourceOf } from './word-space.ts';
 import { changedPairs, settleReads } from './reads.ts';
 import { converge, holderPage, namesNoPlace, priorKeys, restartPage } from './resume.ts';
-import { readScope, foldTallColumns } from './scope.ts';
+import { readScope, refuseBareContent, foldTallColumns } from './scope.ts';
 import { answerHas, boxesWhoseWordsMoved } from './has-words.ts';
 import type { HasMarks } from './has-words.ts';
 import type { ForcingMemo, Keep } from './forcing-memo.ts';
@@ -741,6 +741,8 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   await awaitFonts(doc, table.furnitureFaces); // the faces page furniture names, requested now and not when the first margin box is presented (the table is read after the first wait, so its lengths are measured as they always were)
   const win = (doc.defaultView as Window & typeof globalThis);
   const blocks = intakeBlocks ?? topLevelBlocks(doc);
+  // The default intake's refusal, where the run read the blocks itself: a host that handed its own is not asked (`src/scope.ts`).
+  if (!intakeBlocks) refuseBareContent(win, doc.body, blocks);
   // What is out of scope is refused here, and a multi-column box too tall for a page becomes one column on its copies (`src/scope.ts`).
   foldTallColumns(doc, readScope(win, blocks), table.pageFor({ first: true }));
   // The running elements and where each was written, handed back with the blocks by a host that took them at intake, for the same reason: by now the body holds the root and nothing else.
