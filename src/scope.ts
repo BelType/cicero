@@ -37,7 +37,7 @@ export function readScope(win: Window & typeof globalThis, blocks: Iterable<Elem
 const DRAWS_NOTHING = new Set(['br', 'wbr']);
 
 /**
- * Refuse what stands directly in the body and is not a block: a text node with anything but white space in it, and an element that computes an inline-level `display` (ruled 2026-11-14).
+ * Refuse what stands directly in the body and is not a block: a text node with anything but white space in it, and an element that computes an inline-level `display` or `display: contents` (ruled 2026-11-14).
  *
  * @remarks The pages are made of the body's element children, each cut as a block. A text node among them is none of them, so it stays outside the root, on screen and on no page. An inline-level one is taken, and where a page ends at it the cut falls before it and the next page begins after it. Measured 2026-11-14 on a `<span>`, an `<a>`, an `<img>`, an inline `<svg>` and an `inline-block` box: each is drawn where no page ends at it and on no page where one does, and a long `<span>` is never divided. The engine does not wrap either in a block of its own, since an element it added would be one the author's selectors can see, where CSS 2.1's anonymous block box is not. This is the default intake's refusal: a host that hands the run its own boxes is not asked.
  *
@@ -53,6 +53,7 @@ export function refuseBareContent(win: Window & typeof globalThis, root: Element
   }
   for (const el of blocks) {
     const display = win.getComputedStyle(el).display ?? '';
+    if (display === 'contents') throw new Error(`a box with display: contents directly in the document's body is outside this engine's intake: ${describe(el)} has no box of its own, and a top-level box is cut as a block, so where a page ends at it, what it holds would be drawn on no page. Give it display: block, or put what it holds directly in the body.`);
     if (!display.startsWith('inline') || DRAWS_NOTHING.has(el.localName)) continue;
     throw new Error(`an inline-level box directly in the document's body is outside this engine's intake: ${describe(el)} computes display '${display}', and a top-level box is cut as a block, so where a page ends at it, it would be drawn on no page. Put it inside a block element, a <figure> or a <div>, or give it display: block.`);
   }

@@ -120,6 +120,13 @@ test('bare-body-content: an inline <svg> standing directly in the body is refuse
   await page.context().close();
 });
 
+test('bare-body-content: a display: contents box standing directly in the body is refused by its tag', async () => {
+  doc('bare-contents', '', '<p>alpha one</p><div style="display:contents"><p>inner words</p></div><p>omega two</p>');
+  const { page } = await open('bare-contents');
+  await assert.rejects(page.evaluate(() => (window as any).__beltypeCicero.run()), /a box with display: contents directly in the document's body is outside this engine's intake: <div>.*display: block/);
+  await page.context().close();
+});
+
 test('bare-body-content: whitespace, a comment, a hidden box, a line break and a block <svg> between the blocks are not refused, and every word is shown', async () => {
   doc('bare-guard', 'svg { display: block; }', '\n  <p>alpha one</p>\n\t<!-- BARE comment -->  <div style="display:none">hidden</div><br><svg width="60" height="40"><rect width="60" height="40" fill="red"/></svg>\n<p>omega two</p>\n');
   const { page } = await open('bare-guard');

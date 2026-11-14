@@ -44,4 +44,7 @@ test('an inline-level box directly in the body is refused by its tag; a block, a
   assert.doesNotThrow(() => refuseBareContent(win(styles), root, [p, none, br, el('table')]));
   assert.throws(() => refuseBareContent(win(styles), root, [p, svg]), /an inline-level box directly in the document's body is outside this engine's intake: <svg> computes display 'inline'.*inside a block element/);
   assert.throws(() => refuseBareContent(win(styles), root, [box]), /<div> computes display 'inline-block'/);
+  const contents = el('div');
+  styles.set(contents, { display: 'contents' });
+  assert.throws(() => refuseBareContent(win(styles), root, [contents]), /a box with display: contents directly in the document's body is outside this engine's intake: <div>.*display: block/);
 });
