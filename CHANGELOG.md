@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.15 — 2026-11-15
 
 - **`inFlowChildren` and `mayRepeat` join the fragmentation face, and `liftRepeatedHeader` is exported from `src/fragments.ts` (ruled 2026-11-14).** A view that repeats a table's header and footer groups counts a box's children as a path does, with the engine's list and no copy of it, and asks the engine whether a group could repeat. The lift of a collapsed header whose bottom border is wider than the first row's top is reached through `./internal/*` only, with no promise. `inFlowChildren`'s second argument now defaults to `isFixedBox`. No behaviour changes.
 - **SPEC II.1.8 states the refusal of bare body content**, with its record, *bare-body-content-is-refused-by-name*, and the ruling of 2026-11-15 that a line break directly in the body is passed over on purpose. No code changes.
