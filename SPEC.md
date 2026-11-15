@@ -116,6 +116,7 @@ Modules: `src/measure.js`, `src/capture.js`, `src/box-shorthand.js`, `src/margin
 5. The measure context neutralises native break properties, orphans and widows, and every transform (`transform`, `rotate`, `scale`, `translate`, `perspective`). Legality is read from the sources (see *fragmentation-comes-first*).
 6. Right-to-left and vertical writing are outside the beta's scope and refused by name at intake: a root or body that computes `direction: rtl`, a root that computes a `writing-mode` other than `horizontal-tb`, and any box below the root that does. Every read in the engine is left to right and horizontal.
 7. The same scope has one interim fallback, which says so on the console (Article I, item 11): a multi-column box (`column-count` or `column-width` not `auto`) taller than a page area at the page's width is laid out as one column on its copies, since the engine does not divide columns, and a multi-column box that fits a page keeps its columns.
+8. What draws and is not a block, standing directly in the document's body, is refused by name at intake: text, named by its first words; an inline-level box, named by its tag and its computed `display`; a box with `display: contents`. What draws nothing is passed over: white space, a comment, a `display: none` box, and a `<br>` or a `<wbr>`, whose space is dropped where a page ends at it, as a margin that adjoins a break is. A host that hands the run its own boxes is not asked (see *bare-body-content-is-refused-by-name*).
 
 ### II.2 The geometry table
 
@@ -513,6 +514,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-08 | VI.2.5 | The `host` word joins the registry, and the intake passes over it and over the tags that never render, through one filter. | — (ruled 2026-11-08; no record yet) |
 | 2026-11-08 | II.1.3, II.1.4, XI.3.6 | The first run no longer awaits the document's images, and lazy ones are made eager; the clone await stays until the Service Worker case is measured; a picture's arrival is a signal only where it changed its box. | *late-truth-is-an-edit*, amended 2026-11-08 |
 | 2026-11-08 | XI.2.4 | The intake no longer lifts a fixed box or a running element out of the block it was written in, and `patch` no longer refuses an edit inside that block. | *a-fixed-box-refuses-only-its-own-block* (amendment owed) |
+| 2026-11-14 | II.1.8 | Bare body content is refused by name at intake, and what draws nothing is passed over, the line break among it (ruled 2026-11-14 and 2026-11-15). | *bare-body-content-is-refused-by-name* |
 
 ## 18. Known open at ratification
 

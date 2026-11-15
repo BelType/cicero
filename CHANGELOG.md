@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **SPEC II.1.8 states the refusal of bare body content**, with its record, *bare-body-content-is-refused-by-name*, and the ruling of 2026-11-15 that a line break directly in the body is passed over on purpose. No code changes.
+
 ## 0.1.14 — 2026-11-14
 
 - **Text, an inline-level box and a `display: contents` box standing directly in the body are refused by name (ruled 2026-11-14).** The intake reads the body's element children and cuts each as a block, so a text node between two blocks stayed on screen and reached no page, and an inline-level element (a `<span>`, an `<a>`, an `<img>`, an inline `<svg>`, an `inline-block` box) was drawn on no page wherever a page ended at it, both with no message. `refuseBareContent` (`src/scope.ts`) now refuses the run at intake, naming the text by its first words or the element by its tag and its computed `display`, and saying to put it inside a block element. A top-level box with `display: contents` is refused the same way: what it holds was drawn on no page where a page ended at it. White space, a comment, a `display: none` box and a `<br>` are passed over, and a host that hands the run its own boxes is not asked. `test/scope.test.ts` and `test/browser/scope.browser.ts` hold it.
