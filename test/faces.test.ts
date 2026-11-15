@@ -79,3 +79,13 @@ test('SPEC Article XIII lists exactly the faces package.json exports, and the fr
   // `Keep` is a type: it has no value to compare.
   assert.deepEqual(Object.keys(face).sort(), names.filter((n) => n !== 'Keep').sort());
 });
+
+test('the fragmentation face carries the in-flow children and the group test, and the header lift stays off it', async () => {
+  const face: Record<string, unknown> = await import('@beltype/cicero/fragmentation');
+  const positions = await import('@beltype/cicero/internal/positions');
+  const fragments = await import('@beltype/cicero/internal/fragments');
+  assert.equal(face.inFlowChildren, positions.inFlowChildren);
+  assert.equal(face.mayRepeat, fragments.mayRepeat);
+  assert.equal(typeof fragments.liftRepeatedHeader, 'function');
+  assert.equal('liftRepeatedHeader' in face, false);
+});

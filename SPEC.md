@@ -461,8 +461,8 @@ The handle carries further members that this article does not make API. They are
 |---|---|
 | `data-beltype` | `ADJOIN`, `ARTIFACT`, `AWAY`, `END`, `FRAGMENT`, `SHELL`, `SPLIT`, `START`, `WRAPPED`, `addWord`, `hasWord`, `removeWord` |
 | `word-space` | `BREAKING_SPACE`, `clonesDecoration`, `copyOf`, `isFixedBox`, `isInlineBox`, `isLineBreak`, `noteSource` |
-| `positions` | `divides`, `elAt`, `extensionPx`, `indexBlocks`, `normalizePath`, `pageContaining`, `pageIntervals`, `pathOf`, `placeAt` |
-| `fragments` | `joinedWords`, `mutateToContinuation`, `mutateToFirstFragment`, `pinTrack`, `truncateLeadingDecoration` |
+| `positions` | `divides`, `elAt`, `extensionPx`, `inFlowChildren`, `indexBlocks`, `normalizePath`, `pageContaining`, `pageIntervals`, `pathOf`, `placeAt` |
+| `fragments` | `joinedWords`, `mayRepeat`, `mutateToContinuation`, `mutateToFirstFragment`, `pinTrack`, `truncateLeadingDecoration` |
 | `stonehand` | `adjudicate`, `firstBelowTheEdge`, `fitsPage`, `isOutOfFlow`, `neverCutInside`, `processionBottoms`, `reachesBelowTheEdge` |
 | `gauge` | `takeReport` |
 | `measure` | `assertRenderConditions`, `awaitCloneImages`, `awaitFonts`, `createMeasureContext` |
@@ -515,6 +515,7 @@ The leading-decoration door is the continuation dressing of Article VI.1.4 as a 
 | 2026-11-08 | II.1.3, II.1.4, XI.3.6 | The first run no longer awaits the document's images, and lazy ones are made eager; the clone await stays until the Service Worker case is measured; a picture's arrival is a signal only where it changed its box. | *late-truth-is-an-edit*, amended 2026-11-08 |
 | 2026-11-08 | XI.2.4 | The intake no longer lifts a fixed box or a running element out of the block it was written in, and `patch` no longer refuses an edit inside that block. | *a-fixed-box-refuses-only-its-own-block* (amendment owed) |
 | 2026-11-14 | II.1.8 | Bare body content is refused by name at intake, and what draws nothing is passed over, the line break among it (ruled 2026-11-14 and 2026-11-15). | *bare-body-content-is-refused-by-name* |
+| 2026-11-15 | XIII.3 | `inFlowChildren` and `mayRepeat` join the face, for a view that repeats a table's groups; `liftRepeatedHeader` is exported from `fragments` and stays off the face, reached through `./internal/*` with no promise (ruled 2026-11-14). | — (ruled 2026-11-14; the view's plan, phase 5) |
 
 ## 18. Known open at ratification
 

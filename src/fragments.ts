@@ -298,7 +298,7 @@ function firstGridRow(table: Element, lifted: Element): Element|null {
  *
  * @param group - a `thead` copy wearing `artifact`, a child of its table's clone.
  */
-function liftRepeatedHeader(group: HTMLElement) {
+export function liftRepeatedHeader(group: HTMLElement) {
   const table = group.parentElement;
   const cs = table ? sourceStyle(table) : null;
   if (!table || !cs || !/^(inline-)?table$/.test(cs.display)) return;
