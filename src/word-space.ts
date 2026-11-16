@@ -396,6 +396,29 @@ export function isAtom(el: Element): boolean {
 }
 
 /**
+ * An inline-level box that holds atoms and no word: an atom itself, or an inline box whose displayed content is such boxes and line breaks alone, as a `<picture>` or an `<a>` around an image is (*an atom in the body is a line of the body*, ruled 2026-11-16).
+ *
+ * @remarks Directly in the body a run of such boxes is the content of one anonymous block box (CSS 2.1 §9.2.1.1) whose lines hold no word, so no word can be lost to a break between them: the Gauge reads the run as one unit of the flow and the intake takes it (`gauge.ts`' `takeReport`, `scope.ts`' `refuseBareContent`). A box holding a word is the teaching round's, and answers false. An element that cannot be asked answers as {@link isInlineBox} does.
+ */
+export function holdsAtomsAlone(el: Element): boolean {
+  if (!isInlineBox(el) || isLineBreak(el)) return false;
+  if (isAtom(el)) return true;
+  let atoms = false;
+  for (const node of el.childNodes ?? []) {
+    if (node.nodeType === 3) {
+      if (/[^ \t\n\r\f]/.test(node.nodeValue ?? '')) return false;
+      continue;
+    }
+    if (node.nodeType !== 1) continue;
+    const child = node as Element;
+    if (sourceStyle(child)?.display === 'none' || isLineBreak(child)) continue;
+    if (!holdsAtomsAlone(child)) return false;
+    atoms = true;
+  }
+  return atoms;
+}
+
+/**
  * The rows among sibling boxes — which of a box's children stand side by side (*every branch gets a place*, 2026-09-21; css-break-3 §2.1, whose list of what fragments independently names the cells of a row, grid items and flex items beside floats).
  *
  * Two tests, and neither alone. The parent must lay its children out side by side — `SIDE_BY_SIDE` below, asked by the caller, which holds the computed style — and that only permits the question: a flex column is a sequence, and a wrapped flex container holds two rows. What answers it is geometry: siblings whose extents overlap on the block axis. Geometry alone is refused for the mirror reason — a negative margin overlaps two ordinary blocks, which are still a sequence.
