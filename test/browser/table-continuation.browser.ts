@@ -153,14 +153,14 @@ for (const [shape, html] of Object.entries(LEFTS)) {
 
 const sentence = (r: number) => `<b>s${r}</b> Row ${r} holds a sentence long enough to wrap when its column is narrow, and not when it is wide, so the width shows in the lines.`;
 const wideFirst = Array.from({ length: 70 }, (_, i) => `<tr><td>${i ? `x${i + 1}` : 'Supercalifragilisticexpialidocious-wide-first-cell'}</td><td>${sentence(i + 1)}</td></tr>`).join('');
-const A5 = (page: string) => `<style>@page { size: A5; margin: 15mm; } ${page} body { font: 12px/1.4 serif; } table { border-collapse: collapse; } td { border: 1px solid rgb(136, 136, 136); padding: 2px 4px; }</style></head><body><p>Before.</p><table><tbody>${wideFirst}</tbody></table></body></html>`;
+const A5 = (page: string) => `<style>@page { size: A5; margin: 15mm; } ${page} body { margin: 0; font: 12px/1.4 serif; } table { border-collapse: collapse; } td { border: 1px solid rgb(136, 136, 136); padding: 2px 4px; }</style></head><body><p>Before.</p><table><tbody>${wideFirst}</tbody></table></body></html>`;
 /** The two probes of *the columns of a table count every row on every page*: one wide cell in the first row of seventy, the `sN` standing in the second column, so its left edge on a page is that page's first column's width. */
 const COLUMNS: Record<string, string> = {
   'a table whose one wide cell is in its first row': A5(''),
   'the same table on a landscape first page': A5('@page :first { size: A5 landscape; }')
 };
 
-// Measured 2026-11-16 on 0.1.15: the first shape is cut in 5 pages where Chromium prints 6, since a continuation's feed sizes the columns without the first row, and its second column is wider than Chromium's; Chromium prints the second shape in 7, its second column at one place on the landscape page and another, the same, on every portrait page.
+// Measured 2026-11-16 on 0.1.15: the first shape is cut in 5 pages where Chromium prints 6, since a continuation's feed sizes the columns without the first row, and its second column is wider than Chromium's; Chromium prints the second shape in 6, its second column at one place on the landscape page and another, the same, on every portrait page. The body's margin is zeroed because Chromium's print keeps the default 8 px inside the page area and the engine's pages do not, which is another finding and would move page 1 by 6.72 px.
 for (const [shape, html] of Object.entries(COLUMNS)) {
   for (const composed of [false, true]) {
     test(`${shape}${composed ? ', composed,' : ''} keeps on every page the columns Chromium's print keeps`, { todo: 'the columns of a table count every row on every page: ruled 2026-11-16, not built' }, async () => {
