@@ -141,9 +141,31 @@ const lefts = (per: { n: number; x: number }[][]) => per.map((rows) => rows.filt
 // Measured 2026-11-09 on main, both modes alike: page 1 stands at Chromium's x and every continuation does not (the nested tables 107.72 px against 99.30, the plain one 290.50 against 185.00). The cause is the widths a continuation is pinned at: `tracksOf` reads them off the page's own feed, whose spent rows are hollow and `display: none`, so an automatic-layout table is sized over the interval's rows alone, where Chromium sizes its columns once over every row. The fix is the whole table's widths on every fragment, which SPEC Article VI 7 forbids as written (*a fragment is written its page's tracks as literals, never across pages*).
 for (const [shape, html] of Object.entries(LEFTS)) {
   for (const composed of [false, true]) {
-    test(`${shape}${composed ? ', composed,' : ''} continues at Chromium's left edge`, { todo: 'nested-table-continuation-left: the widths want a ruling on SPEC Article VI 7' }, async () => {
+    test(`${shape}${composed ? ', composed,' : ''} continues at Chromium's left edge`, { todo: 'the columns of a table count every row on every page: ruled 2026-11-16, not built' }, async () => {
       const theirs = await chromiumPrint(head + html);
       const ours = await ciceroPages(`left-${shape.length}-${composed}`, head + ciceroEngine.headHtml('/') + html, composed);
+      if (process.env.SWEEP) console.log(`SWEEP\t${shape} ${composed}\tchromium ${rowsOf(theirs).join(' ')} ${lefts(theirs).join(' ')}\tcicero ${rowsOf(ours.per).join(' ')} ${lefts(ours.per).join(' ')}`);
+      assert.deepEqual(rowsOf(ours.per), rowsOf(theirs));
+      for (const [i, x] of lefts(ours.per).entries()) assert.ok(Math.abs((x ?? 0) - (lefts(theirs)[i] ?? 0)) < 0.5, `page ${i + 1}: ${x} against ${lefts(theirs)[i]}`);
+    });
+  }
+}
+
+const sentence = (r: number) => `<b>s${r}</b> Row ${r} holds a sentence long enough to wrap when its column is narrow, and not when it is wide, so the width shows in the lines.`;
+const wideFirst = Array.from({ length: 70 }, (_, i) => `<tr><td>${i ? `x${i + 1}` : 'Supercalifragilisticexpialidocious-wide-first-cell'}</td><td>${sentence(i + 1)}</td></tr>`).join('');
+const A5 = (page: string) => `<style>@page { size: A5; margin: 15mm; } ${page} body { font: 12px/1.4 serif; } table { border-collapse: collapse; } td { border: 1px solid rgb(136, 136, 136); padding: 2px 4px; }</style></head><body><p>Before.</p><table><tbody>${wideFirst}</tbody></table></body></html>`;
+/** The two probes of *the columns of a table count every row on every page*: one wide cell in the first row of seventy, the `sN` standing in the second column, so its left edge on a page is that page's first column's width. */
+const COLUMNS: Record<string, string> = {
+  'a table whose one wide cell is in its first row': A5(''),
+  'the same table on a landscape first page': A5('@page :first { size: A5 landscape; }')
+};
+
+// Measured 2026-11-16 on 0.1.15: the first shape is cut in 5 pages where Chromium prints 6, since a continuation's feed sizes the columns without the first row, and its second column is wider than Chromium's; Chromium prints the second shape in 7, its second column at one place on the landscape page and another, the same, on every portrait page.
+for (const [shape, html] of Object.entries(COLUMNS)) {
+  for (const composed of [false, true]) {
+    test(`${shape}${composed ? ', composed,' : ''} keeps on every page the columns Chromium's print keeps`, { todo: 'the columns of a table count every row on every page: ruled 2026-11-16, not built' }, async () => {
+      const theirs = await chromiumPrint(head + html);
+      const ours = await ciceroPages(`columns-${shape.length}-${composed}`, head + ciceroEngine.headHtml('/') + html, composed);
       if (process.env.SWEEP) console.log(`SWEEP\t${shape} ${composed}\tchromium ${rowsOf(theirs).join(' ')} ${lefts(theirs).join(' ')}\tcicero ${rowsOf(ours.per).join(' ')} ${lefts(ours.per).join(' ')}`);
       assert.deepEqual(rowsOf(ours.per), rowsOf(theirs));
       for (const [i, x] of lefts(ours.per).entries()) assert.ok(Math.abs((x ?? 0) - (lefts(theirs)[i] ?? 0)) < 0.5, `page ${i + 1}: ${x} against ${lefts(theirs)[i]}`);
