@@ -594,7 +594,7 @@ function consumeTrailingWords(clone: Element, n: number, char: number = 0, hollo
  * @param source - the block's source element.
  * @param cloneOf - the source-to-clone map the fragment was built with.
  */
-function pinTracks(source: Element, cloneOf: Map<Element,Element>|null, tracks: Track[]) {
+export function pinTracks(source: Element, cloneOf: Map<Element,Element>|null, tracks: Track[]) {
   for (const t of tracks) {
     const src = elAtIn(source, rebase(t.path, [t.path[0]]));
     const clone = src ? cloneOf?.get(src) ?? null : null;
@@ -633,6 +633,21 @@ function pinExtents(source: Element, cloneOf: Map<Element,Element>|null, extents
   }
 }
 
+/** What a content-box cell's padding and borders take of its column, in px, by source cell, as a layout of the whole table measured it: a collapsed border's share is the layout's to say, not the computed style's. */
+const cellFrames = new WeakMap<Element, number>();
+
+/**
+ * Say what a content-box cell's padding and borders take of its column (*the columns of a table count every row on every page*, 2026-11-16), read by whoever laid the table out whole.
+ *
+ * @remarks Kept for the source's life and not per width. ponytail: a padding in percentages moves with the page's width and is read once; key it by width when a document shows it.
+ *
+ * @param source - the source cell.
+ * @param px - its border box's width less its content box's.
+ */
+export function noteCellFrame(source: Element, px: number) {
+  cellFrames.set(source, px);
+}
+
 /** One table's widths, as `pinTracks` states them. The first displayed row is found by the source's display (a detached clone cannot be asked) and by the put-away mark on the clone. A header copy lifted into the caption (`liftRepeatedHeader`) stands outside the grid, so the grid's first row is the one after it, and each of the copy's rows takes the same widths, which is what keeps its columns over the grid's. */
 function pinTable(table: HTMLElement, columns: number[], width: number, displayOf: (el: Element) => string = (el) => sourceStyle(el)?.display ?? '') {
   const shown = ( el: Element) => !hasWord(el, AWAY);
@@ -659,8 +674,13 @@ function pinTable(table: HTMLElement, columns: number[], width: number, displayO
   for (const [r, w] of ([[row, widths], ...heads.map((h) => [h, spanWidths(columns, cellsOf(h).map((c) => c.colSpan || 1))])] as Array<[Element, number[] | null]>)) {
     if (!w) continue;
     cellsOf(r).forEach((cell, i) => {
-      cell.style.boxSizing = 'border-box';
-      cell.style.width = `${w[i]}px`;
+      // A content-box cell whose padding and borders were read (`noteCellFrame`) takes its width in its own sizing: made a border-box cell it would read its declared `height` as a border box too, and the row stand shorter than the row the page was decided on. A cell nobody read is written as it always was.
+      const frame = cellFrames.get(sourceOf(cell) ?? cell);
+      if (frame != null) cell.style.width = `${Math.max(0, w[i] - frame)}px`;
+      else {
+        cell.style.boxSizing = 'border-box';
+        cell.style.width = `${w[i]}px`;
+      }
     });
   }
 }
