@@ -141,7 +141,7 @@ const lefts = (per: { n: number; x: number }[][]) => per.map((rows) => rows.filt
 // Measured 2026-11-09 on main, both modes alike: page 1 stands at Chromium's x and every continuation does not (the nested tables 107.72 px against 99.30, the plain one 290.50 against 185.00). The cause is the widths a continuation is pinned at: `tracksOf` reads them off the page's own feed, whose spent rows are hollow and `display: none`, so an automatic-layout table is sized over the interval's rows alone, where Chromium sizes its columns once over every row. The fix is the whole table's widths on every fragment, which SPEC Article VI 7 forbids as written (*a fragment is written its page's tracks as literals, never across pages*).
 for (const [shape, html] of Object.entries(LEFTS)) {
   for (const composed of [false, true]) {
-    test(`${shape}${composed ? ', composed,' : ''} continues at Chromium's left edge`, { todo: 'the columns of a table count every row on every page: ruled 2026-11-16, not built' }, async () => {
+    test(`${shape}${composed ? ', composed,' : ''} continues at Chromium's left edge`, async () => {
       const theirs = await chromiumPrint(head + html);
       const ours = await ciceroPages(`left-${shape.length}-${composed}`, head + ciceroEngine.headHtml('/') + html, composed);
       if (process.env.SWEEP) console.log(`SWEEP\t${shape} ${composed}\tchromium ${rowsOf(theirs).join(' ')} ${lefts(theirs).join(' ')}\tcicero ${rowsOf(ours.per).join(' ')} ${lefts(ours.per).join(' ')}`);
@@ -163,7 +163,7 @@ const COLUMNS: Record<string, string> = {
 // Measured 2026-11-16 on 0.1.15: the first shape is cut in 5 pages where Chromium prints 6, since a continuation's feed sizes the columns without the first row, and its second column is wider than Chromium's; Chromium prints the second shape in 6, its second column at one place on the landscape page and another, the same, on every portrait page. The body's margin is zeroed because Chromium's print keeps the default 8 px inside the page area and the engine's pages do not, which is another finding and would move page 1 by 6.72 px.
 for (const [shape, html] of Object.entries(COLUMNS)) {
   for (const composed of [false, true]) {
-    test(`${shape}${composed ? ', composed,' : ''} keeps on every page the columns Chromium's print keeps`, { todo: 'the columns of a table count every row on every page: ruled 2026-11-16, not built' }, async () => {
+    test(`${shape}${composed ? ', composed,' : ''} keeps on every page the columns Chromium's print keeps`, async () => {
       const theirs = await chromiumPrint(head + html);
       const ours = await ciceroPages(`columns-${shape.length}-${composed}`, head + ciceroEngine.headHtml('/') + html, composed);
       if (process.env.SWEEP) console.log(`SWEEP\t${shape} ${composed}\tchromium ${rowsOf(theirs).join(' ')} ${lefts(theirs).join(' ')}\tcicero ${rowsOf(ours.per).join(' ')} ${lefts(ours.per).join(' ')}`);

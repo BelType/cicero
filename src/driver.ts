@@ -22,7 +22,7 @@ import { composeDocument, applyRecordsUnder } from './compose-dom.ts';
 import { CompositionCache } from './composition-key.ts';
 import { readGeometryTable, effectivePageName, pageRulesOf, styleSheetsOf, registerGcpmProperties, sheetsUseHas, sheetReachOf, sheetsCountInPseudos } from './capture.ts';
 import { snapshotOfStyle } from './forcing-memo.ts';
-import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, truncateFrom } from './fragments.ts';
+import { cloneFlowPiece, declineRepeats, mayRepeat, mutateToContinuation, noteCellFrame, pinTracks, truncateFrom } from './fragments.ts';
 import { cutAfter, divides, elAtIn, flattenResume, indexBlocks, inFlowIndex, inRemainders, normalizePath, pathOf, placeAt, remaindersOf } from './positions.ts';
 import { documentOpsOf, withRunning, counterStateAt, pageNumberAt, type PageCounterOps, withoutPageCounters, stringAssignmentsOf, runningAssignmentsOf, namedStringsForPage } from './document-state.ts';
 import { RUNNING_PROP } from './gcpm-encoding.ts';
@@ -37,6 +37,7 @@ import type { ForcingMemo, Keep } from './forcing-memo.ts';
 import type { Entry } from './ledger.ts';
 import type { Box } from './gauge.ts';
 import type { PagePublish, MeasureContext } from './measure.ts';
+import type { Track } from './fragments.ts';
 import type { ResumeNode } from './positions.ts';
 import type { Verdict, RowItem } from './stonehand.ts';
 import type { MeasureReport, Tracks } from './gauge.ts';
@@ -986,6 +987,43 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
   const closesOf = ( c: ReturnType<typeof conditionsAt>) => ({ name: c.name, pageNumber: c.pageNumber, parity: c.parity, blank: c.blank, counters: c.counters ?? {}, pageW: c.pageW, pageH: c.pageH, margins: c.margins, contentW: c.contentW, contentH: c.contentH, pageStyle: c.pageStyle ?? null });
 
   /**
+   * The columns of every table in a block, laid out whole at the page's content width (*the columns of a table count every row on every page*, 2026-11-16): one layout of the whole block per content width, kept for the run.
+   *
+   * @remarks No feed holds a table whole: its spent rows and the rows past its bound are put away, and a row put away sizes nothing. So the block is cloned deep and whole, with no interval and no composition, laid out in the page's own measure context and read by the same `tracksOf` a feed is read by. The widths are the browser's, over every row, at this width; a page of another width asks again.
+   */
+  const wholeColumns = new Map<string, Track[]>();
+  const columnsOf = (b: number) => {
+    const key = `${b}:${ctxWidth}`;
+    let got = wholeColumns.get(key);
+    if (!got) {
+      got = [];
+      const into: Map<Element,Element> = new Map<any, any>();
+      const { clone } = cloneFlowPiece(blocks[b], { hollow: false, into });
+      const whole = takeReport((ctx as MeasureContext).measure([clone], laid.facts?.[account.length] ?? null), { contentHeight: Infinity });
+      for (const [el, c] of into) {
+        const box = whole.boxOf(c);
+        const read = box ? whole.tracksOf(box) : null;
+        if (read?.kind === 'table') got.push({ path: pathOf(el, blocks[b], b), ...read });
+        // A cell's padding and borders, read here because here every cell is laid out; the fragment writer needs them to write a width in the cell's own sizing.
+        const cs = win.getComputedStyle(c);
+        if (cs.display === 'table-cell' && cs.boxSizing === 'content-box') noteCellFrame(el, c.getBoundingClientRect().width - parseFloat(cs.width));
+      }
+      wholeColumns.set(key, got);
+    }
+    return got;
+  };
+  /** Does block `b` hold a table, by computed display, itself included? Asked of the source once. */
+  const tabled = new Map<number, boolean>();
+  const holdsTable = (b: number) => {
+    if (!tabled.has(b)) tabled.set(b, [blocks[b], ...blocks[b].querySelectorAll('*')].some((el) => /^(inline-)?table$/.test(win.getComputedStyle(el).display)));
+    return tabled.get(b) as boolean;
+  };
+  /** Every table the feed's clone of block `b` shows is written the whole table's columns before the feed is laid out, divided or not: which table the page will divide is not known until it is, and a table the Compositor's hints stand in would size its columns on the hinted lines. */
+  const pinTables = (b: number, cloneOfSource: Map<Element,Element>) => {
+    if (holdsTable(b)) pinTracks(blocks[b], cloneOfSource, columnsOf(b));
+  };
+
+  /**
    * The feed, cloned to its place and hollow outside its interval (*the clone is hollow outside the interval*, 2026-09-27).
    *
    * `place` is where the feed is cut — the grab's forced event or the Cast-off's place, whichever the pour chose — or null for the whole remainder. The blocks are cloned from the cursor's through the place's and no further: the blocks after it were sliced away before any layout the Stonehand ever read. A block's clone is built by `cloneFlowPiece`, deep inside the interval and hollow outside it, so the cursor's block pays for the page and not for the block; then, in this order, its fixed boxes leave, its tail is cut at the place, its hints are applied to what is left, and the start cut consumes the cursor's leaf — *hints first, slicing after* (*cut-invariance*, C7) for the leaf the page resumes in, and nothing hinted that the page does not show.
@@ -1004,6 +1042,7 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
       const { clone } = cloneFlowPiece(source, { start: c.cut, items: itemsIn(c.cut.path[0]), hollow, into: cloneOfSource, composition });
       // The remainder rides beside the address (*a resume point is a path*, I2), and it is what makes the continuation live rather than merely present: a §2.1 box that declares its own block size continues at the extent it has left, not at its declared one. Without it a 96mm rail that had shown 60mm asked for 96mm again on every page it reached and the flow beside it could never close a page (measured, `cases/21-parallel-flows`).
       const node = mutateToContinuation(clone, { cut: c.cut, remainderPx: c.remainingPx ?? null, source, cloneOf: cloneOfSource, items: itemsIn(c.cut.path[0]), hollow });
+      pinTables(c.cut.path[0], cloneOfSource);
       items.push({ clone: node, source, blockIndex: c.cut.path[0], cut: c.cut, carried: true });
     }
     const first = cursor.cut.path[0];
@@ -1020,6 +1059,8 @@ async function paginateOnce(doc: Document, { composed = false, compositionCache 
       // The return value matters: a painted shell of the top-level block itself becomes the slice wrapper, and the feed must carry that, not the box it wraps.
       // `forced` is the page's own fact (*the margin after a forced break is preserved*, 2026-09-29): §5.2 keeps the margin after a forced break at any depth, and the presentation hands the same flag from the account's entry, so the two build this continuation alike.
       const node = divides(cut) ? mutateToContinuation(clone, { cut, source, cloneOf: cloneOfSource, items: itemsIn(b), hollow, forced: !!cursor.forced }) : clone;
+      // The whole table's columns, written on the feed's own clone before it is laid out, so the page is decided under the widths its fragment is written (*the columns of a table count every row on every page*, 2026-11-16).
+      pinTables(b, cloneOfSource);
       items.push({ clone: node, source, blockIndex: b, cut, ...(ends ? { ends: true } : {}) });
     }
     return { items, cloneOfSource };
