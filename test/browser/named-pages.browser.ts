@@ -90,11 +90,11 @@ test('a name on a float does not apply (page-name-float-001, -002)', async () =>
 });
 
 test('a name on an inline-block does not apply (page-name-inline-block-003)', async () => {
-  // One level down since 2026-11-14: an inline-level box directly in the body is refused by name (`scope.browser.ts`).
+  // One level down since 2026-11-14, when an inline-level box directly in the body was refused by name; an inline-block there is taken again since 2026-11-16 (`body-image.browser.ts`), and the case stays where it is.
   assert.deepEqual(await pagesOf('inline-block-3', '<div><div style="page:a;display:inline-block">a</div><div style="page:b;display:inline-block">b</div></div>'), ['a b']);
 });
 
-test('an inline box standing beside a block is in an anonymous block named by their container, so the block after it switches (page-name-canvas-001, with words, one level down since an inline-level box directly in the body is refused, 2026-11-14)', async () => {
+test('an inline box standing beside a block is in an anonymous block named by their container, so the block after it switches (page-name-canvas-001, with words, one level down since an inline-level box holding words directly in the body is refused, 2026-11-14)', async () => {
   assert.deepEqual(await pagesOf('inline-run', '<div style="page:a"><span style="page:b">x</span><div style="page:b">b</div></div>'), ['x', 'b']);
 });
 
