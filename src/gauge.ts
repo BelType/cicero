@@ -16,7 +16,7 @@
  */
 
 import { BREAK, selectorOf } from './data-beltype.ts';
-import { blockChildrenOf, inDisplayOrder, isAtom, isEngineText, isInlineBox, isLineBreak, mayBeAutoHyphenated, rangeOf, READS_ITS_CHILDREN, rowsAmong, SIDE_BY_SIDE, wordRuns } from './word-space.ts';
+import { blockChildrenOf, holdsAtomsAlone, inDisplayOrder, isAtom, isEngineText, isInlineBox, isLineBreak, mayBeAutoHyphenated, rangeOf, READS_ITS_CHILDREN, rowsAmong, SIDE_BY_SIDE, wordRuns } from './word-space.ts';
 
 /** The Compositor's own `<br>`, found by the browser and never by splitting the attribute here (the walkers below run per box). */
 const BREAK_SELECTOR = `br${selectorOf(BREAK)}`;
@@ -53,6 +53,8 @@ export type Box = {
   blockChildren: Box[];
   /** An anonymous block box (CSS 2.1 §9.2.1.1): no element of its own, no decoration, and every break property `auto`. */
   anonymous?: boolean;
+  /** The first box of a run of atoms standing in the measured flow itself, read as the run's one unit: the run's lines are its `rect`, and it is a monolith (*an atom in the body is a line of the body*, ruled 2026-11-16). */
+  line?: boolean;
 };
 
 /** One line box, recovered arithmetically from the rects clustered onto it and the line-heights they are set on (`computeLines`). */
@@ -154,7 +156,35 @@ export function takeReport(container: Element, { contentHeight }: { contentHeigh
    */
   // `blockChildrenOf` walks the element tree, which still holds what is not displayed; the procession is of boxes, so an element with none drops out here.
   for (const box of boxes) if (!box.inline) box.blockChildren = (blockChildrenOf(box.el).map(( el: Element) => byEl.get(el)).filter(Boolean) as Box[]);
-  const flowProcession = (blockChildrenOf(container).map(( el: Element) => byEl.get(el)).filter(Boolean) as Box[]);
+
+  /**
+   * The runs of atoms standing in the measured flow itself (*an atom in the body is a line of the body*, ruled 2026-11-16). CSS 2.1 §9.2.1.1 puts a run of inline-level boxes beside block siblings in an anonymous block box, and a run holding atoms and no word (`holdsAtomsAlone`, line breaks among them) has no break point any reader could address: it is one unit of the flow, moved whole, as css-break-3 §4.1 moves a monolith. The run's first box stands for it: it enters the procession, it is a monolith (`stonehand.ts`' walk reads `line`), and its `rect` is the run's lines, so a cut before it is the bare path to its element and a cut after it is the next block's. The others stay inline and are not walked, and every box of the run is on the page the first is on. Unread, every box of the run was inline and in no procession, so the walk stepped over it: where a page ended at it, the cut fell before it and the next page began after it, and it was drawn on no page (measured 2026-11-14).
+   *
+   * @remarks The lines' extent is read off the blocks beside the run, since a line holding no text of the flow's own shows the Gauge no strut (`lineBoxOf`): from the margin edge of the block before it, or its own top, to the margin edge of the block after it. A run that ends the measured flow ends at the flow's bottom, at most one line-height below its lowest box. The margin edge is the block's own margin, so a block whose top margin collapses with a larger one of its first child's makes the run read taller than its lines, and it moves a page early, never late.
+   */
+  {
+    const kids = [...container.children].map((el) => byEl.get(el)).filter(Boolean) as Box[];
+    const inFlowBlock = (b: Box | undefined) => !!b && !b.inline && !b.line && !/^(absolute|fixed)$/.test(win.getComputedStyle(b.el).position) && win.getComputedStyle(b.el).float === 'none';
+    const px = (v: string) => parseFloat(v) || 0;
+    for (let i = 0; i < kids.length; i++) {
+      if (!kids[i].inline) continue;
+      let j = i;
+      while (j < kids.length && kids[j].inline) j++;
+      const run = kids.slice(i, j);
+      const before = kids[i - 1], after = kids[j];
+      i = j - 1;
+      if (!run.every((b) => isLineBreak(b.el) || holdsAtomsAlone(b.el)) || !run.some((b) => holdsAtomsAlone(b.el))) continue;
+      const top = Math.min(...run.map((b) => b.rect.top), inFlowBlock(before) ? before.rect.bottom + px(win.getComputedStyle(before.el).marginBottom) : Infinity);
+      const lowest = Math.max(...run.map((b) => b.rect.bottom));
+      const lh = parseFloat(win.getComputedStyle(container).lineHeight);
+      const bottom = inFlowBlock(after) ? Math.max(lowest, after.rect.top - px(win.getComputedStyle(after.el).marginTop)) : after ? lowest : Math.max(lowest, Math.min(rel(container.getBoundingClientRect()).bottom, lowest + (Number.isFinite(lh) ? lh : 0)));
+      const first = run[0];
+      first.inline = false;
+      first.line = true;
+      first.rect = { top, bottom, left: first.rect.left, right: Math.max(...run.map((b) => b.rect.right)), width: Math.max(...run.map((b) => b.rect.right)) - first.rect.left, height: bottom - top };
+    }
+  }
+  const flowProcession = (blockChildrenOf(container, (el) => !byEl.get(el)?.line && isInlineBox(el)).map(( el: Element) => byEl.get(el)).filter(Boolean) as Box[]);
 
   /** A table's procession is in display order (*the-word-space-follows-the-table-display-order*, 2026-11-07; `word-space.js`' `inDisplayOrder`): CSS 2.1 §17.2 lays a header group out before every row and row group and a footer group after them, wherever each is written, and the procession and the box list are the order the Stonehand walks and stops at the edge in. The word space and the paths follow the same order, so a place among a table's groups is addressed as it is laid out. Walked as written, a footer written first stood first and far below the edge, and the walk stopped at it with the page holding the header alone (measured, `packages/essay/cases/110-the-footer-before-the-rows`). */
   let moved = false;

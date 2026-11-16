@@ -394,7 +394,7 @@ async function takeIntake(relaxDpr: boolean) {
   const table = readGeometryTable(document);
   await awaitFonts(document, table.furnitureFaces); // before the rim exists: a face only the margin boxes use is otherwise requested after the cuts, and its `loadingdone` would be heard as a late condition
   const blocks = topLevelBlocks(document);
-  refuseBareContent(window, document.body, blocks); // before anything is adopted: text and an inline-level box directly in the body are refused by name (`src/scope.ts`, ruled 2026-11-14)
+  refuseBareContent(window, document.body, blocks); // before anything is adopted: text, a `display: contents` box and an inline-level box holding words directly in the body are refused by name (`src/scope.ts`, ruled 2026-11-14, narrowed 2026-11-16)
   const fixed = fixedBoxes(document);
   const running = runningBoxes(document);
   const boxes = topLevelBoxes(document); // the document's top-level boxes in its own order, taken before the root exists and before the appending below destroys the order, through the driver's one filter

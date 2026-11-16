@@ -1,5 +1,5 @@
 /**
- * The scope the engine states: a vertical box below the root is refused by name, text and an inline-level box directly in the body are refused by name, multi-column boxes are found, and the words sheet turns `one-column` into one column.
+ * The scope the engine states: a vertical box below the root is refused by name, text and an inline-level box holding words directly in the body are refused by name, multi-column boxes are found, and the words sheet turns `one-column` into one column.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,13 +37,21 @@ test('text directly in the body is refused by its first words; white space and a
   assert.throws(() => refuseBareContent(win(new Map()), root(text('word '.repeat(30))), []), /"word word word word word word word word …"/);
 });
 
-test('an inline-level box directly in the body is refused by its tag; a block, a hidden box and a line break are not', () => {
+test('an inline-level box holding words directly in the body is refused by its tag; a block, a hidden box, a line break and a box holding atoms alone are not', () => {
   const root: any = { childNodes: [] };
-  const p = el('p'), none = el('div'), br = el('br'), svg = el('svg'), box = el('div');
-  const styles = new Map<any, Record<string, string>>([[p, { display: 'block' }], [none, { display: 'none' }], [br, { display: 'inline' }], [svg, { display: 'inline' }], [box, { display: 'inline-block' }]]);
+  const p = el('p'), none = el('div'), br = el('br'), span = el('span'), a = el('a');
+  span.childNodes = [{ nodeType: 3, nodeValue: 'BARE words' }];
+  a.childNodes = [{ nodeType: 3, nodeValue: ' ' }, { nodeType: 1, localName: 'img', tagName: 'IMG', childNodes: [] }, { nodeType: 3, nodeValue: 'a link' }];
+  const styles = new Map<any, Record<string, string>>([[p, { display: 'block' }], [none, { display: 'none' }], [br, { display: 'inline' }], [span, { display: 'inline' }], [a, { display: 'inline' }]]);
   assert.doesNotThrow(() => refuseBareContent(win(styles), root, [p, none, br, el('table')]));
-  assert.throws(() => refuseBareContent(win(styles), root, [p, svg]), /an inline-level box directly in the document's body is outside this engine's intake: <svg> computes display 'inline'.*inside a block element/);
-  assert.throws(() => refuseBareContent(win(styles), root, [box]), /<div> computes display 'inline-block'/);
+  assert.throws(() => refuseBareContent(win(styles), root, [p, span]), /an inline-level box holding words directly in the document's body is outside this engine's intake: <span> computes display 'inline'.*inside a block element/);
+  assert.throws(() => refuseBareContent(win(styles), root, [a]), /<a> computes display 'inline'/);
+  const img = el('img'), picture = el('picture'), linked = el('a');
+  for (const e of [img, picture]) e.nodeType = 1;
+  picture.childNodes = [{ nodeType: 3, nodeValue: '\n ' }, img];
+  linked.childNodes = [picture, { nodeType: 8, nodeValue: 'a comment' }];
+  for (const e of [img, picture, linked]) styles.set(e, { display: 'inline' });
+  assert.doesNotThrow(() => refuseBareContent(win(styles), root, [p, img, picture, linked, br]), 'a box holding atoms alone is taken');
   const contents = el('div');
   styles.set(contents, { display: 'contents' });
   assert.throws(() => refuseBareContent(win(styles), root, [contents]), /a box with display: contents directly in the document's body is outside this engine's intake: <div>.*display: block/);

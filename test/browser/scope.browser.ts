@@ -1,5 +1,5 @@
 /**
- * The scope the engine states: a right-to-left root and a vertical box are refused by name, text and an inline-level box standing directly in the body are refused by name, a multi-column box too tall for a page is laid out as one column and reads every word once and in order, and one that fits keeps its columns. Run by `pnpm run test:browser` after `pnpm run build`; the server repeats `composed-refusals.browser.ts`.
+ * The scope the engine states: a right-to-left root and a vertical box are refused by name, text, a `display: contents` box and an inline-level box holding words standing directly in the body are refused by name while one holding atoms alone is taken, a multi-column box too tall for a page is laid out as one column and reads every word once and in order, and one that fits keeps its columns. Run by `pnpm run test:browser` after `pnpm run build`; the server repeats `composed-refusals.browser.ts`.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -113,10 +113,22 @@ test('bare-body-content: text standing directly in the body is refused by its fi
   await page.context().close();
 });
 
-test('bare-body-content: an inline <svg> standing directly in the body is refused by its tag', async () => {
-  doc('bare-svg', '', '<p>alpha one</p><svg width="60" height="40"><rect width="60" height="40" fill="red"/></svg><p>omega two</p>');
-  const { page } = await open('bare-svg');
-  await assert.rejects(page.evaluate(() => (window as any).__beltypeCicero.run()), /an inline-level box directly in the document's body is outside this engine's intake: <svg> computes display 'inline'.*inside a block element/);
+test('bare-body-content: a <span> and an <a> holding words, standing directly in the body, are refused by their tag', async () => {
+  doc('bare-span', '', '<p>alpha one</p><span>BARE words</span><p>omega two</p>');
+  let { page } = await open('bare-span');
+  await assert.rejects(page.evaluate(() => (window as any).__beltypeCicero.run()), /an inline-level box holding words directly in the document's body is outside this engine's intake: <span> computes display 'inline'.*inside a block element/);
+  await page.context().close();
+  doc('bare-a', '', '<p>alpha one</p><a href="#">a link <img alt="" width="10" height="10"></a><p>omega two</p>');
+  ({ page } = await open('bare-a'));
+  await assert.rejects(page.evaluate(() => (window as any).__beltypeCicero.run()), /<a> computes display 'inline'/);
+  await page.context().close();
+});
+
+test('bare-body-content: an inline <svg>, an <img>, a <picture> and an inline-block standing directly in the body are taken, and every word is shown', async () => {
+  doc('bare-atoms', '', '<p>alpha one</p><svg width="60" height="40"><rect width="60" height="40" fill="red"/></svg><img alt="" width="30" height="20"><picture><img alt="" width="30" height="20"></picture><span style="display:inline-block">inside words</span><p>omega two</p>');
+  const { page } = await open('bare-atoms');
+  await page.evaluate(async () => { const c = (window as any).__beltypeCicero; await c.run(); await c.settled(); });
+  assert.deepEqual(await shownWords(page), ['alpha', 'one', 'inside', 'words', 'omega', 'two']);
   await page.context().close();
 });
 

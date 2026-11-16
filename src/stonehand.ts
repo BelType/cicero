@@ -254,6 +254,7 @@ function walkOf(report: MeasureReport, sourceOf: (cloneEl: Element) => Element|n
     return s;
   };
   const monolithic = ( box: Box) => {
+    if (box.line) return true; // a run of atoms in the measured flow, one unit (`gauge.ts`)
     if (box.anonymous) return false; // a run of lines, never one unit
     const live = sourceOf(box.el) ?? box.el;
     const held = isMonolith(box.el, styleOfBox(box), live);
